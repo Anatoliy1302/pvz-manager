@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'Персонал ПВЗ',
+    subtitle: 'Управление пунктом выдачи заказов',
+  },
+  role: {
+    sectionTitle: 'Выберите роль',
+    sectionSubtitle: 'Для входа в приложение',
+    owner: {
+      title: 'Владелец ПВЗ',
+      description: 'Финансы, сотрудники, расписание и настройки пункта',
+    },
+    admin: {
+      title: 'Администратор',
+      description: 'Управление сменами, заявками и командой на ПВЗ',
+    },
+    employee: {
+      title: 'Сотрудник',
+      description: 'Смены, расписание, статистика и личные выплаты',
+    },
+  },
+  phone: {
+    title: 'Номер телефона',
+    subtitle: 'Введите номер для входа в приложение',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'Код из SMS',
+    subtitle: 'Введите {{length}}-значный код, отправленный на {{phone}}',
+    subtitleStub: 'Введите {{length}}-значный код (заглушка для тестов) на {{phone}}',
+    resendTimer: 'Отправить код повторно ({{seconds}}с)',
+    resend: 'Отправить код повторно',
+    placeholder: 'Код из SMS',
+  },
+  pin: {
+    entryTitle: 'Введите PIN-код',
+    setupTitle: 'Установите PIN-код',
+    entrySubtitle: '4 цифры для входа в приложение',
+    setupSubtitle: '4 цифры для быстрого входа',
+    biometric: 'Биометрия',
+    biometricLogin: 'Войти через {{label}}',
+    orEnterPin: 'или введите PIN',
+    expoGoHint: 'В Expo Go Face ID приложения недоступен. Используйте PIN или соберите standalone-приложение.',
+    expoGoDeviceAuthHint:
+      'В Expo Go Face ID приложения недоступен. Подтвердите через iPhone — в запросе будет «Expo Go».',
+  },
+  pvzSelect: {
+    title: 'Выберите ПВЗ',
+    subtitleOwner: 'Ваши пункты выдачи',
+    subtitleInvite: 'Приглашения от владельца',
+    inviteFrom: 'Приглашение от {{name}}',
+    inviteFromOwner: 'Приглашение от владельца',
+    createNew: 'Создать новый ПВЗ',
+  },
+  createPvz: {
+    title: 'Создайте ПВЗ',
+    subtitle: 'Введите название и адрес вашего пункта выдачи',
+    namePlaceholder: 'Название ПВЗ',
+    addressPlaceholder: 'Адрес ПВЗ',
+    submit: 'Создать ПВЗ',
+  },
+  quickLogin: {
+    title: 'С возвращением!',
+    submit: 'Войти',
+    switchAccount: 'Войти другим номером',
+  },
+  biometric: {
+    enableTitle: 'Включить {{label}}?',
+    enableMessage: 'В следующий раз можно входить без ввода PIN-кода',
+    notNow: 'Не сейчас',
+    enable: 'Включить',
+    confirm: 'Подтвердите {{label}}',
+    loginAs: 'Войти как {{name}}',
+    confirmLogin: 'Подтвердите вход в приложение',
+  },
+  sessionExpired: 'Сессия истекла. Введите код из SMS для входа.',
+  confirmationTitle: 'Подтверждение',
+  devCodeStub: 'Код подтверждения (заглушка)',
+  devCodeMessage: 'Ваш код: {{code}}',
+} as const;

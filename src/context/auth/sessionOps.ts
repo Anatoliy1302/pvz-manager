@@ -1,0 +1,152 @@
+import * as SecureStore from 'expo-secure-store';
+import { User, Pvz, defaultPermissions } from '../../types/user';
+import DataService from '../../services/DataService';
+import {
+  mergeUserPermissions,
+  ensureFullAdmin,
+} from '../../utils/permissionHelpers';
+import { runSyncOnLogin } from '../../services/runSyncOnLogin';
+import notificationService from '../../services/NotificationService';
+import { startSupabaseRealtime } from '../../services/SupabaseRealtimeService';
+import { AuthSetters } from './types';
+import {
+  bindPvzForSessionUser,
+  refreshOwnerPvzList,
+  syncAdminPvzContext,
+} from './pvzContextHelpers';
+import {
+  USERS_STORE,
+  loadUsersFromStorage,
+} from './userMemoryStore';
+
+export async function hydrateSessionUser(sessionUser: User, setters: AuthSetters) {
+  let userToSet = sessionUser;
+
+  if (sessionUser.role === 'employee') {
+    await loadUsersFromStorage();
+    const source = USERS_STORE.find(
+      (u) => u.id === sessionUser.id || u.phone === sessionUser.phone
+    );
+    if (source?.permissions) {
+      userToSet = mergeUserPermissions(sessionUser, source.permissions);
+    }
+  }
+
+  if (userToSet.role === 'admin' && userToSet.permissionLevel !== 'full') {
+    await DataService.updateAdminPermissions(userToSet.id, { permissionLevel: 'full' });
+  }
+  userToSet = ensureFullAdmin(userToSet);
+  setters.setUser(userToSet);
+  await SecureStore.setItemAsync('user', JSON.stringify(userToSet));
+
+  await bindPvzForSessionUser(userToSet, setters);
+  await runSyncOnLogin(userToSet);
+  await startSupabaseRealtime(userToSet);
+  notificationService.setCurrentUserRole(userToSet.role);
+  await notificationService.applyUserPreferences();
+  await notificationService.registerPushTokenForUser(userToSet.id);
+  await notificationService.deliverPendingStaffAlerts(userToSet.id);
+}
+
+export async function loadStoredUser(
+  setters: AuthSetters,
+  signOut: () => Promise<void>
+) {
+  try {
+    const storedUser = await SecureStore.getItemAsync('user');
+    const storedPvz = await SecureStore.getItemAsync('pvz');
+
+    if (!storedUser) return;
+
+    const parsedUser = JSON.parse(storedUser);
+    const currentUser = USERS_STORE.find((u) => u.id === parsedUser.id);
+    if (currentUser && currentUser.status !== 'active') {
+      console.log('❌ Пользователь заблокирован, выходим');
+      await signOut();
+      return;
+    }
+
+    let sessionUser = parsedUser as User;
+    if (sessionUser.role === 'employee') {
+      const source = currentUser || USERS_STORE.find((u) => u.id === sessionUser.id);
+      if (source?.permissions) {
+        sessionUser = mergeUserPermissions(sessionUser, source.permissions);
+        await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
+      } else if (!sessionUser.permissions) {
+        sessionUser = mergeUserPermissions(sessionUser, defaultPermissions);
+        await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
+      }
+    }
+
+    if (sessionUser.role === 'admin' && sessionUser.permissionLevel !== 'full') {
+      await DataService.updateAdminPermissions(sessionUser.id, { permissionLevel: 'full' });
+      sessionUser = { ...sessionUser, permissionLevel: 'full' };
+    }
+    sessionUser = ensureFullAdmin(sessionUser);
+    setters.setUser(sessionUser);
+    await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
+
+    if (sessionUser.role === 'owner') {
+      const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
+      setters.setUserPvzs(ownerPvzs);
+      if (storedPvz) {
+        setters.setPvz(JSON.parse(storedPvz));
+      } else if (ownerPvzs.length > 0) {
+        setters.setPvz(ownerPvzs[0]);
+      }
+    } else if (sessionUser.role === 'admin') {
+      await syncAdminPvzContext(sessionUser, setters);
+    } else if (sessionUser.pvzId) {
+      await bindPvzForSessionUser(sessionUser, setters);
+    }
+
+    notificationService.setCurrentUserRole(sessionUser.role);
+    await notificationService.applyUserPreferences();
+    await notificationService.registerPushTokenForUser(sessionUser.id);
+    await notificationService.deliverPendingStaffAlerts(sessionUser.id);
+  } catch (error) {
+    console.error('Ошибка загрузки пользователя:', error);
+  } finally {
+    setters.setIsLoading(false);
+  }
+}
+
+export async function refreshUserData(
+  currentPvz: Pvz | null,
+  setters: Pick<AuthSetters, 'setUser' | 'setPvz' | 'setUserPvzs'>
+) {
+  const storedUser = await SecureStore.getItemAsync('user');
+  if (!storedUser) return;
+
+  let currentUser = JSON.parse(storedUser) as User;
+
+  if (currentUser.role === 'employee') {
+    await loadUsersFromStorage();
+    const source = USERS_STORE.find((u) => u.id === currentUser.id);
+    if (source?.permissions) {
+      currentUser = mergeUserPermissions(currentUser, source.permissions);
+      await SecureStore.setItemAsync('user', JSON.stringify(currentUser));
+    }
+  }
+
+  setters.setUser(currentUser);
+
+  if (currentUser.role === 'owner') {
+    await refreshOwnerPvzList(currentUser.id, currentPvz, setters);
+  } else if (currentUser.role === 'admin') {
+    await syncAdminPvzContext(currentUser, setters);
+  } else if (currentUser.pvzId) {
+    const userPvz = await DataService.getPvzById(currentUser.pvzId);
+    if (userPvz) {
+      setters.setPvz(userPvz);
+      setters.setUserPvzs([userPvz]);
+      await SecureStore.setItemAsync('pvz', JSON.stringify(userPvz));
+    } else {
+      const pvzs = await DataService.getPvzs();
+      if (pvzs.length > 0) {
+        setters.setPvz(pvzs[0]);
+        setters.setUserPvzs([pvzs[0]]);
+      }
+    }
+  }
+}

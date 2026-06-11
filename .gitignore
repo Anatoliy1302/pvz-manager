@@ -1,0 +1,14 @@
+.env
+node_modules/
+.DS_Store
+.expo/
+dist/
+
+# Android
+android/app/debug.keystore
+*.keystore
+android/build/
+android/.gradle/
+
+# Supabase local metadata
+supabase/.temp/

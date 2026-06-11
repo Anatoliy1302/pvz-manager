@@ -1,0 +1,80 @@
+export default {
+  privacy: {
+    title: 'Privacy policy',
+    updated: 'Updated: {{date}}',
+    emailSubject: 'PVZ Staff — personal data',
+    sections: {
+      general: {
+        title: '1. General provisions',
+        p1: 'This Privacy Policy describes how personal data of users of the mobile app «{{appName}}» (the App) is processed.',
+        p2: 'Personal data operator: {{operator}}.',
+        p3: 'By using the App, you agree to this Policy. If you do not agree, please do not use the App.',
+      },
+      data: {
+        title: '2. What data we process',
+        intro: 'The App may process the following categories of data:',
+        i1: '• identification data: name, phone number, role (owner, administrator, employee);',
+        i2: '• work data: shifts, schedule, hours, accruals, payouts, fines and bonuses, shift requests;',
+        i3: '• communication data: messages in the PVZ internal chat;',
+        i4: '• technical data: device push token for notifications, session data when signing in via cloud service;',
+        i5: '• at your choice: profile photo, biometric authentication data (Face ID / fingerprint) — on device only for quick sign-in;',
+        i6: '• when using geolocation features — coordinates within work shifts (if enabled by the PVZ owner).',
+      },
+      purposes: {
+        title: '3. Processing purposes',
+        intro: 'Data is used to:',
+        i1: '• register and sign in to the App;',
+        i2: '• organize shifts and staff schedules at the PVZ;',
+        i3: '• calculate worked time and accruals;',
+        i4: '• exchange messages between employees;',
+        i5: '• send notifications about shifts, requests, and messages;',
+        i6: '• ensure security and stable operation of the service.',
+      },
+      storage: {
+        title: '4. Where data is stored',
+        intro: 'Data may be stored:',
+        i1: '• locally on your device in secure storage;',
+        i2: '• in Supabase cloud infrastructure (when cloud mode is enabled and sign-in is by phone);',
+        i3: '• on Expo push notification servers — device token only for delivery.',
+        i4: 'The PVZ owner (employer) has access to employees\' work data within using the App for staff management.',
+      },
+      sharing: {
+        title: '5. Third-party sharing',
+        p1: 'We do not sell or share personal data with advertising networks.',
+        intro: 'Sharing is only possible:',
+        i1: '• with technical partners providing hosting and notification delivery (to the extent necessary for the service);',
+        i2: '• as required by applicable law.',
+      },
+      retention: {
+        title: '6. Retention period',
+        p1: 'Data is kept while your account is active and the App is in use, and for periods required by law and record-keeping where applicable.',
+        p2: 'After account deletion or upon request, data is deleted or anonymized within a reasonable time unless otherwise required by law.',
+      },
+      rights: {
+        title: '7. Your rights',
+        intro: 'Under applicable personal data law you may:',
+        i1: '• obtain information about processed data;',
+        i2: '• correct data in your profile;',
+        i3: '• withdraw consent for push notifications and biometrics via device and App settings;',
+        i4: '• send a data deletion request to the operator\'s contact email.',
+      },
+      security: {
+        title: '8. Security',
+        p1: 'We use organizational and technical safeguards: role separation, secure data channels (HTTPS), sensitive data in secure device storage.',
+        p2: 'No method of transmission or storage is absolutely secure, but we strive to protect information from unauthorized access.',
+      },
+      children: {
+        title: '9. Children',
+        p1: 'The App is not intended for persons under 18. We do not knowingly collect data from minors.',
+      },
+      changes: {
+        title: '10. Policy changes',
+        p1: 'We may update this Policy. The current version is always available in the App. Continued use after changes means acceptance of the updated version.',
+      },
+      contacts: {
+        title: '11. Contacts',
+        p1: 'For personal data questions, contact the operator {{operator}}:',
+      },
+    },
+  },
+} as const;

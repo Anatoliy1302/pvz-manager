@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "Персонал ПВЗ",
+    "slug": "pvz-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#6C5CE7",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.pvzmanager",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Face ID используется для быстрого и безопасного входа в приложение"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6C5CE7"
+      },
+      "package": "com.yourcompany.pvzmanager",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#6C5CE7",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#1A1A2E",
+            "image": "./assets/splash-icon.png"
+          },
+          "android": {
+            "backgroundColor": "#6C5CE7",
+            "image": "./assets/splash-icon.png",
+            "imageWidth": 200
+          },
+          "ios": {
+            "backgroundColor": "#6C5CE7",
+            "image": "./assets/splash-icon.png",
+            "imageWidth": 200
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#6C5CE7"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Разрешите использование Face ID для быстрого входа в приложение"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Приложению нужен доступ к фото для аватара профиля",
+          "cameraPermission": "Приложению нужен доступ к камере для фото профиля"
+        }
+      ],
+      "expo-localization"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0e4704da-025d-458a-8136-4322ff3538b6"
+      }
+    },
+    "owner": "anatoliy_1302"
+  }
+}

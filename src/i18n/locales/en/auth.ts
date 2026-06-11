@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'PVZ Staff',
+    subtitle: 'Pickup point staff management',
+  },
+  role: {
+    sectionTitle: 'Select your role',
+    sectionSubtitle: 'To sign in to the app',
+    owner: {
+      title: 'PVZ Owner',
+      description: 'Finances, employees, schedule, and pickup point settings',
+    },
+    admin: {
+      title: 'Administrator',
+      description: 'Manage shifts, requests, and the team at the PVZ',
+    },
+    employee: {
+      title: 'Employee',
+      description: 'Shifts, schedule, statistics, and personal payouts',
+    },
+  },
+  phone: {
+    title: 'Phone number',
+    subtitle: 'Enter your number to sign in',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'SMS code',
+    subtitle: 'Enter the {{length}}-digit code sent to {{phone}}',
+    subtitleStub: 'Enter the {{length}}-digit code (test stub) for {{phone}}',
+    resendTimer: 'Resend code ({{seconds}}s)',
+    resend: 'Resend code',
+    placeholder: 'SMS code',
+  },
+  pin: {
+    entryTitle: 'Enter PIN',
+    setupTitle: 'Set up PIN',
+    entrySubtitle: '4 digits to sign in',
+    setupSubtitle: '4 digits for quick sign-in',
+    biometric: 'Biometrics',
+    biometricLogin: 'Sign in with {{label}}',
+    orEnterPin: 'or enter PIN',
+    expoGoHint: 'Face ID is not available in Expo Go. Use PIN or build a standalone app.',
+    expoGoDeviceAuthHint:
+      'App Face ID is not available in Expo Go. Confirm via iPhone — the prompt will show «Expo Go».',
+  },
+  pvzSelect: {
+    title: 'Select PVZ',
+    subtitleOwner: 'Your pickup points',
+    subtitleInvite: 'Invitations from owner',
+    inviteFrom: 'Invitation from {{name}}',
+    inviteFromOwner: 'Invitation from owner',
+    createNew: 'Create new PVZ',
+  },
+  createPvz: {
+    title: 'Create PVZ',
+    subtitle: 'Enter the name and address of your pickup point',
+    namePlaceholder: 'PVZ name',
+    addressPlaceholder: 'PVZ address',
+    submit: 'Create PVZ',
+  },
+  quickLogin: {
+    title: 'Welcome back!',
+    submit: 'Sign in',
+    switchAccount: 'Sign in with another number',
+  },
+  biometric: {
+    enableTitle: 'Enable {{label}}?',
+    enableMessage: 'Next time you can sign in without entering a PIN',
+    notNow: 'Not now',
+    enable: 'Enable',
+    confirm: 'Confirm {{label}}',
+    loginAs: 'Sign in as {{name}}',
+    confirmLogin: 'Confirm sign-in to the app',
+  },
+  sessionExpired: 'Session expired. Enter the SMS code to sign in.',
+  confirmationTitle: 'Confirmation',
+  devCodeStub: 'Verification code (stub)',
+  devCodeMessage: 'Your code: {{code}}',
+} as const;
