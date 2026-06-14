@@ -2,8 +2,17 @@ import StorageService from '../StorageService';
 import { dataEventBus } from './dataEventBus';
 import { getShiftRequestNotifyRecipients } from './shiftRequestDataService';
 import * as shiftDataService from './shiftDataService';
+import { generateSecureId } from '../../utils/generateSecureId';
+import { safeParseJson } from '../../utils/safeJson';
 
 export type SwapRequestStatus = 'pending' | 'approved' | 'rejected';
+
+type ScheduleAssignmentRow = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  [key: string]: unknown;
+};
 
 export interface SwapRequest {
   id: string;
@@ -31,7 +40,7 @@ function eventKey(pvzId: string) {
 
 async function readAll(pvzId: string): Promise<SwapRequest[]> {
   const stored = await StorageService.getItem(storageKey(pvzId));
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<SwapRequest[]>(stored ?? '[]', []);
 }
 
 async function writeAll(pvzId: string, requests: SwapRequest[]): Promise<void> {
@@ -81,7 +90,7 @@ export async function addSwapRequest(
   const requests = await readAll(pvzId);
   const entry: SwapRequest = {
     ...request,
-    id: Date.now().toString(),
+    id: generateSecureId(),
     pvzId,
     status: 'pending',
     createdAt: new Date().toISOString(),
@@ -93,10 +102,10 @@ export async function addSwapRequest(
 
 async function executeShiftSwap(request: SwapRequest, pvzId: string): Promise<void> {
   const assignmentsRaw = await StorageService.getItem(`schedule_assignments_${pvzId}`);
-  let assignments = assignmentsRaw ? JSON.parse(assignmentsRaw) : [];
+  let assignments = safeParseJson<ScheduleAssignmentRow[]>(assignmentsRaw ?? '[]', []);
 
-  const fromShiftIndex = assignments.findIndex((s: { id: string }) => s.id === request.fromShiftId);
-  const toShiftIndex = assignments.findIndex((s: { id: string }) => s.id === request.toShiftId);
+  const fromShiftIndex = assignments.findIndex((s) => s.id === request.fromShiftId);
+  const toShiftIndex = assignments.findIndex((s) => s.id === request.toShiftId);
 
   const allShifts = await shiftDataService.getShifts();
   const fromShift = allShifts.find((s) => s.id === request.fromShiftId);

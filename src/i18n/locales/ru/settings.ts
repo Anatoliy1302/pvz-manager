@@ -9,6 +9,15 @@ export default {
     push: 'Push-уведомления',
     sound: 'Звук уведомлений',
     vibration: 'Вибрация',
+    typesSection: 'Типы уведомлений',
+    types: {
+      shift: 'Смены',
+      schedule: 'Расписание',
+      request: 'Заявки',
+      swap: 'Обмен смен',
+      chat: 'Чат',
+      system: 'Системные',
+    },
   },
   security: {
     section: 'Безопасность',

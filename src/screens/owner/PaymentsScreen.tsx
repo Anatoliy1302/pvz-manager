@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -45,6 +44,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import EmptyState from '../../components/common/EmptyState';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
+import { safeParseJson } from '../../utils/safeJson';
 
 interface EmployeeWithPeriodData {
   id: string;
@@ -67,6 +68,7 @@ export default function PaymentsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { screen, ui, theme } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<EmployeeWithPeriodData[]>([]);
@@ -105,7 +107,7 @@ export default function PaymentsScreen({ navigation }: any) {
 
   const markShiftsAsPaid = async (employeeId: string, amount: number) => {
     const shiftsRaw = await StorageService.getItem('shifts');
-    const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+    const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
     let remainingAmount = amount;
 
     const unpaidShiftIds = allShifts
@@ -203,7 +205,7 @@ export default function PaymentsScreen({ navigation }: any) {
       const pvzEmployees = users.filter((u: any) => u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id);
       
       const paymentsRaw = await StorageService.getItem(`payments_${pvz.id}`);
-      const allPayments: Payment[] = paymentsRaw ? JSON.parse(paymentsRaw) : [];
+      const allPayments = safeParseJson<Payment[]>(paymentsRaw ?? '[]', []);
       const periodPayments = allPayments.filter((p: Payment & { date?: string }) => {
         const paidDate = (p.paidAt || p.date || '').split('T')[0];
         return paidDate >= filterPeriod.start && paidDate <= filterPeriod.end;
@@ -211,7 +213,7 @@ export default function PaymentsScreen({ navigation }: any) {
       setPayments(periodPayments);
 
       const shiftsRaw = await StorageService.getItem('shifts');
-      const allShifts = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
 
       const employeesWithData: EmployeeWithPeriodData[] = [];
       let totalEarned = 0;
@@ -299,14 +301,11 @@ export default function PaymentsScreen({ navigation }: any) {
     if (!selectedEmployee || !pvz?.id) return;
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.invalidAmount'));
+      showError(t('alerts.validation.invalidAmount'));
       return;
     }
     if (amount > selectedEmployee.balance) {
-      Alert.alert(
-        t('common.error.title'),
-        t('alerts.validation.paymentExceeds', { amount, balance: selectedEmployee.balance })
-      );
+      showError(t('alerts.validation.paymentExceeds', { amount, balance: selectedEmployee.balance }));
       return;
     }
     try {
@@ -332,9 +331,9 @@ export default function PaymentsScreen({ navigation }: any) {
       DataService.emitChange('shifts');
       setShowPaymentModal(false);
       await loadData();
-      Alert.alert(t('common.success.title'), t('alerts.success.paymentDone', { amount, name: selectedEmployee.name }));
+      showSuccess(t('alerts.success.paymentDone', { amount, name: selectedEmployee.name }));
     } catch (error) {
-      Alert.alert(t('common.error.title'), t('alerts.network.paymentFailed'));
+      showError(t('alerts.network.paymentFailed'));
     }
   };
 

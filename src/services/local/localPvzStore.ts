@@ -1,9 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import { Pvz } from '../../types/user';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function readLocalPvzs(): Promise<Pvz[]> {
   const stored = await SecureStore.getItemAsync('pvz_list');
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<Pvz[]>(stored ?? '[]', []);
 }
 
 export async function writeLocalPvzs(pvzs: Pvz[]): Promise<void> {

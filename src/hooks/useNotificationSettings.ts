@@ -2,15 +2,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import {
+  DEFAULT_NOTIFICATION_SETTINGS,
   parseNotificationSettings,
   serializeNotificationSettings,
+  type NotificationTypeSettings,
 } from '../utils/notificationSettingsHelpers';
+import { safeParseJson } from '../utils/safeJson';
 import notificationService from '../services/NotificationService';
 
 interface NotificationSettings {
   pushEnabled: boolean;
   soundEnabled: boolean;
   vibrationEnabled: boolean;
+  types: NotificationTypeSettings;
 }
 
 interface UseNotificationSettingsReturn extends NotificationSettings {
@@ -18,34 +22,31 @@ interface UseNotificationSettingsReturn extends NotificationSettings {
   setPushEnabled: (value: boolean) => Promise<void>;
   setSoundEnabled: (value: boolean) => Promise<void>;
   setVibrationEnabled: (value: boolean) => Promise<void>;
+  setTypeEnabled: (type: keyof NotificationTypeSettings, value: boolean) => Promise<void>;
   saveAllSettings: (settings: Partial<NotificationSettings>) => Promise<void>;
 }
 
-/**
- * Хук для управления настройками уведомлений
- * 
- * @param settingsKey - ключ для хранения настроек в SecureStore
- * @returns объект с настройками и методами их обновления
- * 
- * @example
- * const { pushEnabled, soundEnabled, setPushEnabled } = useNotificationSettings('admin_notification_settings');
- */
 export const useNotificationSettings = (settingsKey: string): UseNotificationSettingsReturn => {
   const [pushEnabled, setPushEnabledState] = useState(true);
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [vibrationEnabled, setVibrationEnabledState] = useState(true);
+  const [types, setTypesState] = useState<NotificationTypeSettings>(
+    DEFAULT_NOTIFICATION_SETTINGS.types
+  );
   const [loading, setLoading] = useState(true);
 
-  // Загрузка настроек
   useEffect(() => {
     const loadSettings = async () => {
       try {
         const stored = await SecureStore.getItemAsync(settingsKey);
         if (stored) {
-          const parsed = parseNotificationSettings(JSON.parse(stored));
+          const parsed = parseNotificationSettings(
+            safeParseJson<Record<string, unknown>>(stored, {})
+          );
           setPushEnabledState(parsed.pushEnabled);
           setSoundEnabledState(parsed.soundEnabled);
           setVibrationEnabledState(parsed.vibrationEnabled);
+          setTypesState(parsed.types);
         }
       } catch (error) {
         console.error('Ошибка загрузки настроек уведомлений:', error);
@@ -57,55 +58,86 @@ export const useNotificationSettings = (settingsKey: string): UseNotificationSet
     loadSettings();
   }, [settingsKey]);
 
-  // Сохранение всех настроек
-  const saveAllSettings = useCallback(async (settings: Partial<NotificationSettings>) => {
-    try {
-      const newSettings = {
+  const persistSettings = useCallback(
+    async (next: NotificationSettings) => {
+      try {
+        await SecureStore.setItemAsync(settingsKey, serializeNotificationSettings(next));
+        await notificationService.applyUserPreferences();
+      } catch (error) {
+        console.error('Ошибка сохранения настроек:', error);
+      }
+    },
+    [settingsKey]
+  );
+
+  const saveAllSettings = useCallback(
+    async (settings: Partial<NotificationSettings>) => {
+      const next: NotificationSettings = {
         pushEnabled,
         soundEnabled,
         vibrationEnabled,
+        types,
         ...settings,
       };
-      await SecureStore.setItemAsync(settingsKey, serializeNotificationSettings(newSettings));
-      await notificationService.applyUserPreferences();
-    } catch (error) {
-      console.error('Ошибка сохранения настроек:', error);
-    }
-  }, [settingsKey, pushEnabled, soundEnabled, vibrationEnabled]);
 
-  // Установка push-уведомлений
-  const setPushEnabled = useCallback(async (value: boolean) => {
-    setPushEnabledState(value);
-    await saveAllSettings({ pushEnabled: value });
-    
-    // Если выключаем push, выключаем также звук и вибрацию
-    if (!value) {
-      setSoundEnabledState(false);
-      setVibrationEnabledState(false);
-      await saveAllSettings({ pushEnabled: value, soundEnabled: false, vibrationEnabled: false });
-    }
-  }, [saveAllSettings]);
+      setPushEnabledState(next.pushEnabled);
+      setSoundEnabledState(next.soundEnabled);
+      setVibrationEnabledState(next.vibrationEnabled);
+      setTypesState(next.types);
+      await persistSettings(next);
+    },
+    [pushEnabled, soundEnabled, vibrationEnabled, types, persistSettings]
+  );
 
-  // Установка звука
-  const setSoundEnabled = useCallback(async (value: boolean) => {
-    setSoundEnabledState(value);
-    await saveAllSettings({ soundEnabled: value });
-  }, [saveAllSettings]);
+  const setPushEnabled = useCallback(
+    async (value: boolean) => {
+      const next: NotificationSettings = {
+        pushEnabled: value,
+        soundEnabled: value ? soundEnabled : false,
+        vibrationEnabled: value ? vibrationEnabled : false,
+        types,
+      };
+      await saveAllSettings(next);
+    },
+    [soundEnabled, vibrationEnabled, types, saveAllSettings]
+  );
 
-  // Установка вибрации
-  const setVibrationEnabled = useCallback(async (value: boolean) => {
-    setVibrationEnabledState(value);
-    await saveAllSettings({ vibrationEnabled: value });
-  }, [saveAllSettings]);
+  const setSoundEnabled = useCallback(
+    async (value: boolean) => {
+      await saveAllSettings({ soundEnabled: value });
+    },
+    [saveAllSettings]
+  );
+
+  const setVibrationEnabled = useCallback(
+    async (value: boolean) => {
+      await saveAllSettings({ vibrationEnabled: value });
+    },
+    [saveAllSettings]
+  );
+
+  const setTypeEnabled = useCallback(
+    async (type: keyof NotificationTypeSettings, value: boolean) => {
+      await saveAllSettings({
+        types: {
+          ...types,
+          [type]: value,
+        },
+      });
+    },
+    [types, saveAllSettings]
+  );
 
   return {
     pushEnabled,
     soundEnabled,
     vibrationEnabled,
+    types,
     loading,
     setPushEnabled,
     setSoundEnabled,
     setVibrationEnabled,
+    setTypeEnabled,
     saveAllSettings,
   };
 };

@@ -1,43 +1,35 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { PinMode } from '../loginTypes';
-import LoginBiometricButton from './LoginBiometricButton';
 import LoginContinueButton from './LoginContinueButton';
 import LoginPinInput from './LoginPinInput';
 import LoginStepHeader from './LoginStepHeader';
 import { useLoginStyles } from '../useLoginStyles';
+import { colors } from '../../../constants/colors';
 
 interface LoginPinStepProps {
   pinMode: PinMode;
   pinCode: string;
   loading: boolean;
+  pinError?: boolean;
   titleStyle?: object;
   subtitleStyle?: object;
-  showBiometric?: boolean;
-  biometricLabel?: string;
-  biometricIsFaceId?: boolean;
-  biometricUsesDeviceAuth?: boolean;
-  autoFocusPin?: boolean;
   onChangePin: (value: string) => void;
   onSubmit: () => void;
-  onBiometricPress?: () => void;
+  onForgotPin?: () => void;
 }
 
 export default function LoginPinStep({
   pinMode,
   pinCode,
   loading,
+  pinError = false,
   titleStyle,
   subtitleStyle,
-  showBiometric = false,
-  biometricLabel,
-  biometricIsFaceId = false,
-  biometricUsesDeviceAuth = false,
-  autoFocusPin,
   onChangePin,
   onSubmit,
-  onBiometricPress,
+  onForgotPin,
 }: LoginPinStepProps) {
   const { t } = useTranslation();
   const { styles: loginStyles } = useLoginStyles();
@@ -54,17 +46,20 @@ export default function LoginPinStep({
         subtitleStyle={subtitleStyle}
       />
 
-      {showBiometric && onBiometricPress && (
-        <LoginBiometricButton
-          label={biometricLabel ?? t('auth.pin.biometric')}
-          isFaceId={biometricIsFaceId}
-          usesDeviceAuth={biometricUsesDeviceAuth}
-          loading={loading}
-          onPress={onBiometricPress}
-        />
-      )}
+      <LoginPinInput
+        pinCode={pinCode}
+        onChangePin={onChangePin}
+        disabled={loading}
+        hasError={pinError}
+      />
 
-      <LoginPinInput pinCode={pinCode} onChangePin={onChangePin} autoFocus={autoFocusPin} />
+      {pinMode === 'entry' && onForgotPin && (
+        <TouchableOpacity onPress={onForgotPin} disabled={loading} style={{ marginBottom: 12 }}>
+          <Text style={{ color: colors.primary, textAlign: 'center', fontSize: 14 }}>
+            {t('auth.pin.forgot')}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <LoginContinueButton
         label={

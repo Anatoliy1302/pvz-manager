@@ -14,6 +14,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
@@ -39,6 +40,7 @@ export default function PVZManagementScreen({ navigation }: any) {
   const { user, pvz: activePvz, switchPvz, refreshUserData } = useAuth();
   const { ui, screen } = useThemedScreen();
   const styles = createStyles(screen);
+  const { showError, showSuccess } = useScreenToast();
   const [pvzs, setPvzs] = useState<PvzWithCount[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -62,7 +64,7 @@ export default function PVZManagementScreen({ navigation }: any) {
       );
     } catch (error) {
       console.error('Ошибка загрузки ПВЗ:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.loadPvzFailed'));
+      showError(t('alerts.network.loadPvzFailed'));
     }
   };
 
@@ -74,11 +76,7 @@ export default function PVZManagementScreen({ navigation }: any) {
 
   const deletePvz = (id: string, name: string, employeesCount: number = 0) => {
     if (employeesCount > 0) {
-      Alert.alert(
-        t('screens.owner.cannotDeletePvz'),
-        t('alerts.confirm.cannotDeletePvz', { name, count: employeesCount }),
-        [{ text: t('common.actions.confirm') }]
-      );
+      showError(t('alerts.confirm.cannotDeletePvz', { name, count: employeesCount }));
       return;
     }
 
@@ -92,10 +90,10 @@ export default function PVZManagementScreen({ navigation }: any) {
             await DataService.deletePvz(id);
             await refreshUserData();
             await loadPvzs();
-            Alert.alert(t('common.success.done'), t('alerts.success.pvzDeleted'));
+            showSuccess(t('alerts.success.pvzDeleted'));
           } catch (error) {
             console.error('Ошибка удаления:', error);
-            Alert.alert(t('common.error.title'), t('alerts.network.deletePvzFailed'));
+            showError(t('alerts.network.deletePvzFailed'));
           }
         },
       },

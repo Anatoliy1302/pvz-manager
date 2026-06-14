@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "python",
+      "args": [
+        "-m",
+        "supabase_mcp_server",
+        "--project-ref",
+        "wygpcndnlxfzbbuogqrt",
+        "--read-only"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_0bdaba94734db7352ba7a0123aff7edcb7b64eb1"
+      }
+    }
+  }
+}

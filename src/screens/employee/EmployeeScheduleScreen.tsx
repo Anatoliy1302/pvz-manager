@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,10 +24,12 @@ import EmployeeWeekGrid from './schedule/components/EmployeeWeekGrid';
 import EmployeeMonthGrid from './schedule/components/EmployeeMonthGrid';
 import DayDetailSection from './schedule/components/DayDetailSection';
 import SwapRequestModal from './schedule/components/SwapRequestModal';
+import { useScreenToast } from '../../hooks/useScreenToast';
 
 export default function EmployeeScheduleScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz, hasPermission } = useAuth();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [shifts, setShifts] = useState<EmployeeShift[]>([]);
@@ -183,17 +184,17 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
 
   const submitSwapRequest = async () => {
     if (!selectedShift || !swapTargetEmployeeId) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectSwapEmployee'));
+      showError(t('alerts.validation.selectSwapEmployee'));
       return;
     }
     if (!swapTargetShiftId) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectSwapShift'));
+      showError(t('alerts.validation.selectSwapShift'));
       return;
     }
 
     const targetShift = shifts.find((s) => s.id === swapTargetShiftId);
     if (!targetShift) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.colleagueShiftNotFound'));
+      showError(t('alerts.validation.colleagueShiftNotFound'));
       return;
     }
 
@@ -232,9 +233,9 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
 
       setSwapModalVisible(false);
       setSwapReason('');
-      Alert.alert(t('common.success.done'), t('alerts.success.swapSubmitted'));
+      showSuccess(t('alerts.success.swapSubmitted'));
     } catch {
-      Alert.alert(t('common.error.title'), t('alerts.network.submitSwapFailed'));
+      showError(t('alerts.network.submitSwapFailed'));
     }
   };
 

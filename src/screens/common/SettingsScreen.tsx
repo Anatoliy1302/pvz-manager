@@ -11,43 +11,41 @@ import {
 import { useTranslation } from 'react-i18next';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
-import { Bell, Moon, Volume2, Vibrate, ScanFace, Lock, ChevronRight, Languages, Check } from 'lucide-react-native';
+import { Bell, Moon, Volume2, Vibrate, Lock, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useLanguage } from '../../context/LanguageContext';
+import LanguagePicker from '../../components/common/LanguagePicker';
 import { useNotificationSettings } from '../../hooks/useNotificationSettings';
 import { useAuth } from '../../context/AuthContext';
-import { useBiometricSettings } from '../../hooks/useBiometricSettings';
-import { getNotificationSettingsKey } from '../../utils/notificationSettingsHelpers';
-import type { AppLanguage } from '../../i18n/types';
+import {
+  getNotificationSettingsKey,
+  type NotificationTypeSettings,
+} from '../../utils/notificationSettingsHelpers';
 
-const LANGUAGE_OPTIONS: { code: AppLanguage; labelKey: string }[] = [
-  { code: 'ru', labelKey: 'common.language.russian' },
-  { code: 'en', labelKey: 'common.language.english' },
+const TYPE_KEYS: Array<keyof NotificationTypeSettings> = [
+  'shift',
+  'schedule',
+  'request',
+  'swap',
+  'chat',
+  'system',
 ];
 
 export default function SettingsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { colors, theme, toggleTheme } = useTheme();
-  const { language, setLanguage } = useLanguage();
   const { user } = useAuth();
-  const settingsKey = getNotificationSettingsKey(user?.role);
+  const settingsKey = getNotificationSettingsKey(user?.id, user?.role);
   const {
     pushEnabled,
     soundEnabled,
     vibrationEnabled,
+    types,
     loading: notificationsLoading,
     setPushEnabled,
     setSoundEnabled,
     setVibrationEnabled,
+    setTypeEnabled,
   } = useNotificationSettings(settingsKey);
-  const {
-    available: biometricAvailable,
-    enabled: biometricEnabled,
-    label: biometricLabel,
-    usesDeviceAuth: biometricUsesDeviceAuth,
-    toggling: biometricToggling,
-    setBiometricEnabled,
-  } = useBiometricSettings(user?.phone);
 
   const styles = createStyles(colors);
 
@@ -58,27 +56,7 @@ export default function SettingsScreen({ navigation }: any) {
       <ScrollView style={styles.content}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('common.language.section')}</Text>
-          {LANGUAGE_OPTIONS.map((option) => {
-            const selected = language === option.code;
-            return (
-              <TouchableOpacity
-                key={option.code}
-                style={[styles.linkItem, selected && styles.selectedItem]}
-                onPress={() => setLanguage(option.code)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.settingLeft}>
-                  <Languages size={20} color={colors.primary} />
-                  <Text style={styles.settingText}>{t(option.labelKey)}</Text>
-                </View>
-                {selected ? (
-                  <Check size={20} color={colors.primary} />
-                ) : (
-                  <ChevronRight size={18} color={colors.textSecondary} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          <LanguagePicker variant="row" />
         </View>
 
         <View style={styles.section}>
@@ -124,6 +102,19 @@ export default function SettingsScreen({ navigation }: any) {
                   trackColor={{ false: colors.border, true: colors.primary }}
                 />
               </View>
+
+              <Text style={styles.subsectionTitle}>{t('settings.notifications.typesSection')}</Text>
+              {TYPE_KEYS.map((typeKey) => (
+                <View key={typeKey} style={styles.settingItem}>
+                  <Text style={styles.settingText}>{t(`settings.notifications.types.${typeKey}`)}</Text>
+                  <Switch
+                    value={types[typeKey]}
+                    onValueChange={(value) => setTypeEnabled(typeKey, value)}
+                    disabled={!pushEnabled}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                  />
+                </View>
+              ))}
             </>
           )}
         </View>
@@ -141,27 +132,6 @@ export default function SettingsScreen({ navigation }: any) {
             </View>
             <ChevronRight size={18} color={colors.textSecondary} />
           </TouchableOpacity>
-          {biometricAvailable && (
-            <>
-              <View style={styles.settingItem}>
-                <View style={styles.settingLeft}>
-                  <ScanFace size={20} color={colors.primary} />
-                  <Text style={styles.settingText}>
-                    {t('settings.security.biometricLogin', { label: biometricLabel })}
-                  </Text>
-                </View>
-                <Switch
-                  value={biometricEnabled}
-                  onValueChange={setBiometricEnabled}
-                  disabled={biometricToggling}
-                  trackColor={{ false: colors.border, true: colors.primary }}
-                />
-              </View>
-              {biometricUsesDeviceAuth && (
-                <Text style={styles.biometricHint}>{t('settings.security.biometricHint')}</Text>
-              )}
-            </>
-          )}
         </View>
 
         <View style={styles.section}>
@@ -195,6 +165,14 @@ const createStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
       marginBottom: 12,
       marginLeft: 4,
     },
+    subsectionTitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginTop: 8,
+      marginBottom: 8,
+      marginLeft: 4,
+    },
     loadingRow: {
       backgroundColor: colors.card,
       borderRadius: 12,
@@ -224,13 +202,5 @@ const createStyles = (colors: ReturnType<typeof useTheme>['colors']) =>
     selectedItem: {
       borderWidth: 1,
       borderColor: colors.primary,
-    },
-    biometricHint: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      lineHeight: 17,
-      marginTop: -4,
-      marginBottom: 4,
-      paddingHorizontal: 4,
     },
   });

@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import DataService from '../services/DataService';
 import { calculateTotalHours } from './advancedPayrollCalculator';
+import { safeParseJson } from './safeJson';
 
 export const DEFAULT_FULL_SHIFT_RATE = 3000;
 
@@ -41,7 +42,7 @@ export async function getGlobalFullShiftRate(pvzId: string): Promise<number> {
   try {
     const raw = await SecureStore.getItemAsync(`global_salary_settings_${pvzId}`);
     if (raw) {
-      const global = JSON.parse(raw);
+      const global = safeParseJson<{ fullShiftRate?: number }>(raw, {});
       return global.fullShiftRate || DEFAULT_FULL_SHIFT_RATE;
     }
   } catch (error) {
@@ -73,7 +74,7 @@ export async function getEmployeeShiftRates(
   try {
     const individualRaw = await SecureStore.getItemAsync(`salary_settings_${pvzId}`);
     if (individualRaw) {
-      const individual = JSON.parse(individualRaw);
+      const individual = safeParseJson<Record<string, { fullShiftRate?: number }>>(individualRaw, {});
       customFull = individual[employeeId]?.fullShiftRate;
     }
   } catch (error) {

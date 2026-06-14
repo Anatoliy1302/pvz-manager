@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
   Platform,
   KeyboardAvoidingView,
@@ -20,11 +19,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { ChevronLeft, Save, User, Phone, AlertCircle, Building2, ChevronDown, X, Shield, UserCog } from 'lucide-react-native';
-import { UserRole } from '../../types/user';
+import { UserRole, User as StoredUser } from '../../types/user';
+import { safeParseJson } from '../../utils/safeJson';
 import { useAccessiblePvzs } from '../../hooks/useAccessiblePvzs';
 
 const { height } = Dimensions.get('window');
@@ -33,6 +34,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
   const { t } = useTranslation();
   const { refreshUserData, user, pvz } = useAuth();
   const { ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const { employee, pvzId } = route.params || {};
   
   const [name, setName] = useState(employee?.name || '');
@@ -52,12 +54,12 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
     Keyboard.dismiss();
     
     if (!name.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterEmployeeName'));
+      showError(t('alerts.validation.enterEmployeeName'));
       return;
     }
     
     if (!selectedPvzId) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectEmployeePvz'));
+      showError(t('alerts.validation.selectEmployeePvz'));
       return;
     }
     
@@ -65,7 +67,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
     try {
       const stored = await SecureStore.getItemAsync('pvz_users');
       if (stored) {
-        const all = JSON.parse(stored);
+        const all = safeParseJson<StoredUser[]>(stored, []);
         const userIndex = all.findIndex((u: any) => u.id === employee.id);
         
         if (userIndex !== -1) {
@@ -77,15 +79,14 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
           await SecureStore.setItemAsync('pvz_users', JSON.stringify(all));
           await refreshUserData();
           
-          Alert.alert(t('common.success.title'), t('alerts.success.employeeUpdated'), [
-            { text: 'OK', onPress: () => navigation.goBack() }
-          ]);
+          showSuccess(t('alerts.success.employeeUpdated'));
+          navigation.goBack();
         } else {
-          Alert.alert(t('common.error.title'), t('alerts.network.employeeNotFound'));
+          showError(t('alerts.network.employeeNotFound'));
         }
       }
     } catch (error: any) {
-      Alert.alert(t('common.error.title'), error.message || t('alerts.network.updateEmployeeFailed'));
+      showError(error.message || t('alerts.network.updateEmployeeFailed'));
     } finally {
       setLoading(false);
     }

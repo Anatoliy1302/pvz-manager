@@ -3,6 +3,7 @@ import { User, Pvz, EmployeePermissions, defaultPermissions } from '../../types/
 import { readLocalUsers, writeLocalUsers } from '../local/localUserStore';
 import { dataEventBus } from './dataEventBus';
 import { getPvzById, getPvzs } from './pvzDataService';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function getUsers(): Promise<User[]> {
   return readLocalUsers();
@@ -100,8 +101,8 @@ export async function updateEmployeePermissions(
 
     const sessionRaw = await SecureStore.getItemAsync('user');
     if (sessionRaw) {
-      const sessionUser = JSON.parse(sessionRaw) as User;
-      if (sessionUser.id === employeeId) {
+      const sessionUser = safeParseJson<User | null>(sessionRaw, null);
+      if (sessionUser?.id === employeeId) {
         sessionUser.permissions = users[index].permissions;
         await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
       }

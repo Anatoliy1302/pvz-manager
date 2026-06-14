@@ -8,7 +8,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -18,12 +17,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
+import { safeParseJson } from '../../utils/safeJson';
 import { colors } from '../../constants/colors';
 import { Payment, PaymentType } from '../../types/payment';
+import { Shift, User as PvzUser } from '../../types/user';
 import {
   addPayment,
   calculateEmployeeAccruals,
@@ -57,6 +59,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const { employeeId, employeeName: initialEmployeeName } = route.params;
   
   const [refreshing, setRefreshing] = useState(false);
@@ -106,13 +109,13 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
     try {
       // Получаем информацию о сотруднике
       const usersRaw = await SecureStore.getItemAsync('pvz_users');
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
+      const users = safeParseJson<PvzUser[]>(usersRaw ?? '[]', []);
       const emp = users.find((u: any) => u.id === employeeId);
       setEmployee(emp);
       
       // Получаем все смены
       const shiftsRaw = await SecureStore.getItemAsync('shifts');
-      const allShifts = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
       
       // Фильтруем смены по сотруднику и периоду (ВСЕ смены)
       const periodShifts = allShifts.filter((s: any) => 
@@ -146,7 +149,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
       
       // Загружаем выплаты ЗА ПЕРИОД
       const allPaymentsRaw = await SecureStore.getItemAsync(`payments_${pvz.id}`);
-      const allPayments = allPaymentsRaw ? JSON.parse(allPaymentsRaw) : [];
+      const allPayments = safeParseJson<Payment[]>(allPaymentsRaw ?? '[]', []);
       const periodPayments = allPayments.filter((p: any) => 
         p.employeeId === employeeId && 
         p.paidAt >= filterStartDate && 
@@ -162,17 +165,13 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
   // Выплата зарплаты
   const handleAddPayment = async () => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.invalidAmount'));
+      showError(t('alerts.validation.invalidAmount'));
       return;
     }
     
     const amount = parseFloat(paymentAmount);
     if (amount > balance) {
-      Alert.alert(
-        t('screens.paymentDetails.paymentExceedsTitle'),
-        t('alerts.validation.paymentExceeds', { amount, balance }),
-        [{ text: t('common.actions.confirm') }]
-      );
+      showError(t('alerts.validation.paymentExceeds', { amount, balance }));
       return;
     }
     
@@ -201,8 +200,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
       setPaymentNote('');
       await loadData();
       
-      Alert.alert(
-        t('common.success.title'),
+      showSuccess(
         t('screens.paymentDetails.paymentSuccess', {
           type:
             paymentType === 'advance'
@@ -212,7 +210,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
         })
       );
     } catch (error) {
-      Alert.alert(t('common.error.title'), t('alerts.network.addPaymentFailed'));
+      showError(t('alerts.network.addPaymentFailed'));
     }
   };
 

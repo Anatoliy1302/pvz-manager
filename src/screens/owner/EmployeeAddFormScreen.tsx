@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
   Platform,
   KeyboardAvoidingView,
@@ -20,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import {
@@ -41,6 +41,7 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
   const { t } = useTranslation();
   const { user, pvz, userPvzs, addEmployee } = useAuth();
   const { ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const { pvzId: propPvzId } = route.params || {};
 
   const [name, setName] = useState('');
@@ -94,31 +95,28 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
     Keyboard.dismiss();
 
     if (!name.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterEmployeeName'));
+      showError(t('alerts.validation.enterEmployeeName'));
       return;
     }
 
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 11) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.invalidPhone10'));
+      showError(t('alerts.validation.invalidPhone10'));
       return;
     }
 
     if (!selectedPvzId) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectEmployeePvz'));
+      showError(t('alerts.validation.selectEmployeePvz'));
       return;
     }
 
     setLoading(true);
     try {
       await addEmployee(cleanPhone, name.trim(), role, selectedPvzId);
-      Alert.alert(
-        t('common.success.title'),
-        t('alerts.success.inviteSentDetail'),
-        [{ text: t('common.actions.confirm'), onPress: () => navigation.goBack() }]
-      );
+      showSuccess(t('alerts.success.inviteSentDetail'));
+      navigation.goBack();
     } catch (error: any) {
-      Alert.alert(t('common.error.title'), error.message || t('alerts.network.addEmployeeFailed'));
+      showError(error.message || t('alerts.network.addEmployeeFailed'));
     } finally {
       setLoading(false);
     }

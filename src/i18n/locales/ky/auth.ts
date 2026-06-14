@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'Персонал ПВЗПВЗ',
+    subtitle: 'Заказ берүү пунктун башкаруу',
+  },
+  role: {
+    sectionTitle: 'Ролду тандаңыз',
+    sectionSubtitle: 'Тиркемеге кирүү үчүн',
+    owner: {
+      title: 'ПВЗПВЗ ээси',
+      description: 'Финансы, кызматкерлер, график жана пункт жөндөөлөрү',
+    },
+    admin: {
+      title: 'Администратор',
+      description: 'ПВЗПВЗде сменалар, арыздар жана команда башкаруусу',
+    },
+    employee: {
+      title: 'Кызматкер',
+      description: 'Сменалар, график, статистика жана жеке төлөмдөр',
+    },
+  },
+  phone: {
+    title: 'Телефон номери',
+    subtitle: 'Тиркемеге кирүү үчүн номерди киргизиңиз',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'SMSSMS-код',
+    subtitle: '{{phone}}{{phone}}{{length}} номерине жөнөтүлгөн {{length}} сандык кодду киргизиңиз',
+    subtitleStub: '{{phone}}{{phone}}{{length}} номерине {{length}} сандык кодду киргизиңиз (тест үчүн заглушка)',
+    resendTimer: 'Кодду кайра жөнөтүү ({{seconds}}{{seconds}}с)',
+    resend: 'Кодду кайра жөнөтүү',
+    placeholder: 'SMSSMS-код',
+  },
+  pin: {
+    entryTitle: 'PINPIN-кодду киргизиңиз',
+    setupTitle: 'PINPIN-кодду орнотуңуз',
+    entrySubtitle: 'Тиркемеге кирүү үчүн 4 сан',
+    setupSubtitle: 'Тез кирүү үчүн 4 сан',
+    biometric: 'Биометрия',
+    biometricLogin: '{{label}}{{label}} аркылуу кирүү',
+    orEnterPin: 'же PINPIN киргизиңиз',
+    expoGoHint: 'Expo GoExpo GoFace IDдо тиркеменин PINFace IDstandalone жеткиликтүү эмес. PIN колдонуңуз же standalone-тиркемени жыйнаңыз.',
+    expoGoDeviceAuthHint:
+      'Expo GoExpo GoFace IDдо тиркеменин iPhoneFace IDExpo Go жеткиликтүү эмес. iPhone аркылуу ырастаңыз — суроодо «Expo Go» көрсөтүлөт.',
+  },
+  pvzSelect: {
+    title: 'ПВЗПВЗ тандаңыз',
+    subtitleOwner: 'Сиздин берүү пункттары',
+    subtitleInvite: 'Ээсинен чакыруулар',
+    inviteFrom: '{{name}}{{name}} чакыруусу',
+    inviteFromOwner: 'Ээсинен чакыруу',
+    createNew: 'Жаңы ПВЗПВЗ түзүү',
+  },
+  createPvz: {
+    title: 'ПВЗПВЗ түзүңүз',
+    subtitle: 'Берүү пунктунун атын жана дарегин киргизиңиз',
+    namePlaceholder: 'ПВЗПВЗ аталышы',
+    addressPlaceholder: 'ПВЗПВЗ дареги',
+    submit: 'ПВЗПВЗ түзүү',
+  },
+  quickLogin: {
+    title: 'Кайра кош келиңиз!',
+    submit: 'Кирүү',
+    switchAccount: 'Башка номер менен кирүү',
+  },
+  biometric: {
+    enableTitle: '{{label}}{{label}} иштетилсинби?',
+    enableMessage: 'Кийинки жолу PINPIN киргизбей кирсеңиз болот',
+    notNow: 'Азыр эмес',
+    enable: 'Иштетүү',
+    confirm: '{{label}}{{label}} ырастаңыз',
+    loginAs: '{{name}}{{name}} катары кирүү',
+    confirmLogin: 'Тиркемеге кирүүнү ырастаңыз',
+  },
+  sessionExpired: 'Сессия бүттү. Кирүү үчүн SMSSMS-кодду киргизиңиз.',
+  confirmationTitle: 'Ырастоо',
+  devCodeStub: 'Ырастоо коду (заглушка)',
+  devCodeMessage: 'Сиздин код: {{code}}{{code}}',
+} as const;

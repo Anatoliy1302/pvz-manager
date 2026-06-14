@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { User, Pvz } from '../../types/user';
 import DataService from '../../services/DataService';
 import { AuthSetters } from './types';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function syncAdminPvzContext(
   adminUser: User,
@@ -17,11 +18,13 @@ export async function syncAdminPvzContext(
 
   const storedPvzRaw = await SecureStore.getItemAsync('pvz');
   if (storedPvzRaw) {
-    const storedPvz = JSON.parse(storedPvzRaw) as Pvz;
-    const matched = adminPvzList.find((p) => p.id === storedPvz.id);
-    if (matched) {
-      setters.setPvz(matched);
-      return;
+    const storedPvz = safeParseJson<Pvz | null>(storedPvzRaw, null);
+    if (storedPvz) {
+      const matched = adminPvzList.find((p) => p.id === storedPvz.id);
+      if (matched) {
+        setters.setPvz(matched);
+        return;
+      }
     }
   }
 
@@ -36,7 +39,8 @@ export async function bindPvzForSessionUser(sessionUser: User, setters: AuthSett
     setters.setUserPvzs(ownerPvzs);
     const storedPvz = await SecureStore.getItemAsync('pvz');
     if (storedPvz) {
-      setters.setPvz(JSON.parse(storedPvz));
+      const parsed = safeParseJson<Pvz | null>(storedPvz, null);
+      if (parsed) setters.setPvz(parsed);
     } else if (ownerPvzs.length > 0) {
       setters.setPvz(ownerPvzs[0]);
       await SecureStore.setItemAsync('pvz', JSON.stringify(ownerPvzs[0]));

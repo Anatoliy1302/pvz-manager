@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'ПВЗ персоналы',
+    subtitle: 'Тапсырыс беру пунктін басқару',
+  },
+  role: {
+    sectionTitle: 'Рөл таңдаңыз',
+    sectionSubtitle: 'Қосымшаға кіру үшін',
+    owner: {
+      title: 'ПВЗ иесі',
+      description: 'Қаржы, қызметкерлер, кесте және пункт баптаулары',
+    },
+    admin: {
+      title: 'Әкімші',
+      description: 'ПВЗ-де ауысымдар, өтініштер және команда басқару',
+    },
+    employee: {
+      title: 'Қызметкер',
+      description: 'Ауысымдар, кесте, статистика және жеке төлемдер',
+    },
+  },
+  phone: {
+    title: 'Телефон нөмірі',
+    subtitle: 'Қосымшаға кіру үшін нөмірді енгізіңіз',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'SMS коды',
+    subtitle: '{{phone}} нөміріне жіберілген {{length}} цифрлы кодты енгізіңіз',
+    subtitleStub: '{{phone}} нөміріне {{length}} цифрлы кодты енгізіңіз (тест заглушкасы)',
+    resendTimer: 'Кодты қайта жіберу ({{seconds}}с)',
+    resend: 'Кодты қайта жіберу',
+    placeholder: 'SMS коды',
+  },
+  pin: {
+    entryTitle: 'PIN-кодты енгізіңіз',
+    setupTitle: 'PIN-код орнатыңыз',
+    entrySubtitle: 'Қосымшаға кіру үшін 4 цифр',
+    setupSubtitle: 'Жылдам кіру үшін 4 цифр',
+    biometric: 'Биометрия',
+    biometricLogin: '{{label}} арқылы кіру',
+    orEnterPin: 'немесе PIN енгізіңіз',
+    expoGoHint: 'Expo Go-да Face ID қолжетімсіз. PIN пайдаланыңыз немесе standalone қосымшаны жинаңыз.',
+    expoGoDeviceAuthHint:
+      'Expo Go-да Face ID қолжетімсіз. iPhone арқылы растаңыз — сұрауда «Expo Go» көрсетіледі.',
+  },
+  pvzSelect: {
+    title: 'ПВЗ таңдаңыз',
+    subtitleOwner: 'Сіздің тапсырыс беру пункттеріңіз',
+    subtitleInvite: 'Иеден шақырулар',
+    inviteFrom: '{{name}} шақыруы',
+    inviteFromOwner: 'Иеден шақыру',
+    createNew: 'Жаңа ПВЗ жасау',
+  },
+  createPvz: {
+    title: 'ПВЗ жасаңыз',
+    subtitle: 'Тапсырыс беру пунктінің атауы мен мекенжайын енгізіңіз',
+    namePlaceholder: 'ПВЗ атауы',
+    addressPlaceholder: 'ПВЗ мекенжайы',
+    submit: 'ПВЗ жасау',
+  },
+  quickLogin: {
+    title: 'Қайта оралуыңызбен!',
+    submit: 'Кіру',
+    switchAccount: 'Басқа нөмірмен кіру',
+  },
+  biometric: {
+    enableTitle: '{{label}} қосу керек пе?',
+    enableMessage: 'Келесіде PIN енгізбей кіруге болады',
+    notNow: 'Қазір емес',
+    enable: 'Қосу',
+    confirm: '{{label}} растаңыз',
+    loginAs: '{{name}} ретінде кіру',
+    confirmLogin: 'Қосымшаға кіруді растаңыз',
+  },
+  sessionExpired: 'Сессия аяқталды. Кіру үшін SMS кодын енгізіңіз.',
+  confirmationTitle: 'Растау',
+  devCodeStub: 'Растау коды (заглушка)',
+  devCodeMessage: 'Сіздің кодыңыз: {{code}}',
+} as const;

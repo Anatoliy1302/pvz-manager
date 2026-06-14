@@ -1,6 +1,9 @@
 import 'react-native-url-polyfill/auto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import {
+  secureStorageAdapter,
+  migrateSupabaseAuthFromAsyncStorage,
+} from '../src/utils/secureStorageAdapter';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -19,9 +22,11 @@ if (!supabasePublishableKey.startsWith('sb_publishable_')) {
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: secureStorageAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
 });
+
+void migrateSupabaseAuthFromAsyncStorage();

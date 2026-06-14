@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../../constants/colors';
 import { useLoginStyles } from '../useLoginStyles';
@@ -29,7 +29,14 @@ export default function LoginContinueButton({
         colors={enabled ? [colors.primary, colors.primaryDark] : ['#ccc', '#ccc']}
         style={loginStyles.continueGradient}
       >
-        <Text style={loginStyles.continueText}>{label}</Text>
+        {loading ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={loginStyles.continueText}>{label}</Text>
+          </View>
+        ) : (
+          <Text style={loginStyles.continueText}>{label}</Text>
+        )}
       </LinearGradient>
     </TouchableOpacity>
   );

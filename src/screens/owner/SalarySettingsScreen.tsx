@@ -15,9 +15,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
+import { User } from '../../types/user';
 import { colors } from '../../constants/colors';
 import {
   getPvzWorkHours,
@@ -26,6 +28,7 @@ import {
 } from '../../utils/salaryRateHelpers';
 import { pushPvzSalarySettings } from '../../services/SupabaseSalarySettingsService';
 import DataService from '../../services/DataService';
+import { safeParseJson } from '../../utils/safeJson';
 import { 
   ChevronLeft, 
   Clock, 
@@ -36,6 +39,13 @@ import {
   ChevronDown,
   Calendar,
 } from 'lucide-react-native';
+
+type EmployeeSalarySetting = {
+  fullShiftRate?: number;
+  halfShiftRate?: number;
+  hourlyRate?: number;
+  updatedAt?: string;
+};
 
 interface EmployeeSalary {
   id: string;
@@ -53,6 +63,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz, userPvzs } = useAuth();
   const { ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [employees, setEmployees] = useState<EmployeeSalary[]>([]);
   const [globalFullShiftRate, setGlobalFullShiftRate] = useState('3000');
@@ -97,13 +108,13 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
     try {
       const usersRaw = await SecureStore.getItemAsync('pvz_users');
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
+      const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
       const employeesList = users.filter((u: any) =>
         u.role !== 'owner' && u.status === 'active' && u.pvzId === selectedPvzId
       );
 
       const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
-      const salarySettings = salarySettingsRaw ? JSON.parse(salarySettingsRaw) : {};
+      const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
 
       const globalFullShiftRateTemp = await getGlobalFullShiftRate(selectedPvzId);
 
@@ -155,7 +166,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
     try {
       const fullRate = parseFloat(globalFullShiftRate);
       if (isNaN(fullRate) || fullRate <= 0) {
-        Alert.alert(t('common.error.title'), t('alerts.validation.positiveAmount'));
+        showError(t('alerts.validation.positiveAmount'));
         return;
       }
 
@@ -186,10 +197,10 @@ export default function SalarySettingsScreen({ navigation }: any) {
         return emp;
       }));
       
-      Alert.alert(t('common.success.title'), t('alerts.success.settingsSaved'));
+      showSuccess(t('alerts.success.settingsSaved'));
     } catch (error) {
       console.error('Ошибка сохранения:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.saveSettingsFailed'));
+      showError(t('alerts.network.saveSettingsFailed'));
     } finally {
       setLoading(false);
     }
@@ -232,9 +243,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
                 displayValue: fullRate.toString(),
               })));
               
-              Alert.alert(t('common.success.title'), t('alerts.success.settingsAppliedAll'));
+              showSuccess(t('alerts.success.settingsAppliedAll'));
             } catch (error) {
-              Alert.alert(t('common.error.title'), t('alerts.network.applySettingsFailed'));
+              showError(t('alerts.network.applySettingsFailed'));
             } finally {
               setLoading(false);
             }
@@ -246,14 +257,14 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
   const performSave = async (employeeId: string, value: number) => {
     if (!Number.isFinite(value) || value <= 0) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.positiveRate'));
+      showError(t('alerts.validation.positiveRate'));
       return;
     }
 
     setSavingEmployeeId(employeeId);
     try {
       const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
-      const salarySettings = salarySettingsRaw ? JSON.parse(salarySettingsRaw) : {};
+      const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
       
       const derived = buildRatesFromFullShift(value, pvzWorkHours.totalHours);
 
@@ -286,7 +297,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
       }, 500);
     } catch (error) {
       console.error('Ошибка сохранения:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.saveSettingFailed'));
+      showError(t('alerts.network.saveSettingFailed'));
       setSavingEmployeeId(null);
     }
   };
@@ -368,7 +379,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
               const globalFullRate = parseFloat(globalFullShiftRate);
               const derived = buildRatesFromFullShift(globalFullRate, pvzWorkHours.totalHours);
               const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
-              const salarySettings = salarySettingsRaw ? JSON.parse(salarySettingsRaw) : {};
+              const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
               
               delete salarySettings[employeeId];
               
@@ -389,9 +400,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
                 return emp;
               }));
               
-              Alert.alert(t('common.success.title'), t('alerts.success.employeeResetRate'));
+              showSuccess(t('alerts.success.employeeResetRate'));
             } catch (error) {
-              Alert.alert(t('common.error.title'), t('alerts.network.resetSettingFailed'));
+              showError(t('alerts.network.resetSettingFailed'));
             }
           }
         }

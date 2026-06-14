@@ -1,6 +1,21 @@
 // src/utils/migrationHelpers.ts
 import * as SecureStore from 'expo-secure-store';
 import { calcPvzTotalHours } from './salaryRateHelpers';
+import { safeParseJson } from './safeJson';
+import { Pvz } from '../types/user';
+
+type GlobalSalaryMigration = {
+  rateType?: string;
+  rateValue?: number;
+  fullShiftRate?: number;
+};
+
+type EmpSalaryMigration = {
+  fullShiftRate?: number;
+  halfShiftRate?: number;
+  hourlyRate?: number;
+  rateValue?: number;
+};
 
 /**
  * Миграция глобальных настроек зарплаты для ПВЗ
@@ -12,7 +27,7 @@ export async function migrateGlobalSalarySettings(pvzId: string): Promise<void> 
     const stored = await SecureStore.getItemAsync(key);
     
     if (stored) {
-      const settings = JSON.parse(stored);
+      const settings = safeParseJson<GlobalSalaryMigration>(stored, {});
       let needsUpdate = false;
       
       // Добавляем rateType, если отсутствует
@@ -45,7 +60,7 @@ export async function migrateAllPvzSettings(ownerId: string): Promise<void> {
     const pvzsRaw = await SecureStore.getItemAsync('pvz_list');
     if (!pvzsRaw) return;
     
-    const pvzs = JSON.parse(pvzsRaw);
+    const pvzs = safeParseJson<Pvz[]>(pvzsRaw, []);
     const ownerPvzs = pvzs.filter((p: any) => p.ownerId === ownerId);
     
     for (const pvz of ownerPvzs) {
@@ -68,7 +83,7 @@ export async function migrateEmployeeSalarySettings(pvzId: string): Promise<void
     const stored = await SecureStore.getItemAsync(key);
     
     if (stored) {
-      const settings = JSON.parse(stored);
+      const settings = safeParseJson<Record<string, EmpSalaryMigration>>(stored, {});
       let needsUpdate = false;
       
       // Обходим всех сотрудников в настройках
@@ -93,7 +108,7 @@ export async function migrateEmployeeSalarySettings(pvzId: string): Promise<void
           const pvzRaw = await SecureStore.getItemAsync('pvz_list');
           let totalHours = 12;
           if (pvzRaw) {
-            const pvzs = JSON.parse(pvzRaw);
+            const pvzs = safeParseJson<Pvz[]>(pvzRaw, []);
             const currentPvz = pvzs.find((p: any) => p.id === pvzId);
             if (currentPvz) {
               totalHours = calcPvzTotalHours(

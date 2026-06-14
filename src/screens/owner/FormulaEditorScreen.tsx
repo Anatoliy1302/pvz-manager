@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   TextInput,
   Switch,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import {
@@ -42,6 +42,7 @@ import {
   Shield,
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { generateSecureId } from '../../utils/generateSecureId';
 
 const mergeGoodsBonus = (current: GoodsBonus | undefined, patch: Partial<GoodsBonus>): GoodsBonus => ({
   enabled: patch.enabled ?? current?.enabled ?? false,
@@ -84,6 +85,7 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
   const { t } = useTranslation();
   const { pvz } = useAuth();
   const { ui, screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const { formula: existingFormula } = route.params || {};
   
   const [formula, setFormula] = useState<Partial<SalaryFormula>>(
@@ -100,14 +102,14 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
 
   const handleSave = async () => {
     if (!formula.name?.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterFormulaName'));
+      showError(t('alerts.validation.enterFormulaName'));
       return;
     }
     
     if (!pvz?.id) return;
     
     const formulaToSave: SalaryFormula = {
-      id: existingFormula?.id || Date.now().toString(),
+      id: existingFormula?.id || generateSecureId(),
       pvzId: pvz.id,
       name: formula.name || '',
       description: formula.description,
@@ -130,9 +132,8 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
     };
     
     await saveFormula(pvz.id, formulaToSave);
-    Alert.alert(t('common.success.title'), t('alerts.success.formulaSaved'), [
-      { text: 'OK', onPress: () => navigation.goBack() }
-    ]);
+    showSuccess(t('alerts.success.formulaSaved'));
+    navigation.goBack();
   };
 
   const renderBaseTab = () => (

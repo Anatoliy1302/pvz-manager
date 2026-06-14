@@ -2,10 +2,11 @@ import * as SecureStore from 'expo-secure-store';
 import { dataEventBus } from './dataEventBus';
 import { Correction, Overtime } from './dataTypes';
 import { getShiftsHistory } from './shiftDataService';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function getCorrections(employeeId: string): Promise<Correction[]> {
   const stored = await SecureStore.getItemAsync(`corrections_${employeeId}`);
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<Correction[]>(stored ?? '[]', []);
 }
 
 export async function addCorrection(employeeId: string, correction: Correction): Promise<void> {
@@ -17,7 +18,7 @@ export async function addCorrection(employeeId: string, correction: Correction):
 
 export async function getOvertimes(employeeId: string): Promise<Overtime[]> {
   const stored = await SecureStore.getItemAsync(`overtime_${employeeId}`);
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<Overtime[]>(stored ?? '[]', []);
 }
 
 export async function addOvertime(employeeId: string, overtime: Overtime): Promise<void> {

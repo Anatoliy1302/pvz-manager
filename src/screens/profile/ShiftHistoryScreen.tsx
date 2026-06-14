@@ -29,6 +29,7 @@ import {
 import { calculateShiftEarningsForEmployee } from '../../utils/salaryRateHelpers';
 import { getMonthRange } from '../../utils/dateHelpers';
 import { getDateLocale } from '../../i18n';
+import { safeParseJson } from '../../utils/safeJson';
 import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
 
@@ -93,18 +94,20 @@ export default function ShiftHistoryScreen({ navigation }: any) {
       await syncShiftStatusesInStorage();
       const allShifts = await DataService.getShifts();
       const historyRaw = await StorageService.getItem('shifts_history');
-      const historyRecords: Array<{
-        id: string;
-        employeeId: string;
-        date: string;
-        startTime: string;
-        endTime: string;
-        duration?: number;
-        earnings?: number;
-        pvzId?: string;
-        pvzName?: string;
-        corrected?: boolean;
-      }> = historyRaw ? JSON.parse(historyRaw) : [];
+      const historyRecords = safeParseJson<
+        Array<{
+          id: string;
+          employeeId: string;
+          date: string;
+          startTime: string;
+          endTime: string;
+          duration?: number;
+          earnings?: number;
+          pvzId?: string;
+          pvzName?: string;
+          corrected?: boolean;
+        }>
+      >(historyRaw ?? '[]', []);
 
       const rows: HistoryShift[] = [];
       const seen = new Set<string>();

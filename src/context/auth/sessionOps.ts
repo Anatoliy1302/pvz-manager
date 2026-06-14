@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { User, Pvz, defaultPermissions } from '../../types/user';
+import { safeParseJson } from '../../utils/safeJson';
 import DataService from '../../services/DataService';
 import {
   mergeUserPermissions,
@@ -15,7 +16,8 @@ import {
   syncAdminPvzContext,
 } from './pvzContextHelpers';
 import {
-  USERS_STORE,
+  userMemory,
+  subscribeUsersStore,
   loadUsersFromStorage,
 } from './userMemoryStore';
 
@@ -24,7 +26,7 @@ export async function hydrateSessionUser(sessionUser: User, setters: AuthSetters
 
   if (sessionUser.role === 'employee') {
     await loadUsersFromStorage();
-    const source = USERS_STORE.find(
+    const source = userMemory.getUsers().find(
       (u) => u.id === sessionUser.id || u.phone === sessionUser.phone
     );
     if (source?.permissions) {
@@ -42,6 +44,7 @@ export async function hydrateSessionUser(sessionUser: User, setters: AuthSetters
   await bindPvzForSessionUser(userToSet, setters);
   await runSyncOnLogin(userToSet);
   await startSupabaseRealtime(userToSet);
+  notificationService.setCurrentUserId(userToSet.id);
   notificationService.setCurrentUserRole(userToSet.role);
   await notificationService.applyUserPreferences();
   await notificationService.registerPushTokenForUser(userToSet.id);
@@ -58,8 +61,9 @@ export async function loadStoredUser(
 
     if (!storedUser) return;
 
-    const parsedUser = JSON.parse(storedUser);
-    const currentUser = USERS_STORE.find((u) => u.id === parsedUser.id);
+    const parsedUser = safeParseJson<User | null>(storedUser, null);
+    if (!parsedUser) return;
+    const currentUser = userMemory.getUsers().find((u) => u.id === parsedUser.id);
     if (currentUser && currentUser.status !== 'active') {
       console.log('❌ Пользователь заблокирован, выходим');
       await signOut();
@@ -68,7 +72,7 @@ export async function loadStoredUser(
 
     let sessionUser = parsedUser as User;
     if (sessionUser.role === 'employee') {
-      const source = currentUser || USERS_STORE.find((u) => u.id === sessionUser.id);
+      const source = currentUser || userMemory.getUsers().find((u) => u.id === sessionUser.id);
       if (source?.permissions) {
         sessionUser = mergeUserPermissions(sessionUser, source.permissions);
         await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
@@ -90,7 +94,8 @@ export async function loadStoredUser(
       const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
       setters.setUserPvzs(ownerPvzs);
       if (storedPvz) {
-        setters.setPvz(JSON.parse(storedPvz));
+        const pvz = safeParseJson<Pvz | null>(storedPvz, null);
+        if (pvz) setters.setPvz(pvz);
       } else if (ownerPvzs.length > 0) {
         setters.setPvz(ownerPvzs[0]);
       }
@@ -100,6 +105,7 @@ export async function loadStoredUser(
       await bindPvzForSessionUser(sessionUser, setters);
     }
 
+    notificationService.setCurrentUserId(sessionUser.id);
     notificationService.setCurrentUserRole(sessionUser.role);
     await notificationService.applyUserPreferences();
     await notificationService.registerPushTokenForUser(sessionUser.id);
@@ -118,11 +124,13 @@ export async function refreshUserData(
   const storedUser = await SecureStore.getItemAsync('user');
   if (!storedUser) return;
 
-  let currentUser = JSON.parse(storedUser) as User;
+  let currentUser = safeParseJson<User | null>(storedUser, null);
+  if (!currentUser) return;
 
   if (currentUser.role === 'employee') {
     await loadUsersFromStorage();
-    const source = USERS_STORE.find((u) => u.id === currentUser.id);
+    const userId = currentUser.id;
+    const source = userMemory.getUsers().find((u) => u.id === userId);
     if (source?.permissions) {
       currentUser = mergeUserPermissions(currentUser, source.permissions);
       await SecureStore.setItemAsync('user', JSON.stringify(currentUser));

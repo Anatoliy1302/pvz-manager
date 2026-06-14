@@ -4,11 +4,13 @@ import { Shift, User } from '../types/user';
 import DataService from '../services/DataService';
 import { SalaryFormula, ShiftCalculation, ShiftStats, EmployeeSalarySettings } from '../types/salary';
 import { getFormulaForEmployee, getEmployeeSalarySettings, saveShiftCalculation } from '../services/SalaryFormulaService';
+import { generateSecureId } from './generateSecureId';
+import { safeParseJson } from './safeJson';
 
 async function getShiftCalculationLocal(shiftId: string): Promise<ShiftCalculation | null> {
   try {
     const stored = await SecureStore.getItemAsync(`shift_calculation_${shiftId}`);
-    return stored ? JSON.parse(stored) : null;
+    return stored ? safeParseJson<ShiftCalculation | null>(stored, null) : null;
   } catch (error) {
     console.error('Ошибка загрузки расчёта смены:', error);
     return null;
@@ -36,7 +38,7 @@ async function getEmployeePenaltiesForDate(employeeId: string, date: string): Pr
     const stored = await SecureStore.getItemAsync(`penalties_${employeeId}`);
     if (!stored) return { totalFines: 0, totalBonuses: 0 };
     
-    const penalties = JSON.parse(stored);
+    const penalties = safeParseJson<unknown[]>(stored, []);
     const dayPenalties = penalties.filter((p: any) => p.date === date);
     
     const totalFines = dayPenalties
@@ -313,7 +315,7 @@ export async function calculateAdvancedShiftEarnings(
   ].filter(line => line).join('\n');
   
   const calculation: ShiftCalculation = {
-    id: Date.now().toString(),
+    id: generateSecureId(),
     shiftId: shift.id,
     formulaId: formula.id,
     formulaName: formula.name,
@@ -350,7 +352,7 @@ export async function recalculateEmployeeShifts(
   endDate: string
 ): Promise<ShiftCalculation[]> {
   const shiftsRaw = await SecureStore.getItemAsync('shifts');
-  const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   
   const employeeShifts = allShifts.filter(s => 
     s.employeeId === employeeId && 
@@ -396,13 +398,16 @@ export async function getDetailedSalaryReport(
   };
 }> {
   const shiftsRaw = await SecureStore.getItemAsync('shifts');
-  const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   
   const usersRaw = await SecureStore.getItemAsync('pvz_users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
-  const employee = users.find((u: any) => u.id === employeeId);
-  
-  const employeeShifts = allShifts.filter(s => 
+  const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
+  const employee = users.find((u) => u.id === employeeId);
+  if (!employee) {
+    throw new Error(`Сотрудник ${employeeId} не найден`);
+  }
+
+  const employeeShifts = allShifts.filter(s =>
     s.employeeId === employeeId && 
     s.date >= startDate && 
     s.date <= endDate &&

@@ -10,12 +10,12 @@ import {
   RefreshControl,
   Modal,
   TextInput,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
@@ -63,6 +63,7 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { ui, screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const route = useRoute<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [balance, setBalance] = useState({ totalEarned: 0, totalPaid: 0, balance: 0 });
@@ -151,17 +152,11 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
 
   const openAdvanceModal = () => {
     if (balance.balance <= 0) {
-      Alert.alert(
-        t('screens.finance.advanceUnavailable'),
-        t('screens.finance.advanceUnavailableHint')
-      );
+      showError(t('screens.finance.advanceUnavailableHint'));
       return;
     }
     if (hasPendingRequest) {
-      Alert.alert(
-        t('screens.finance.advanceRequestSentTitle'),
-        t('alerts.validation.advancePending')
-      );
+      showError(t('alerts.validation.advancePending'));
       return;
     }
     setShowRequestModal(true);
@@ -170,28 +165,25 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
   const handleSendRequest = async () => {
     if (!user?.id || !pvz?.id) return;
     if (!requestAmount || parseFloat(requestAmount) <= 0) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.invalidAmount'));
+      showError(t('alerts.validation.invalidAmount'));
       return;
     }
     if (!requestPeriodStart || !requestPeriodEnd) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.periodRequired'));
+      showError(t('alerts.validation.periodRequired'));
       return;
     }
     if (requestPeriodStart > requestPeriodEnd) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.periodOrder'));
+      showError(t('alerts.validation.periodOrder'));
       return;
     }
     if (hasPendingRequest) {
-      Alert.alert(t('screens.finance.advanceRequestSentTitle'), t('alerts.validation.advanceDuplicate'));
+      showError(t('alerts.validation.advanceDuplicate'));
       return;
     }
 
     const amount = parseFloat(requestAmount);
     if (amount > balance.balance) {
-      Alert.alert(
-        t('screens.finance.advanceExceedsTitle'),
-        t('alerts.validation.advanceExceeds', { amount, balance: balance.balance })
-      );
+      showError(t('alerts.validation.advanceExceeds', { amount, balance: balance.balance }));
       return;
     }
     
@@ -223,12 +215,9 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
       setShowCustomPeriod(false);
       await loadData();
       
-      Alert.alert(
-        t('common.success.title'),
-        t('alerts.success.advanceSent', { amount: amount.toLocaleString() })
-      );
+      showSuccess(t('alerts.success.advanceSent', { amount: amount.toLocaleString() }));
     } catch (error) {
-      Alert.alert(t('common.error.title'), t('alerts.network.submitAdvanceFailed'));
+      showError(t('alerts.network.submitAdvanceFailed'));
     }
   };
 

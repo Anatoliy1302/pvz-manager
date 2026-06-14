@@ -215,6 +215,13 @@ export default {
   language: {
     section: 'Язык',
     russian: 'Русский',
+    belarusian: 'Беларуская',
+    kazakh: 'Қазақша',
+    kyrgyz: 'Кыргызча',
+    uzbek: "O'zbekcha",
+    armenian: 'Հայերեն',
+    tajik: 'Тоҷикӣ',
+    georgian: 'ქართული',
     english: 'English',
     current: 'Язык интерфейса',
   },

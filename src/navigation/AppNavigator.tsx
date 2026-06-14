@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
+import { ChatProvider } from '../context/ChatContext';
 import { useTheme } from '../context/ThemeContext';
-import { useChatNotifications } from '../hooks/useChatNotifications';
 import LoginScreen from '../screens/auth/LoginScreen';
 import MainTabNavigator from './MainTabNavigator';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
@@ -95,12 +95,6 @@ const OwnerEmployeePaymentDetailsScreen = withRoleGuard(EmployeePaymentDetailsSc
 const StaffShiftRequestsScreen = withRoleGuard(ShiftRequestsScreen, ['owner', 'admin']);
 const StaffSwapRequestsScreen = withRoleGuard(SwapRequestsScreen, ['owner', 'admin']);
 
-function ChatNotificationBridge() {
-  const { user, pvz } = useAuth();
-  useChatNotifications(user, pvz);
-  return null;
-}
-
 export default function AppNavigator() {
   const { t } = useTranslation();
   const { user, isLoading } = useAuth();
@@ -132,8 +126,7 @@ export default function AppNavigator() {
   };
 
   return (
-    <>
-      {user && <ChatNotificationBridge />}
+    <ChatProvider>
       <Stack.Navigator screenOptions={screenOptions}>
       {/* Онбординг при первом запуске */}
       {isFirstLaunch && !user && (
@@ -220,6 +213,6 @@ export default function AppNavigator() {
         </>
       )}
     </Stack.Navigator>
-    </>
+    </ChatProvider>
   );
 }

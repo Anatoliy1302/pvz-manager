@@ -40,6 +40,12 @@ export default {
     biometric: 'Биометрия',
     biometricLogin: 'Войти через {{label}}',
     orEnterPin: 'или введите PIN',
+    forgot: 'Забыли PIN?',
+    forgotTitle: 'Сброс PIN',
+    forgotMessage: 'PIN будет удалён. Для входа потребуется повторная SMS-верификация.',
+    forgotConfirm: 'Сбросить',
+    forgotRequiresOtp: 'Для сброса PIN включите вход по SMS (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true).',
+    locked: 'Слишком много попыток. Повторите через {{seconds}} сек.',
     expoGoHint: 'В Expo Go Face ID приложения недоступен. Используйте PIN или соберите standalone-приложение.',
     expoGoDeviceAuthHint:
       'В Expo Go Face ID приложения недоступен. Подтвердите через iPhone — в запросе будет «Expo Go».',

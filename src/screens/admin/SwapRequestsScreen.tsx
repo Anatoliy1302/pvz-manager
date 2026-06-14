@@ -14,6 +14,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -33,6 +34,7 @@ export default function SwapRequestsScreen({ navigation }: any) {
   const { pvz, user, userPvzs, hasPermission } = useAuth();
   const { colors, screen, ui } = useThemedScreen();
   const styles = useMemo(() => createStyles(screen, colors), [screen, colors]);
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<SwapRequest[]>([]);
@@ -137,7 +139,7 @@ export default function SwapRequestsScreen({ navigation }: any) {
               if (!pvz?.id) return;
               const approved = await DataService.approveSwapRequest(pvz.id, request.id);
               if (!approved) {
-                Alert.alert(t('common.error.title'), t('alerts.network.requestAlreadyProcessed'));
+                showError(t('alerts.network.requestAlreadyProcessed'));
                 return;
               }
 
@@ -150,9 +152,9 @@ export default function SwapRequestsScreen({ navigation }: any) {
               );
 
               await loadRequests();
-              Alert.alert(t('common.success.done'), t('alerts.success.swapApproved'));
+              showSuccess(t('alerts.success.swapApproved'));
             } catch {
-              Alert.alert(t('common.error.title'), t('alerts.network.approveSwapFailed'));
+              showError(t('alerts.network.approveSwapFailed'));
             }
           },
         },
@@ -177,7 +179,7 @@ export default function SwapRequestsScreen({ navigation }: any) {
               if (!pvz?.id) return;
               const rejected = await DataService.rejectSwapRequest(pvz.id, request.id);
               if (!rejected) {
-                Alert.alert(t('common.error.title'), t('alerts.network.requestAlreadyProcessed'));
+                showError(t('alerts.network.requestAlreadyProcessed'));
                 return;
               }
 
@@ -189,9 +191,9 @@ export default function SwapRequestsScreen({ navigation }: any) {
               );
 
               await loadRequests();
-              Alert.alert(t('common.success.done'), t('alerts.success.swapRejected'));
+              showSuccess(t('alerts.success.swapRejected'));
             } catch {
-              Alert.alert(t('common.error.title'), t('alerts.network.rejectSwapFailed'));
+              showError(t('alerts.network.rejectSwapFailed'));
             }
           },
         },

@@ -15,6 +15,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { getDateLocale } from '../../i18n';
@@ -41,6 +42,7 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [requests, setRequests] = useState<AdvanceRequest[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
@@ -106,9 +108,9 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
               });
               
               await loadRequests();
-              Alert.alert(t('common.success.title'), t('alerts.success.advanceApproved'));
+              showSuccess(t('alerts.success.advanceApproved'));
             } catch (error) {
-              Alert.alert(t('common.error.title'), t('alerts.network.approveAdvanceFailed'));
+              showError(t('alerts.network.approveAdvanceFailed'));
             }
           }
         }
@@ -138,9 +140,9 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
                 user!.name || t('common.roles.ownerShort')
               );
               await loadRequests();
-              Alert.alert(t('common.success.title'), t('alerts.success.advanceRejected'));
+              showSuccess(t('alerts.success.advanceRejected'));
             } catch (error) {
-              Alert.alert(t('common.error.title'), t('alerts.network.rejectAdvanceFailed'));
+              showError(t('alerts.network.rejectAdvanceFailed'));
             }
           }
         }

@@ -4,6 +4,7 @@ import { SalaryFormula, EmployeeSalarySettings } from '../types/salary';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
 import { hasSupabaseSession } from './SupabaseAuthService';
 import DataService from './DataService';
+import { safeParseJson } from '../utils/safeJson';
 
 export interface PvzSalaryBundle {
   global: Record<string, unknown> | null;
@@ -30,9 +31,9 @@ async function readLocalPvzBundle(localPvzId: string): Promise<PvzSalaryBundle> 
   ]);
 
   return {
-    global: globalRaw ? JSON.parse(globalRaw) : null,
-    formulas: formulasRaw ? JSON.parse(formulasRaw) : [],
-    employeeRates: ratesRaw ? JSON.parse(ratesRaw) : {},
+    global: globalRaw ? safeParseJson<Record<string, unknown> | null>(globalRaw, null) : null,
+    formulas: safeParseJson<SalaryFormula[]>(formulasRaw ?? '[]', []),
+    employeeRates: safeParseJson<Record<string, Record<string, unknown>>>(ratesRaw ?? '{}', {}),
   };
 }
 
@@ -183,7 +184,7 @@ export async function syncPvzSalarySettings(localPvzId: string): Promise<void> {
   for (const employee of employees) {
     const key = `employee_salary_settings_${employee.id}`;
     const stored = await SecureStore.getItemAsync(key);
-    const localSettings: EmployeeSalarySettings | null = stored ? JSON.parse(stored) : null;
+    const localSettings = stored ? safeParseJson<EmployeeSalarySettings | null>(stored, null) : null;
 
     if (localSettings) {
       await upsertEmployeeSalarySettingsToSupabase(localPvzId, localSettings);

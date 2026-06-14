@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   Dimensions,
   Easing,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../../constants/colors';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SHEEN_CYCLE_MS = 5200;
@@ -30,6 +31,7 @@ function AnimatedGradientBackground({
 }: {
   gradientColors: GradientColors;
 }) {
+  const sheenScale = Platform.OS === 'android' ? 0.72 : 1;
   const [sheenPhase, setSheenPhase] = useState(0);
   const [shimmerPhase, setShimmerPhase] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -58,8 +60,8 @@ function AnimatedGradientBackground({
     };
   }, []);
 
-  const sheen1Opacity = 0.18 + Math.sin(sheenPhase * Math.PI * 2) * 0.14;
-  const sheen2Opacity = 0.14 + Math.sin(sheenPhase * Math.PI * 2 + Math.PI) * 0.12;
+  const sheen1Opacity = (0.18 + Math.sin(sheenPhase * Math.PI * 2) * 0.14) * sheenScale;
+  const sheen2Opacity = (0.14 + Math.sin(sheenPhase * Math.PI * 2 + Math.PI) * 0.12) * sheenScale;
 
   const shimmerWindow = 0.28;
   const shimmerStart = 0.62;
@@ -68,7 +70,7 @@ function AnimatedGradientBackground({
       ? (shimmerPhase - shimmerStart) / shimmerWindow
       : -1;
   const shimmerOpacity =
-    shimmerLocal >= 0 ? Math.sin(shimmerLocal * Math.PI) * 0.35 : 0;
+    shimmerLocal >= 0 ? Math.sin(shimmerLocal * Math.PI) * 0.35 * sheenScale : 0;
   const shimmerX =
     shimmerLocal >= 0 ? -SCREEN_WIDTH * 0.3 + shimmerLocal * SCREEN_WIDTH * 1.6 : -SCREEN_WIDTH;
 
@@ -76,6 +78,7 @@ function AnimatedGradientBackground({
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
         colors={gradientColors}
+        locations={[0, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -125,12 +128,16 @@ function AnimatedGradientBackground({
 
 export default function AnimatedBanner({
   children,
-  gradientColors = [colors.primary, colors.primaryDark] as GradientColors,
+  gradientColors,
   onPress,
   style,
   delay = 0,
   height: customHeight,
 }: AnimatedBannerProps) {
+  const { colors: themeColors } = useTheme();
+  const resolvedGradient =
+    gradientColors ??
+    ([themeColors.primary, themeColors.primaryDark] as GradientColors);
   const bannerHeight = customHeight ?? 160;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -165,7 +172,7 @@ export default function AnimatedBanner({
 
   const content = (
     <View style={[styles.banner, style, { minHeight: bannerHeight }]}>
-      <AnimatedGradientBackground gradientColors={gradientColors} />
+      <AnimatedGradientBackground gradientColors={resolvedGradient} />
       <View style={styles.contentLayer}>{children}</View>
     </View>
   );
@@ -192,11 +199,11 @@ const styles = StyleSheet.create({
   banner: {
     borderRadius: 24,
     padding: 20,
-    shadowColor: colors.primary,
+    shadowColor: '#6C5CE7',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.26,
+    shadowOpacity: Platform.OS === 'ios' ? 0.26 : 0.12,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: Platform.OS === 'android' ? 4 : 8,
     overflow: 'hidden',
     position: 'relative',
   },

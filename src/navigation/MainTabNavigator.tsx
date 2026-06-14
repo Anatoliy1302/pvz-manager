@@ -2,6 +2,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
+import { useChatOptional } from '../context/ChatContext';
 import { 
   Users, 
   User,
@@ -35,56 +36,80 @@ import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 
 const Tab = createBottomTabNavigator();
 
-const TabIcon = ({ Icon, focused, label, themeColors }: any) => {
+const TabIcon = ({ Icon, focused, label, themeColors, badgeCount = 0 }: any) => {
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: 70 }}>
-      {focused ? (
-        <View
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: 26,
-            backgroundColor: themeColors.card,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 4,
-            shadowColor: themeColors.primary,
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-          }}
-        >
-          <LinearGradient
-            colors={[themeColors.primary, themeColors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
+      <View style={{ position: 'relative' }}>
+        {focused ? (
+          <View
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: themeColors.card,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 4,
+              shadowColor: themeColors.primary,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <LinearGradient
+              colors={[themeColors.primary, themeColors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 23,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon size={22} color="#FFFFFF" strokeWidth={2} />
+            </LinearGradient>
+          </View>
+        ) : (
+          <View
             style={{
               width: 46,
               height: 46,
               borderRadius: 23,
               alignItems: 'center',
               justifyContent: 'center',
+              marginBottom: 4,
+              backgroundColor: themeColors.background,
             }}
           >
-            <Icon size={22} color="#FFFFFF" strokeWidth={2} />
-          </LinearGradient>
-        </View>
-      ) : (
-        <View
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 23,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 4,
-            backgroundColor: themeColors.background,
-          }}
-        >
-          <Icon size={20} color={staticColors.grayLight} strokeWidth={1.5} />
-        </View>
-      )}
+            <Icon size={20} color={staticColors.grayLight} strokeWidth={1.5} />
+          </View>
+        )}
+        {badgeCount > 0 ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: -2,
+              right: -2,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+              backgroundColor: staticColors.danger,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 4,
+              borderWidth: 2,
+              borderColor: themeColors.card,
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
+              {badgeCount > 99 ? '99+' : badgeCount}
+            </Text>
+          </View>
+        ) : null}
+      </View>
       <Text
         style={{
           fontSize: 11,
@@ -105,6 +130,7 @@ export default function MainTabNavigator() {
   const { colors, theme } = useTheme();
   const role = user?.role || 'employee';
   const insets = useSafeAreaInsets();
+  const chatUnreadCount = useChatOptional()?.totalUnreadCount ?? 0;
 
   const screenOptions = {
     headerShown: false,
@@ -144,7 +170,7 @@ export default function MainTabNavigator() {
         <Tab.Screen 
           name="Chat" 
           component={ChatScreen} 
-          options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={MessageCircle} focused={focused} label={t('tabs.chat')} themeColors={colors} /> }} 
+          options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={MessageCircle} focused={focused} label={t('tabs.chat')} themeColors={colors} badgeCount={chatUnreadCount} /> }} 
         />
         <Tab.Screen 
           name="Profile" 
@@ -184,7 +210,7 @@ export default function MainTabNavigator() {
           component={ChatScreen}
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon Icon={MessageCircle} focused={focused} label={t('tabs.chat')} themeColors={colors} />
+              <TabIcon Icon={MessageCircle} focused={focused} label={t('tabs.chat')} themeColors={colors} badgeCount={chatUnreadCount} />
             ),
           }}
         />
@@ -213,7 +239,7 @@ export default function MainTabNavigator() {
       <Tab.Screen 
         name="Chat" 
         component={EmployeeChatScreen} 
-        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={MessageCircle} focused={focused} label="Чат" themeColors={colors} /> }} 
+        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={MessageCircle} focused={focused} label="Чат" themeColors={colors} badgeCount={chatUnreadCount} /> }} 
       />
       {hasPermission('canViewStats') && (
         <Tab.Screen 

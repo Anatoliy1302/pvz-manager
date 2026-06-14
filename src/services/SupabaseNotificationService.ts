@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { isUuid, mergeById } from '../utils/supabaseHelpers';
 import { hasSupabaseSession } from './SupabaseAuthService';
-import { NotificationRecord } from './NotificationService';
+import { NotificationRecord } from './notifications/types';
 
 function rowToNotification(row: Record<string, unknown>): NotificationRecord {
   const data = (row.data as Record<string, unknown>) || {};

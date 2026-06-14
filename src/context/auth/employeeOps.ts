@@ -4,18 +4,26 @@ import DataService from '../../services/DataService';
 import {
   upsertInvitationToSupabase,
   updateInvitationStatusInSupabase,
+  type SyncInvitation,
 } from '../../services/SupabaseInvitationService';
 import { normalizePermissions } from '../../utils/permissionHelpers';
 import { checkHasPermission } from './authPermissions';
 import {
-  USERS_STORE,
-  PENDING_EMPLOYEES,
+  userMemory,
   MAX_EMPLOYEES_PER_PVZ,
   loadUsersFromStorage,
-  saveUsersToStorage,
-  savePendingEmployeesToStorage,
   refreshPendingEmployees,
 } from './userMemoryStore';
+import { generateSecureId } from '../../utils/generateSecureId';
+import { safeParseJson } from '../../utils/safeJson';
+
+type StoredInvitation = {
+  id: string;
+  phone: string;
+  status: string;
+  pvzId?: string;
+  [key: string]: unknown;
+};
 
 export async function addEmployeeInvitation(
   phone: string,
@@ -30,15 +38,18 @@ export async function addEmployeeInvitation(
   await loadUsersFromStorage();
   await refreshPendingEmployees();
 
-  if (USERS_STORE.find((u) => u.phone === cleanPhone && u.status === 'blocked')) {
+  const users = userMemory.getUsers();
+  const pending = userMemory.getPendingEmployees();
+
+  if (users.find((u) => u.phone === cleanPhone && u.status === 'blocked')) {
     throw new Error('Этот пользователь был заблокирован. Нельзя отправить приглашение.');
   }
 
-  if (USERS_STORE.some((u) => u.phone === cleanPhone && u.status === 'active')) {
+  if (users.some((u) => u.phone === cleanPhone && u.status === 'active')) {
     throw new Error('Пользователь с таким номером уже зарегистрирован');
   }
 
-  if (PENDING_EMPLOYEES.some((u) => u.phone === cleanPhone)) {
+  if (pending.some((u) => u.phone === cleanPhone)) {
     throw new Error('Приглашение уже отправлено на этот номер');
   }
 
@@ -62,10 +73,10 @@ export async function addEmployeeInvitation(
     throw new Error('Не выбран ПВЗ для назначения сотрудника');
   }
 
-  const currentEmployeesCount = USERS_STORE.filter(
+  const currentEmployeesCount = users.filter(
     (u) => u.pvzId === targetPvzId && u.status === 'active'
   ).length;
-  const pendingCount = PENDING_EMPLOYEES.filter((u) => u.pvzId === targetPvzId).length;
+  const pendingCount = pending.filter((u) => u.pvzId === targetPvzId).length;
 
   if (currentEmployeesCount + pendingCount >= MAX_EMPLOYEES_PER_PVZ) {
     throw new Error(`Достигнут лимит сотрудников для этого ПВЗ (максимум ${MAX_EMPLOYEES_PER_PVZ})`);
@@ -75,7 +86,7 @@ export async function addEmployeeInvitation(
   const inviteRole = role === 'owner' ? 'employee' : role;
 
   const newPendingUser: User = {
-    id: Date.now().toString(),
+    id: generateSecureId('pending'),
     name: name.trim(),
     email: `${cleanPhone}@temp.pvz`,
     phone: cleanPhone,
@@ -90,14 +101,13 @@ export async function addEmployeeInvitation(
     passwordHash: '',
   };
 
-  PENDING_EMPLOYEES.push(newPendingUser);
-  await savePendingEmployeesToStorage();
+  await userMemory.addPending(newPendingUser);
 
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
-  const allInvitations = allInvitationsRaw ? JSON.parse(allInvitationsRaw) : [];
+  const allInvitations = safeParseJson<StoredInvitation[]>(allInvitationsRaw ?? '[]', []);
 
   const newInvitation = {
-    id: Date.now().toString(),
+    id: generateSecureId('inv'),
     phone: cleanPhone,
     name: name.trim(),
     role: inviteRole as 'employee' | 'admin',
@@ -118,7 +128,7 @@ export async function addEmployeeInvitation(
 
   const syncedInvitation = await upsertInvitationToSupabase(newInvitation);
   if (syncedInvitation && syncedInvitation.id !== newInvitation.id) {
-    const invIndex = allInvitations.findIndex((inv: { id: string }) => inv.id === newInvitation.id);
+    const invIndex = allInvitations.findIndex((inv) => inv.id === newInvitation.id);
     if (invIndex !== -1) {
       allInvitations[invIndex] = {
         ...allInvitations[invIndex],
@@ -146,7 +156,7 @@ export async function revokeEmployeeInvitation(invitationId: string, ownerId: st
   await refreshPendingEmployees();
 
   const ownerInvitationsRaw = await SecureStore.getItemAsync(`invitations_${ownerId}`);
-  const ownerInvitations = ownerInvitationsRaw ? JSON.parse(ownerInvitationsRaw) : [];
+  const ownerInvitations = safeParseJson<StoredInvitation[]>(ownerInvitationsRaw ?? '[]', []);
   const invitation = ownerInvitations.find((inv: { id: string }) => inv.id === invitationId);
 
   if (!invitation) {
@@ -154,14 +164,16 @@ export async function revokeEmployeeInvitation(invitationId: string, ownerId: st
   }
 
   const cleanPhone = String(invitation.phone).replace(/[^0-9]/g, '');
-  const pendingIndex = PENDING_EMPLOYEES.findIndex((u) => u.phone === cleanPhone);
+  const pendingIndex = userMemory.getPendingEmployees().findIndex((u) => u.phone === cleanPhone);
   if (pendingIndex !== -1) {
-    PENDING_EMPLOYEES.splice(pendingIndex, 1);
-    await savePendingEmployeesToStorage();
+    await userMemory.removePendingByIndex(pendingIndex);
   }
 
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
-  const allInvitations = allInvitationsRaw ? JSON.parse(allInvitationsRaw) : [];
+  const allInvitations = safeParseJson<Array<{ id: string; phone: string; status: string }>>(
+    allInvitationsRaw ?? '[]',
+    []
+  );
   const updatedAll = allInvitations.map((inv: { id: string; phone: string; status: string }) => {
     const invPhone = String(inv.phone).replace(/[^0-9]/g, '');
     if (inv.id === invitationId || invPhone === cleanPhone) {
@@ -176,7 +188,7 @@ export async function revokeEmployeeInvitation(invitationId: string, ownerId: st
       inv.id === invitationId || String(inv.phone).replace(/[^0-9]/g, '') === cleanPhone
   );
   if (expiredInvitation) {
-    await upsertInvitationToSupabase({ ...invitation, ...expiredInvitation, status: 'expired' });
+    await upsertInvitationToSupabase({ ...(invitation as unknown as SyncInvitation), status: 'expired' });
   } else {
     await updateInvitationStatusInSupabase(invitationId, 'expired');
   }
@@ -202,12 +214,13 @@ export async function confirmPendingEmployeeAccount(
   await loadUsersFromStorage();
   await refreshPendingEmployees();
 
-  const pendingIndex = PENDING_EMPLOYEES.findIndex((u) => u.id === pendingUserId);
+  const pendingList = userMemory.getPendingEmployees();
+  const pendingIndex = pendingList.findIndex((u) => u.id === pendingUserId);
   if (pendingIndex === -1) {
     throw new Error('Ожидающий сотрудник не найден');
   }
 
-  const pendingUser = PENDING_EMPLOYEES[pendingIndex];
+  const pendingUser = pendingList[pendingIndex];
   const targetPvzId = pendingUser.pvzId;
 
   if (!targetPvzId) {
@@ -222,15 +235,16 @@ export async function confirmPendingEmployeeAccount(
     throw new Error('Нельзя подтвердить сотрудника другого ПВЗ');
   }
 
-  if (USERS_STORE.some((u) => u.phone === pendingUser.phone && u.status === 'active')) {
-    PENDING_EMPLOYEES.splice(pendingIndex, 1);
-    await savePendingEmployeesToStorage();
+  if (userMemory.getUsers().some((u) => u.phone === pendingUser.phone && u.status === 'active')) {
+    await userMemory.removePendingByIndex(pendingIndex);
     DataService.emitChange('pending_employees');
     throw new Error('Пользователь уже активирован');
   }
 
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
-  const allInvitations = allInvitationsRaw ? JSON.parse(allInvitationsRaw) : [];
+  const allInvitations = safeParseJson<
+    Array<{ phone: string; status: string; pvzId?: string; role?: string; name?: string; invitedBy?: string }>
+  >(allInvitationsRaw ?? '[]', []);
   const invitation = allInvitations.find(
     (inv: { phone: string; status: string; pvzId?: string; role?: string; name?: string; invitedBy?: string }) =>
       inv.phone.replace(/[^0-9]/g, '') === pendingUser.phone &&
@@ -250,11 +264,7 @@ export async function confirmPendingEmployeeAccount(
     permissions: inviteRole === 'employee' ? normalizePermissions(pendingUser.permissions) : undefined,
   };
 
-  USERS_STORE.push(activeUser);
-  await saveUsersToStorage();
-
-  PENDING_EMPLOYEES.splice(pendingIndex, 1);
-  await savePendingEmployeesToStorage();
+  await userMemory.activatePendingAt(pendingIndex, activeUser);
 
   const markAccepted = (inv: { phone: string; status: string; pvzId?: string }) => {
     const invPhone = inv.phone.replace(/[^0-9]/g, '');
@@ -277,7 +287,10 @@ export async function confirmPendingEmployeeAccount(
   if (inviterId) {
     const ownerInvitationsRaw = await SecureStore.getItemAsync(`invitations_${inviterId}`);
     if (ownerInvitationsRaw) {
-      const ownerInvitations = JSON.parse(ownerInvitationsRaw).map(markAccepted);
+      const ownerInvitations = safeParseJson<StoredInvitation[]>(
+        ownerInvitationsRaw,
+        []
+      ).map(markAccepted);
       await SecureStore.setItemAsync(`invitations_${inviterId}`, JSON.stringify(ownerInvitations));
       DataService.emitChange(`invitations_${inviterId}`);
     }
@@ -289,26 +302,24 @@ export async function confirmPendingEmployeeAccount(
 }
 
 export async function updateEmployeePvzAssignment(employeeId: string, newPvzId: string) {
-  const userIndex = USERS_STORE.findIndex((u) => u.id === employeeId);
-  if (userIndex !== -1) {
-    USERS_STORE[userIndex].pvzId = newPvzId;
-    await saveUsersToStorage();
+  const users = userMemory.getUsers();
+  if (users.some((u) => u.id === employeeId)) {
+    await userMemory.updateUser(employeeId, { pvzId: newPvzId });
     return;
   }
 
-  const pendingIndex = PENDING_EMPLOYEES.findIndex((u) => u.id === employeeId);
-  if (pendingIndex !== -1) {
-    PENDING_EMPLOYEES[pendingIndex].pvzId = newPvzId;
-    await savePendingEmployeesToStorage();
+  if (userMemory.getPendingEmployees().some((u) => u.id === employeeId)) {
+    await userMemory.updatePending(employeeId, { pvzId: newPvzId });
   }
 }
 
 export function getActiveEmployees(currentUser: User | null, currentPvz: Pvz | null) {
+  const users = userMemory.getUsers();
   if (currentUser?.role === 'owner') {
-    return USERS_STORE.filter((u) => u.role !== 'owner' && u.status === 'active');
+    return users.filter((u) => u.role !== 'owner' && u.status === 'active');
   }
   if (currentUser?.role === 'admin') {
-    return USERS_STORE.filter(
+    return users.filter(
       (u) => u.role === 'employee' && u.status === 'active' && u.pvzId === currentPvz?.id
     );
   }
@@ -316,13 +327,13 @@ export function getActiveEmployees(currentUser: User | null, currentPvz: Pvz | n
 }
 
 export function getActiveEmployeesByPvz(pvzId: string) {
-  return USERS_STORE.filter((u) => u.pvzId === pvzId && u.status === 'active');
+  return userMemory.getUsers().filter((u) => u.pvzId === pvzId && u.status === 'active');
 }
 
 export function getPendingEmployeeList() {
-  return PENDING_EMPLOYEES;
+  return userMemory.getPendingEmployees();
 }
 
 export function getPendingEmployeesCountForUser(userId?: string) {
-  return PENDING_EMPLOYEES.filter((emp) => emp.invitedBy === userId).length;
+  return userMemory.getPendingEmployees().filter((emp) => emp.invitedBy === userId).length;
 }

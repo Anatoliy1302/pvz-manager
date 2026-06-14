@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'ПВЗ персонали',
+    subtitle: 'Buyurtmalarni topshirish punktini boshqarish',
+  },
+  role: {
+    sectionTitle: 'Rolni tanlang',
+    sectionSubtitle: 'Ilovaga kirish uchun',
+    owner: {
+      title: 'ПВЗ egasi',
+      description: 'Moliya, xodimlar, jadval va punkt sozlamalari',
+    },
+    admin: {
+      title: 'Administrator',
+      description: 'ПВЗ da smenalar, arizalar va jamoa boshqaruvi',
+    },
+    employee: {
+      title: 'Xodim',
+      description: 'Smenalar, jadval, statistika va shaxsiy to\'lovlar',
+    },
+  },
+  phone: {
+    title: 'Telefon raqami',
+    subtitle: 'Ilovaga kirish uchun raqamni kiriting',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'SMS kod',
+    subtitle: '{{phone}} raqamiga yuborilgan {{length}} xonali kodni kiriting',
+    subtitleStub: '{{phone}} raqamiga {{length}} xonali kodni kiriting (test uchun stub)',
+    resendTimer: 'Kodni qayta yuborish ({{seconds}}s)',
+    resend: 'Kodni qayta yuborish',
+    placeholder: 'SMS kod',
+  },
+  pin: {
+    entryTitle: 'PIN-kodni kiriting',
+    setupTitle: 'PIN-kod o\'rnating',
+    entrySubtitle: 'Ilovaga kirish uchun 4 raqam',
+    setupSubtitle: 'Tez kirish uchun 4 raqam',
+    biometric: 'Biometriya',
+    biometricLogin: '{{label}} orqali kirish',
+    orEnterPin: 'yoki PIN kiriting',
+    expoGoHint: 'Expo Go da ilova Face ID dan foydalana olmaydi. PIN ishlating yoki standalone ilova yig\'ing.',
+    expoGoDeviceAuthHint:
+      'Expo Go da ilova Face ID dan foydalana olmaydi. iPhone orqali tasdiqlang — so\'rovda «Expo Go» ko\'rsatiladi.',
+  },
+  pvzSelect: {
+    title: 'ПВЗ ni tanlang',
+    subtitleOwner: 'Sizning topshirish punktlaringiz',
+    subtitleInvite: 'Egadan taklifnomalar',
+    inviteFrom: '{{name}} dan taklifnoma',
+    inviteFromOwner: 'Egadan taklifnoma',
+    createNew: 'Yangi ПВЗ yaratish',
+  },
+  createPvz: {
+    title: 'ПВЗ yarating',
+    subtitle: 'Topshirish punktining nomi va manzilini kiriting',
+    namePlaceholder: 'ПВЗ nomi',
+    addressPlaceholder: 'ПВЗ manzili',
+    submit: 'ПВЗ yaratish',
+  },
+  quickLogin: {
+    title: 'Xush kelibsiz!',
+    submit: 'Kirish',
+    switchAccount: 'Boshqa raqam bilan kirish',
+  },
+  biometric: {
+    enableTitle: '{{label}} yoqilsinmi?',
+    enableMessage: 'Keyingi safar PIN kiritmasdan kirishingiz mumkin',
+    notNow: 'Hozir emas',
+    enable: 'Yoqish',
+    confirm: '{{label}} ni tasdiqlang',
+    loginAs: '{{name}} sifatida kirish',
+    confirmLogin: 'Ilovaga kirishni tasdiqlang',
+  },
+  sessionExpired: 'Sessiya tugadi. Kirish uchun SMS kodini kiriting.',
+  confirmationTitle: 'Tasdiqlash',
+  devCodeStub: 'Tasdiqlash kodi (stub)',
+  devCodeMessage: 'Sizning kodingiz: {{code}}',
+} as const;

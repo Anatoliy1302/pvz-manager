@@ -8,6 +8,8 @@ import {
   pushPvzSalarySettings,
   upsertEmployeeSalarySettingsToSupabase,
 } from './SupabaseSalarySettingsService';
+import { generateSecureId } from '../utils/generateSecureId';
+import { safeParseJson } from '../utils/safeJson';
 
 // ============ КЛЮЧИ ДЛЯ ХРАНЕНИЯ ============
 
@@ -23,7 +25,7 @@ const getShiftCalculationsKey = (shiftId: string) => `shift_calculation_${shiftI
 export async function getFormulas(pvzId: string): Promise<SalaryFormula[]> {
   try {
     const stored = await SecureStore.getItemAsync(getFormulasKey(pvzId));
-    let formulas: SalaryFormula[] = stored ? JSON.parse(stored) : [];
+    let formulas = safeParseJson<SalaryFormula[]>(stored ?? '[]', []);
 
     const remoteBundle = await fetchPvzSalaryBundleFromSupabase(pvzId);
     if (remoteBundle?.formulas?.length) {
@@ -36,7 +38,7 @@ export async function getFormulas(pvzId: string): Promise<SalaryFormula[]> {
     if (formulas.length === 0) {
       const defaultFormula: SalaryFormula = {
         ...defaultSalaryFormula,
-        id: Date.now().toString(),
+        id: generateSecureId(),
         pvzId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -79,7 +81,7 @@ export async function saveFormula(pvzId: string, formula: SalaryFormula): Promis
   if (index !== -1) {
     formulas[index] = { ...formula, updatedAt: new Date().toISOString() };
   } else {
-    formulas.push({ ...formula, id: Date.now().toString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    formulas.push({ ...formula, id: generateSecureId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   
   await SecureStore.setItemAsync(getFormulasKey(pvzId), JSON.stringify(formulas));
@@ -107,7 +109,7 @@ export async function getEmployeeSalarySettings(
 ): Promise<EmployeeSalarySettings | null> {
   try {
     const stored = await SecureStore.getItemAsync(getEmployeeSettingsKey(employeeId));
-    const local: EmployeeSalarySettings | null = stored ? JSON.parse(stored) : null;
+    const local = stored ? safeParseJson<EmployeeSalarySettings | null>(stored, null) : null;
 
     if (!pvzId) {
       return local;
@@ -169,7 +171,7 @@ export async function saveShiftCalculation(calculation: ShiftCalculation): Promi
 export async function getShiftCalculation(shiftId: string): Promise<ShiftCalculation | null> {
   try {
     const stored = await SecureStore.getItemAsync(getShiftCalculationsKey(shiftId));
-    return stored ? JSON.parse(stored) : null;
+    return stored ? safeParseJson<ShiftCalculation | null>(stored, null) : null;
   } catch (error) {
     console.error('Ошибка загрузки расчёта смены:', error);
     return null;
@@ -186,7 +188,7 @@ export async function getShiftCalculationsForPeriod(
 ): Promise<ShiftCalculation[]> {
   try {
     const shiftsRaw = await SecureStore.getItemAsync('shifts');
-    const shifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+    const shifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
     
     const employeeShifts = shifts.filter(s => 
       s.employeeId === employeeId && 

@@ -1,4 +1,4 @@
-/** ID комнаты, открытой в ChatScreen (чтобы не дублировать push) */
+/** Синхронизируется из ChatContext — для кода вне React-дерева */
 let activeChatRoomId: string | null = null;
 
 export const setActiveChatRoomId = (roomId: string | null): void => {

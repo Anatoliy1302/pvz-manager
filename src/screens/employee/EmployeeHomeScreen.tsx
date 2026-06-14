@@ -18,6 +18,8 @@ import DataService from '../../services/DataService';
 import { loadEmployeeMonthStats } from '../../utils/employeeStatsHelpers';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { colors } from '../../constants/colors';
+import { safeParseJson } from '../../utils/safeJson';
+import type { NotificationRecord } from '../../services/NotificationService';
 import {
   CalendarDays,
   Repeat,
@@ -61,7 +63,7 @@ export default function EmployeeHomeScreen({ navigation }: any) {
       });
 
       const notifRaw = await SecureStore.getItemAsync('notifications');
-      const notifications = notifRaw ? JSON.parse(notifRaw) : [];
+      const notifications = safeParseJson<NotificationRecord[]>(notifRaw ?? '[]', []);
       setUnreadCount(notifications.filter((n: any) => !n.isRead).length);
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);

@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import StorageService from '../../services/StorageService';
@@ -24,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { User } from '../../types/user';
 import DataService from '../../services/DataService';
+import { safeParseJson } from '../../utils/safeJson';
 import { formatHours } from '../../utils/dateHelpers';
 import { userWorksAtPvz } from '../../utils/pvzUserHelpers';
 import {
@@ -62,6 +64,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
   const { t } = useTranslation();
   const { pvz, blockUser, confirmPendingEmployee } = useAuth();
   const { ui, screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const {
     pvzId: propPvzId,
     role = 'admin',
@@ -94,7 +97,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     if (!currentPvzId) return;
     try {
       const shiftsRaw = await StorageService.getItem('shifts');
-      const allShifts = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+      const allShifts = safeParseJson<unknown[]>(shiftsRaw ?? '[]', []);
       const pvzShifts = allShifts.filter((s: any) => s.pvzId === currentPvzId);
       setShifts(pvzShifts);
     } catch (error) {
@@ -109,7 +112,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     }
     try {
       const pendingRaw = await SecureStore.getItemAsync('pending_employees');
-      const pending = pendingRaw ? JSON.parse(pendingRaw) : [];
+      const pending = safeParseJson<User[]>(pendingRaw ?? '[]', []);
       setPendingEmployees(
         pending.filter((p: { pvzId?: string }) => p.pvzId === currentPvzId)
       );
@@ -131,9 +134,9 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
               await confirmPendingEmployee(emp.id);
               await loadPendingEmployees();
               await loadEmployees();
-              Alert.alert(t('common.success.done'), t('alerts.success.employeeConfirmed', { name: emp.name }));
+              showSuccess(t('alerts.success.employeeConfirmed', { name: emp.name }));
             } catch (error: any) {
-              Alert.alert(t('common.error.title'), error?.message || t('alerts.network.confirmEmployeeFailed'));
+              showError(error?.message || t('alerts.network.confirmEmployeeFailed'));
             }
           },
         },
@@ -146,7 +149,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     try {
       const stored = await StorageService.getItem('pvz_users');
       if (stored) {
-        const all = JSON.parse(stored);
+        const all = safeParseJson<User[]>(stored, []);
         const filtered = all.filter(
           (u: User) =>
             u.role !== 'owner' &&
@@ -155,7 +158,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
         );
 
         const shiftsRaw = await StorageService.getItem('shifts');
-        const allShifts = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+        const allShifts = safeParseJson<unknown[]>(shiftsRaw ?? '[]', []);
 
         const employeesWithStats = await Promise.all(
           filtered.map(async (emp: User) => {
@@ -293,9 +296,9 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
           try {
             await blockUser(id);
             await loadEmployees();
-            Alert.alert(t('common.success.title'), t('alerts.success.employeeDeleted'));
+            showSuccess(t('alerts.success.employeeDeleted'));
           } catch (error) {
-            Alert.alert(t('common.error.title'), t('alerts.network.deleteEmployeeFailed'));
+            showError(t('alerts.network.deleteEmployeeFailed'));
           }
         },
       },

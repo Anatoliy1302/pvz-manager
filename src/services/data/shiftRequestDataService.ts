@@ -9,10 +9,11 @@ import { dataEventBus } from './dataEventBus';
 import { ShiftRequest } from './dataTypes';
 import { getPvzById } from './pvzDataService';
 import { getUsers } from './userDataService';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function getAllShiftRequests(): Promise<ShiftRequest[]> {
   const stored = await SecureStore.getItemAsync('all_shift_requests');
-  const local: ShiftRequest[] = stored ? JSON.parse(stored) : [];
+  const local = safeParseJson<ShiftRequest[]>(stored ?? '[]', []);
   const remote = await fetchShiftRequestsFromSupabase();
 
   if (remote === null) {
@@ -94,7 +95,7 @@ export async function updateShiftRequest(
 
 export async function refreshShiftRequestsCache(): Promise<ShiftRequest[]> {
   const stored = await SecureStore.getItemAsync('all_shift_requests');
-  const local: ShiftRequest[] = stored ? JSON.parse(stored) : [];
+  const local = safeParseJson<ShiftRequest[]>(stored ?? '[]', []);
   const remote = await fetchShiftRequestsFromSupabase();
 
   if (!remote) {

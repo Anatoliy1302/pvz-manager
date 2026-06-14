@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../../lib/supabase';
+import { safeParseJson } from './safeJson';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,7 +33,7 @@ export async function resolveLocalPvzId(pvzId: string): Promise<string> {
   const pvzsRaw = await SecureStore.getItemAsync('pvz_list');
   if (!pvzsRaw) return pvzId;
 
-  const pvzs = JSON.parse(pvzsRaw) as Array<{ id: string }>;
+  const pvzs = safeParseJson<Array<{ id: string }>>(pvzsRaw, []);
   for (const pvz of pvzs) {
     if (pvz.id === pvzId) return pvz.id;
     const mapped = await getPvzIdMapping(pvz.id);
@@ -90,7 +91,7 @@ export async function resolveUserId(localOrUuid: string): Promise<string | null>
   const usersRaw = await SecureStore.getItemAsync('pvz_users');
   if (!usersRaw) return null;
 
-  const users = JSON.parse(usersRaw) as Array<{ id: string; phone?: string }>;
+  const users = safeParseJson<Array<{ id: string; phone?: string }>>(usersRaw, []);
   const localUser = users.find((u) => u.id === localOrUuid);
   if (!localUser?.phone) return null;
 

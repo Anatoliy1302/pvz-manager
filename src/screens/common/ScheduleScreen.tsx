@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +19,9 @@ import {
 } from '../../utils/salaryRateHelpers';
 import { Copy } from 'lucide-react-native';
 import PermissionGate from '../../components/common/PermissionGate';
+import { generateSecureId } from '../../utils/generateSecureId';
+import { safeParseJson } from '../../utils/safeJson';
+import { Shift, User } from '../../types/user';
 import { ShiftAssignment, ShiftStatus, ShiftType } from './scheduleTypes';
 import {
   getDatesForView,
@@ -49,6 +53,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
   const { t } = useTranslation();
   const { pvz, userPvzs, updateCurrentPvz, hasRole, hasPermission } = useAuth();
   const { ui, screen, theme } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const isEmployee = hasRole(['employee']);
   const canManage =
     hasRole(['owner']) ||
@@ -150,12 +155,11 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     try {
       const stored = await SecureStore.getItemAsync('pvz_users');
       if (stored) {
-        const all = JSON.parse(stored);
+        const all = safeParseJson<User[]>(stored, []);
         const filtered = all.filter(
-          (u: Employee & { status: string; pvzId: string }) =>
-            u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id
+          (u) => u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id
         );
-        setEmployees(filtered);
+        setEmployees(filtered as Employee[]);
       }
     } catch (error) {
       console.error('Ошибка загрузки сотрудников:', error);
@@ -239,7 +243,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     const shiftTypeInfo = shiftTypes.find((t) => t.id === selectedShiftType);
 
     const newAssignment: ShiftAssignment = {
-      id: existing?.id || Date.now().toString(),
+      id: existing?.id || generateSecureId(),
       employeeId: selectedCell.employeeId,
       employeeName: selectedCell.employeeName,
       date: selectedCell.date,
@@ -262,7 +266,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     }
 
     const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    let all = allAssignments ? JSON.parse(allAssignments) : [];
+    let all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
 
     if (existing) {
       const idx = all.findIndex((a: ShiftAssignment) => a.id === existing.id);
@@ -320,7 +324,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     if (!deletedShift) return;
 
     const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    const all = allAssignments ? JSON.parse(allAssignments) : [];
+    const all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
     const newAll = all.filter(
       (a: ShiftAssignment) =>
         !(a.employeeId === selectedCell.employeeId && a.date === selectedCell.date)
@@ -346,16 +350,16 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     if (!copyFromDate || !copyToDate) return;
 
     const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    const all = allAssignments ? JSON.parse(allAssignments) : [];
+    const all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
 
     const sourceAssignments = all.filter((a: ShiftAssignment) => a.date === copyFromDate);
     const withoutTarget = all.filter((a: ShiftAssignment) => a.date !== copyToDate);
-    const copied = sourceAssignments.map((a: ShiftAssignment) => ({
+    const copied: ShiftAssignment[] = sourceAssignments.map((a) => ({
       ...a,
-      id: Date.now().toString() + Math.random(),
+      id: generateSecureId(),
       date: copyToDate,
-      status: 'planned',
-      paymentStatus: 'pending',
+      status: 'planned' as const,
+      paymentStatus: 'pending' as const,
     }));
 
     const newAssignments = [...withoutTarget, ...copied];
@@ -370,8 +374,8 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
         employeeId: shift.employeeId,
         employeeName: shift.employeeName,
         date: shift.date,
-        startTime: shift.shiftType === 'hourly' ? shift.customStart : shiftTypeInfo?.startTime || '10:00',
-        endTime: shift.shiftType === 'hourly' ? shift.customEnd : shiftTypeInfo?.endTime || '22:00',
+        startTime: shift.shiftType === 'hourly' ? (shift.customStart ?? '10:00') : (shiftTypeInfo?.startTime ?? '10:00'),
+        endTime: shift.shiftType === 'hourly' ? (shift.customEnd ?? '22:00') : (shiftTypeInfo?.endTime ?? '22:00'),
         shiftType: shift.shiftType,
         customStart: shift.customStart,
         customEnd: shift.customEnd,
@@ -381,7 +385,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
         pvzName: shift.pvzName || pvz?.name,
         earnings: shift.earnings,
       };
-    });
+    }) as Shift[];
 
     await DataService.saveShifts([...keptShifts, ...copiedShifts]);
     await loadAssignments();
@@ -391,7 +395,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     setCopyModalVisible(false);
     setCopyFromDate('');
     setCopyToDate('');
-    Alert.alert(t('common.success.title'), t('alerts.success.scheduleCopied'));
+    showSuccess(t('alerts.success.scheduleCopied'));
   };
 
   const changeWeek = (delta: number) => {
@@ -415,12 +419,12 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     if (!canEdit) return;
 
     if (assignment && assignment.paymentStatus === 'paid') {
-      Alert.alert(t('common.notice.title'), t('common.shiftStatus.paidLocked'));
+      showError(t('common.shiftStatus.paidLocked'));
       return;
     }
 
     if (assignment && assignment.status === 'completed') {
-      Alert.alert(t('common.notice.title'), t('common.shiftStatus.finishedAwaiting'));
+      showError(t('common.shiftStatus.finishedAwaiting'));
       return;
     }
 

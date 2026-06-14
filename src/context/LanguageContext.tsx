@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { ActivityIndicator, View } from 'react-native';
-import i18n, { changeAppLanguage } from '../i18n';
+import { changeAppLanguage } from '../i18n/loadLocale';
+import i18n from '../i18n';
 import {
   AppLanguage,
   LANGUAGE_STORAGE_KEY,
@@ -20,24 +20,32 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(
     (i18n.language as AppLanguage) || 'ru'
   );
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadLanguage = async () => {
       try {
         const stored = await SecureStore.getItemAsync(LANGUAGE_STORAGE_KEY);
+        if (cancelled) return;
+
         if (stored && SUPPORTED_LANGUAGES.includes(stored as AppLanguage)) {
           await changeAppLanguage(stored as AppLanguage);
-          setLanguageState(stored as AppLanguage);
+          if (!cancelled) {
+            setLanguageState(stored as AppLanguage);
+          }
         }
       } catch (error) {
         console.error('Failed to load language preference:', error);
-      } finally {
-        setReady(true);
       }
     };
 
-    loadLanguage();
+    void loadLanguage();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const setLanguage = useCallback(async (next: AppLanguage) => {
@@ -45,14 +53,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.setItemAsync(LANGUAGE_STORAGE_KEY, next);
     setLanguageState(next);
   }, []);
-
-  if (!ready) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, ready }}>

@@ -9,6 +9,15 @@ export default {
     push: 'Push notifications',
     sound: 'Notification sound',
     vibration: 'Vibration',
+    typesSection: 'Notification types',
+    types: {
+      shift: 'Shifts',
+      schedule: 'Schedule',
+      request: 'Requests',
+      swap: 'Shift swaps',
+      chat: 'Chat',
+      system: 'System',
+    },
   },
   security: {
     section: 'Security',

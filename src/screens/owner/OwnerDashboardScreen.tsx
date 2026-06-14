@@ -15,9 +15,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { StorageService } from '../../services/StorageService';
 import { useAuth } from '../../context/AuthContext';
+import { Shift } from '../../types/user';
+import { ShiftRequest } from '../../services/data/dataTypes';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { colors } from '../../constants/colors';
 import DataService from '../../services/DataService';
+import { safeParseJson } from '../../utils/safeJson';
 import notificationService from '../../services/NotificationService';
 import { calculateEmployeeAccruals, getEmployeeBalance } from '../../services/PaymentService';
 import AnimatedBanner from '../../components/common/AnimatedBanner';
@@ -55,7 +58,7 @@ export default function OwnerDashboardScreen({ navigation }: any) {
   const loadDashboardData = async () => {
     try {
       const shiftsRaw = await StorageService.getData('shifts');
-      const allShifts = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
       const today = new Date().toISOString().split('T')[0];
       const currentMonth = new Date().getMonth();
       
@@ -90,7 +93,7 @@ export default function OwnerDashboardScreen({ navigation }: any) {
       }
 
       const requestsRaw = await StorageService.getData('all_shift_requests');
-      const allRequests = requestsRaw ? JSON.parse(requestsRaw) : [];
+      const allRequests = safeParseJson<ShiftRequest[]>(requestsRaw ?? '[]', []);
       const pendingRequests = allRequests.filter((r: any) => r.status === 'pending').length;
       const pendingSwaps = await countPendingSwapsForPvz(pvz?.id);
 

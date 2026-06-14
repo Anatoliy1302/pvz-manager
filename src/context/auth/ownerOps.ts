@@ -2,15 +2,13 @@ import * as SecureStore from 'expo-secure-store';
 import { User, Pvz } from '../../types/user';
 import DataService from '../../services/DataService';
 import { AuthSetters } from './types';
-import {
-  USERS_STORE,
-  loadUsersFromStorage,
-  saveUsersToStorage,
-} from './userMemoryStore';
+import { userMemory, loadUsersFromStorage } from './userMemoryStore';
+import { generateSecureId } from '../../utils/generateSecureId';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function checkOwnerExists(): Promise<boolean> {
   await loadUsersFromStorage();
-  return USERS_STORE.some((u) => u.role === 'owner');
+  return userMemory.getUsers().some((u) => u.role === 'owner');
 }
 
 export async function registerOwnerAccount(
@@ -26,12 +24,13 @@ export async function registerOwnerAccount(
     throw new Error('Владелец уже зарегистрирован в системе');
   }
 
-  if (USERS_STORE.some((u) => u.phone === cleanPhone)) {
+  if (userMemory.getUsers().some((u) => u.phone === cleanPhone)) {
     throw new Error('Пользователь с таким номером уже зарегистрирован');
   }
 
+  const ownerId = generateSecureId('owner');
   const newOwner: User = {
-    id: Date.now().toString(),
+    id: ownerId,
     name,
     email: `${cleanPhone}@pvz.owner`,
     phone: cleanPhone,
@@ -41,18 +40,17 @@ export async function registerOwnerAccount(
     passwordHash: '',
   };
 
-  USERS_STORE.push(newOwner);
-  await saveUsersToStorage();
+  await userMemory.addUser(newOwner);
 
   const newPvz: Pvz = {
-    id: `pvz_${newOwner.id}`,
+    id: generateSecureId('pvz'),
     name: pvzName,
     address,
     workingHours: '10:00 - 21:00',
     workStart: '10:00',
     workEnd: '21:00',
     phone: cleanPhone,
-    ownerId: newOwner.id,
+    ownerId,
   };
 
   await DataService.savePvz(newPvz);
@@ -73,8 +71,6 @@ export async function blockUserAccount(
   currentUserId: string | undefined,
   signOut: () => Promise<void>
 ) {
-  console.log(`🔒 Блокировка пользователя: ${userId}`);
-
   const users = await DataService.getUsers();
   const userIndex = users.findIndex((u) => u.id === userId);
 
@@ -83,10 +79,7 @@ export async function blockUserAccount(
   users[userIndex].status = 'blocked';
   await SecureStore.setItemAsync('pvz_users', JSON.stringify(users));
 
-  const storeIndex = USERS_STORE.findIndex((u) => u.id === userId);
-  if (storeIndex !== -1) {
-    USERS_STORE[storeIndex].status = 'blocked';
-  }
+  await userMemory.updateUser(userId, { status: 'blocked' });
 
   if (currentUserId === userId) {
     await signOut();
@@ -94,14 +87,15 @@ export async function blockUserAccount(
 
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
   if (allInvitationsRaw) {
-    const allInvitations = JSON.parse(allInvitationsRaw);
-    allInvitations.forEach((inv: { phone: string; status: string }) => {
+    const allInvitations = safeParseJson<Array<{ phone: string; status: string }>>(
+      allInvitationsRaw,
+      []
+    );
+    allInvitations.forEach((inv) => {
       if (inv.phone === users[userIndex].phone) {
         inv.status = 'expired';
       }
     });
     await SecureStore.setItemAsync('all_invitations', JSON.stringify(allInvitations));
   }
-
-  console.log(`✅ Пользователь ${userId} заблокирован`);
 }

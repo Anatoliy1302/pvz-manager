@@ -3,7 +3,6 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { UserRole } from '../../../types/user';
 import { ROLE_LABEL_KEYS } from '../loginConstants';
-import LoginBiometricButton from './LoginBiometricButton';
 import LoginContinueButton from './LoginContinueButton';
 import LoginPinInput from './LoginPinInput';
 import LoginStepHeader from './LoginStepHeader';
@@ -15,15 +14,10 @@ interface LoginQuickLoginStepProps {
   phone: string;
   pinCode: string;
   loading: boolean;
-  biometricEnabled: boolean;
-  biometricLabel: string;
-  biometricIsFaceId: boolean;
-  biometricUsesDeviceAuth: boolean;
   titleStyle?: object;
   subtitleStyle?: object;
   onChangePin: (value: string) => void;
   onSubmit: () => void;
-  onBiometricPress: () => void;
   onSwitchAccount: () => void;
 }
 
@@ -33,15 +27,10 @@ export default function LoginQuickLoginStep({
   phone,
   pinCode,
   loading,
-  biometricEnabled,
-  biometricLabel,
-  biometricIsFaceId,
-  biometricUsesDeviceAuth,
   titleStyle,
   subtitleStyle,
   onChangePin,
   onSubmit,
-  onBiometricPress,
   onSwitchAccount,
 }: LoginQuickLoginStepProps) {
   const { t } = useTranslation();
@@ -67,20 +56,10 @@ export default function LoginQuickLoginStep({
         {selectedRole ? t(ROLE_LABEL_KEYS[selectedRole]) : ''} · {phone}
       </Text>
 
-      {biometricEnabled && (
-        <LoginBiometricButton
-          label={biometricLabel}
-          isFaceId={biometricIsFaceId}
-          usesDeviceAuth={biometricUsesDeviceAuth}
-          loading={loading}
-          onPress={onBiometricPress}
-        />
-      )}
-
       <LoginPinInput
         pinCode={pinCode}
         onChangePin={onChangePin}
-        autoFocus={!biometricEnabled}
+        disabled={loading}
       />
 
       <LoginContinueButton

@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -18,11 +17,13 @@ import { colors } from '../../constants/colors';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { SUPPORT_TOPICS, SupportTopic } from '../../utils/supportHelpers';
 import SupportService from '../../services/SupportService';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { ChevronLeft, Send, LifeBuoy } from 'lucide-react-native';
 
 export default function SupportScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
+  const { showError, showSuccess } = useScreenToast();
   const [topic, setTopic] = useState<SupportTopic>('feature');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -41,16 +42,10 @@ export default function SupportScreen({ navigation }: any) {
         pvzName: pvz?.name,
       });
 
-      Alert.alert(
-        t('screens.support.thanksTitle'),
-        t('screens.support.thanksMessage'),
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      showSuccess(t('screens.support.thanksMessage'));
+      navigation.goBack();
     } catch {
-      Alert.alert(
-        t('screens.support.sendFailedTitle'),
-        t('screens.support.sendFailedMessage')
-      );
+      showError(t('screens.support.sendFailedMessage'));
     } finally {
       setSending(false);
     }

@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +27,7 @@ export default function SwapNotificationsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { ui, screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<SwapRequest[]>([]);
   const [historyRequests, setHistoryRequests] = useState<SwapRequest[]>([]);
@@ -63,13 +65,13 @@ export default function SwapNotificationsScreen({ navigation }: any) {
               if (!pvz?.id || !user?.id) return;
               const ok = await DataService.cancelSwapRequest(pvz.id, request.id, user.id);
               if (!ok) {
-                Alert.alert(t('common.error.title'), t('alerts.network.cancelSwapFailed'));
+                showError(t('alerts.network.cancelSwapFailed'));
                 return;
               }
               await loadSwapRequests();
-              Alert.alert(t('common.success.done'), t('alerts.success.swapCancelled'));
+              showSuccess(t('alerts.success.swapCancelled'));
             } catch {
-              Alert.alert(t('common.error.title'), t('alerts.network.cancelSwapFailed'));
+              showError(t('alerts.network.cancelSwapFailed'));
             }
           },
         },

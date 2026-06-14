@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { Payment, PaymentType } from '../types/payment';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
+import { safeParseJson } from '../utils/safeJson';
 import { hasSupabaseSession } from './SupabaseAuthService';
 
 const PAYMENT_META_PREFIX = '__meta__:';
@@ -14,7 +15,10 @@ function decodePaymentNote(rawNote: string | null): { type: PaymentType; note?: 
     return { type: 'salary', note: rawNote || undefined };
   }
   try {
-    const parsed = JSON.parse(rawNote.slice(PAYMENT_META_PREFIX.length));
+    const parsed = safeParseJson<{ type?: PaymentType; note?: string }>(
+      rawNote.slice(PAYMENT_META_PREFIX.length),
+      {}
+    );
     return {
       type: (parsed.type as PaymentType) || 'salary',
       note: parsed.note || undefined,

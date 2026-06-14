@@ -16,6 +16,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
@@ -77,6 +78,7 @@ export default function EmployeePermissionsScreen({ navigation }: any) {
   const { pvz, userPvzs } = useAuth();
   const { ui, screen, theme } = useThemedScreen();
   const styles = createStyles(screen, theme === 'dark');
+  const { showError } = useScreenToast();
 
   const basicPermissionRows = useMemo<PermissionRow[]>(
     () => [
@@ -132,7 +134,7 @@ export default function EmployeePermissionsScreen({ navigation }: any) {
       );
     } catch (error) {
       console.error('Ошибка загрузки сотрудников:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.loadEmployeesFailed'));
+      showError(t('alerts.network.loadEmployeesFailed'));
     }
   };
 
@@ -205,7 +207,7 @@ export default function EmployeePermissionsScreen({ navigation }: any) {
       setEmployees((prev) =>
         prev.map((emp) => (emp.id === employeeId ? previous : emp))
       );
-      Alert.alert(t('common.error.title'), t('alerts.network.updatePermissionsFailed'));
+      showError(t('alerts.network.updatePermissionsFailed'));
     }
   };
 

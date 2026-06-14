@@ -13,6 +13,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
@@ -50,6 +51,7 @@ export default function InvitationsScreen({ navigation }: any) {
   const { user, revokeInvitation } = useAuth();
   const { ui, screen, theme } = useThemedScreen();
   const styles = createStyles(screen, theme === 'dark');
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -112,9 +114,9 @@ export default function InvitationsScreen({ navigation }: any) {
             try {
               await revokeInvitation(invitation.id);
               setInvitations((prev) => prev.filter((i) => i.id !== invitation.id));
-              Alert.alert(t('common.success.done'), t('alerts.success.inviteCancelled'));
+              showSuccess(t('alerts.success.inviteCancelled'));
             } catch (error: any) {
-              Alert.alert(t('common.error.title'), error.message || t('alerts.network.cancelInviteFailed'));
+              showError(error.message || t('alerts.network.cancelInviteFailed'));
             }
           },
         },
@@ -140,12 +142,11 @@ export default function InvitationsScreen({ navigation }: any) {
               setInvitations((prev) =>
                 prev.map((i) => (i.id === invitation.id ? { ...i, ...updated } : i))
               );
-              Alert.alert(
-                t('common.success.done'),
+              showSuccess(
                 t('alerts.success.inviteUpdated', { name: invitation.name, phone: displayPhone })
               );
             } catch (error: any) {
-              Alert.alert(t('common.error.title'), error.message || t('alerts.network.resendInviteFailed'));
+              showError(error.message || t('alerts.network.resendInviteFailed'));
             } finally {
               setResendingId(null);
             }

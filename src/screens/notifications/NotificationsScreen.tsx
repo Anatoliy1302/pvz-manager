@@ -63,7 +63,7 @@ export default function NotificationsScreen({ navigation }: any) {
   };
 
   const markAsRead = async (id: string) => {
-    await notificationService.markAsRead(id);
+    await notificationService.markAsRead(id, user?.id);
     await loadNotifications();
   };
 

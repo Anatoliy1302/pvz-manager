@@ -6,12 +6,13 @@ import {
   deleteShiftFromSupabase,
 } from '../SupabaseShiftService';
 import { isUuid, resolveLocalPvzId } from '../../utils/supabaseHelpers';
+import { safeParseJson } from '../../utils/safeJson';
 import { dataEventBus } from './dataEventBus';
 import { getPvzs } from './pvzDataService';
 
 async function readLocalShifts(): Promise<Shift[]> {
   const stored = await SecureStore.getItemAsync('shifts');
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<Shift[]>(stored ?? '[]', []);
 }
 
 async function writeLocalShifts(shifts: Shift[]): Promise<void> {
@@ -170,7 +171,7 @@ export async function deleteShift(id: string): Promise<void> {
 
 export async function getShiftsHistory(employeeId?: string): Promise<any[]> {
   const stored = await SecureStore.getItemAsync('shifts_history');
-  const history = stored ? JSON.parse(stored) : [];
+  const history = safeParseJson<unknown[]>(stored ?? '[]', []);
 
   if (employeeId) {
     return history.filter((s: any) => s.employeeId === employeeId);
@@ -199,7 +200,7 @@ export async function updateShiftHistory(id: string, updates: any): Promise<void
 
 export async function getActiveShift(): Promise<any | null> {
   const stored = await SecureStore.getItemAsync('active_shift');
-  return stored ? JSON.parse(stored) : null;
+  return stored ? safeParseJson<Shift | null>(stored, null) : null;
 }
 
 export async function setActiveShift(shift: any | null): Promise<void> {

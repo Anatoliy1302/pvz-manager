@@ -1,0 +1,80 @@
+export default {
+  banner: {
+    title: 'Персонал ПВЗ',
+    subtitle: 'Кіраванне пунктам выдачы заказаў',
+  },
+  role: {
+    sectionTitle: 'Абярыце ролю',
+    sectionSubtitle: 'Для ўваходу ў праграму',
+    owner: {
+      title: 'Уладальнік ПВЗ',
+      description: 'Фінансы, супрацоўнікі, расклад і налады пункта',
+    },
+    admin: {
+      title: 'Адміністратар',
+      description: 'Кіраванне зменамі, заяўкамі і камандай на ПВЗ',
+    },
+    employee: {
+      title: 'Супрацоўнік',
+      description: 'Змены, расклад, статыстыка і асабістыя выплаты',
+    },
+  },
+  phone: {
+    title: 'Нумар тэлефона',
+    subtitle: 'Увядзіце нумар для ўваходу ў праграму',
+    placeholder: '+7 (___) ___-__-__',
+  },
+  sms: {
+    title: 'Код з SMS',
+    subtitle: 'Увядзіце {{length}}-значны код, адправлены на {{phone}}',
+    subtitleStub: 'Увядзіце {{length}}-значны код (заглушка для тэстаў) на {{phone}}',
+    resendTimer: 'Адправіць код паўторна ({{seconds}}с)',
+    resend: 'Адправіць код паўторна',
+    placeholder: 'Код з SMS',
+  },
+  pin: {
+    entryTitle: 'Увядзіце PIN-код',
+    setupTitle: 'Усталюйце PIN-код',
+    entrySubtitle: '4 лічбы для ўваходу ў праграму',
+    setupSubtitle: '4 лічбы для хуткага ўваходу',
+    biometric: 'Біяметрыя',
+    biometricLogin: 'Увайсці праз {{label}}',
+    orEnterPin: 'або ўвядзіце PIN',
+    expoGoHint: 'У Expo Go Face ID праграмы недаступны. Выкарыстоўвайце PIN або збераце standalone-праграму.',
+    expoGoDeviceAuthHint:
+      'У Expo Go Face ID праграмы недаступны. Пацвердзіце праз iPhone — у запыце будзе «Expo Go».',
+  },
+  pvzSelect: {
+    title: 'Абярыце ПВЗ',
+    subtitleOwner: 'Вашы пункты выдачы',
+    subtitleInvite: 'Запрашэнні ад уладальніка',
+    inviteFrom: 'Запрашэнне ад {{name}}',
+    inviteFromOwner: 'Запрашэнне ад уладальніка',
+    createNew: 'Стварыць новы ПВЗ',
+  },
+  createPvz: {
+    title: 'Стварыце ПВЗ',
+    subtitle: 'Увядзіце назву і адрас вашага пункта выдачы',
+    namePlaceholder: 'Назва ПВЗ',
+    addressPlaceholder: 'Адрас ПВЗ',
+    submit: 'Стварыць ПВЗ',
+  },
+  quickLogin: {
+    title: 'З вяртаннем!',
+    submit: 'Увайсці',
+    switchAccount: 'Увайсці іншым нумарам',
+  },
+  biometric: {
+    enableTitle: 'Уключыць {{label}}?',
+    enableMessage: 'Наступным разам можна ўваходзіць без уводу PIN-кода',
+    notNow: 'Не зараз',
+    enable: 'Уключыць',
+    confirm: 'Пацвердзіце {{label}}',
+    loginAs: 'Увайсці як {{name}}',
+    confirmLogin: 'Пацвердзіце ўваход у праграму',
+  },
+  sessionExpired: 'Сесія скончылася. Увядзіце код з SMS для ўваходу.',
+  confirmationTitle: 'Пацверджанне',
+  devCodeStub: 'Код пацверджання (заглушка)',
+  devCodeMessage: 'Ваш код: {{code}}',
+} as const;

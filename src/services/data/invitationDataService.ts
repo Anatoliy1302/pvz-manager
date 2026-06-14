@@ -8,10 +8,11 @@ import {
 } from '../SupabaseInvitationService';
 import { dataEventBus } from './dataEventBus';
 import { Invitation } from './dataTypes';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function getInvitations(ownerId: string): Promise<Invitation[]> {
   const stored = await SecureStore.getItemAsync(`invitations_${ownerId}`);
-  const local: Invitation[] = stored ? JSON.parse(stored) : [];
+  const local = safeParseJson<Invitation[]>(stored ?? '[]', []);
   const remote = await fetchInvitationsFromSupabase();
 
   if (remote === null) {
@@ -90,7 +91,7 @@ export async function resendInvitation(ownerId: string, id: string): Promise<Inv
   await SecureStore.setItemAsync(`invitations_${ownerId}`, JSON.stringify(invitations));
 
   const allRaw = await SecureStore.getItemAsync('all_invitations');
-  const allInvitations: Invitation[] = allRaw ? JSON.parse(allRaw) : [];
+  const allInvitations = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
   const cleanPhone = String(invitation.phone).replace(/[^0-9]/g, '');
   const allUpdated = allInvitations.map((inv) => {
     const invPhone = String(inv.phone).replace(/[^0-9]/g, '');
@@ -111,7 +112,7 @@ export async function refreshInvitationsForLogin(): Promise<void> {
   if (!remote) return;
 
   const allRaw = await SecureStore.getItemAsync('all_invitations');
-  const allLocal: Invitation[] = allRaw ? JSON.parse(allRaw) : [];
+  const allLocal = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
   const mergedAll = mergeInvitations(allLocal, remote);
   await SecureStore.setItemAsync('all_invitations', JSON.stringify(mergedAll));
   dataEventBus.emitChange('all_invitations');
@@ -122,7 +123,7 @@ export async function refreshInvitationsCache(sessionUser: User): Promise<void> 
 
   if (sessionUser.role === 'owner' || sessionUser.role === 'admin') {
     const allRaw = await SecureStore.getItemAsync('all_invitations');
-    const mergedAll: Invitation[] = allRaw ? JSON.parse(allRaw) : [];
+    const mergedAll = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
     const ownerList = mergedAll.filter((inv) => inv.invitedBy === sessionUser.id);
     await SecureStore.setItemAsync(`invitations_${sessionUser.id}`, JSON.stringify(ownerList));
     dataEventBus.emitChange(`invitations_${sessionUser.id}`);

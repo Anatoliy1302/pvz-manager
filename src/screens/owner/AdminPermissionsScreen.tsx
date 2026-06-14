@@ -7,13 +7,13 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
@@ -40,6 +40,7 @@ export default function AdminPermissionsScreen({ navigation }: any) {
   const { user } = useAuth();
   const { ui, screen } = useThemedScreen();
   const styles = createStyles(screen);
+  const { showError } = useScreenToast();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [pvzs, setPvzs] = useState<{ id: string; name: string }[]>([]);
   const [expandedAdmin, setExpandedAdmin] = useState<string | null>(null);
@@ -107,7 +108,7 @@ export default function AdminPermissionsScreen({ navigation }: any) {
       );
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.loadAdminsFailed'));
+      showError(t('alerts.network.loadAdminsFailed'));
     }
   };
 
@@ -131,10 +132,7 @@ export default function AdminPermissionsScreen({ navigation }: any) {
     if (!admin) return;
 
     if (currentlyHas && admin.pvzIds.length <= 1) {
-      Alert.alert(
-        t('screens.adminPermissions.cannotRemoveTitle'),
-        t('alerts.confirm.minOnePvz')
-      );
+      showError(t('alerts.confirm.minOnePvz'));
       return;
     }
 
@@ -147,7 +145,7 @@ export default function AdminPermissionsScreen({ navigation }: any) {
       pvzIds: newPvzIds,
     })
       .then(loadData)
-      .catch(() => Alert.alert(t('common.error.title'), t('alerts.network.updatePvzListFailed')));
+      .catch(() => showError(t('alerts.network.updatePvzListFailed')));
   };
 
   const onRefresh = async () => {

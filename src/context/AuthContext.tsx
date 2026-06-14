@@ -1,9 +1,10 @@
 // src/context/AuthContext.tsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { User, UserRole, Pvz, EmployeePermissions } from '../types/user';
+import { User, UserRole, Pvz } from '../types/user';
 import DataService from '../services/DataService';
 import { mergeUserPermissions } from '../utils/permissionHelpers';
+import { safeParseJson } from '../utils/safeJson';
 import {
   restoreSupabaseSession,
   signOutSupabase,
@@ -11,6 +12,7 @@ import {
 } from '../services/SupabaseAuthService';
 import notificationService from '../services/NotificationService';
 import { stopSupabaseRealtime } from '../services/SupabaseRealtimeService';
+import { withTimeout } from '../utils/withTimeout';
 
 export { LAST_LOGIN_PROFILE_KEY, type LastLoginProfile } from './auth/lastLoginProfile';
 export type { SignInOptions } from './auth/types';
@@ -19,7 +21,7 @@ import { AuthContextData, AuthSetters } from './auth/types';
 import { checkHasPermission, checkHasRole } from './auth/authPermissions';
 import { syncAdminPvzContext } from './auth/pvzContextHelpers';
 import {
-  USERS_STORE,
+  userMemory,
   loadUsersFromStorage,
   loadPendingEmployeesFromStorage,
 } from './auth/userMemoryStore';
@@ -54,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     stopSupabaseRealtime();
     await signOutSupabase();
+    notificationService.setCurrentUserId(undefined);
     notificationService.setCurrentUserRole(undefined);
     await notificationService.applyUserPreferences();
     await SecureStore.deleteItemAsync('user');
@@ -63,25 +66,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserPvzs([]);
   };
 
+  const initDoneRef = useRef(false);
+
   useEffect(() => {
     const init = async () => {
-      await loadUsersFromStorage();
-      await loadPendingEmployeesFromStorage();
+      try {
+        await loadUsersFromStorage();
+        await loadPendingEmployeesFromStorage();
 
-      const supabaseUser = await restoreSupabaseSession();
-      if (supabaseUser) {
-        await hydrateSessionUser(supabaseUser, setters);
+        const supabaseUser = await withTimeout(restoreSupabaseSession(), 8000, null);
+        if (supabaseUser) {
+          await hydrateSessionUser(supabaseUser, setters);
+          return;
+        }
+
+        await loadStoredUser(setters, signOut);
+      } catch (error) {
+        console.error('Ошибка инициализации сессии:', error);
+      } finally {
+        initDoneRef.current = true;
         setIsLoading(false);
-        return;
       }
-
-      await loadStoredUser(setters, signOut);
     };
-    init();
+    void init();
   }, []);
 
   useEffect(() => {
     return subscribeToAuthChanges(async () => {
+      if (!initDoneRef.current) return;
+
       const supabaseUser = await restoreSupabaseSession();
       if (supabaseUser) {
         await hydrateSessionUser(supabaseUser, setters);
@@ -97,16 +110,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedUser = await SecureStore.getItemAsync('user');
       if (!storedUser) return;
 
-      const parsed = JSON.parse(storedUser) as User;
+      const parsed = safeParseJson<User | null>(storedUser, null);
+      if (!parsed) return;
       if (parsed.role === 'employee') {
-        const source = USERS_STORE.find((u) => u.id === parsed.id);
+        const source = userMemory.getUsers().find((u) => u.id === parsed.id);
         if (source?.permissions) {
           const updated = mergeUserPermissions(parsed, source.permissions);
           setUser(updated);
           await SecureStore.setItemAsync('user', JSON.stringify(updated));
         }
       } else if (parsed.role === 'admin') {
-        const source = USERS_STORE.find((u) => u.id === parsed.id);
+        const source = userMemory.getUsers().find((u) => u.id === parsed.id);
         if (source) {
           const updated: User = {
             ...parsed,

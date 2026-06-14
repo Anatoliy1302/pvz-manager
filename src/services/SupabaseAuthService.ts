@@ -1,14 +1,20 @@
-import { supabase } from '../../lib/supabase';
 import * as SecureStore from 'expo-secure-store';
+import { supabase } from '../../lib/supabase';
 import DataService from './DataService';
-import SmsService from './SmsService';
 import { User, UserRole, EmployeePermissions, defaultPermissions } from '../types/user';
 import { toE164Phone } from '../utils/phoneHelpers';
+import { safeParseJson } from '../utils/safeJson';
+import { t } from '../i18n';
 
 /**
- * false — локальная заглушка SMS (удобно для разработки).
- * true  — реальный Supabase Phone OTP (Twilio и др.).
- * Включить в проде: EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true в .env
+ * Режим демо-данных без Supabase OTP (только для локальной разработки).
+ * Включить: EXPO_PUBLIC_DEMO_MODE=true в .env
+ */
+export const DEMO_MODE = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
+
+/**
+ * Реальный Supabase Phone OTP (Twilio и др.).
+ * Обязателен в production; в dev можно включить EXPO_PUBLIC_DEMO_MODE.
  */
 export const USE_SUPABASE_PHONE_OTP =
   process.env.EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP === 'true';
@@ -17,8 +23,22 @@ export function usesSupabasePhoneOtp(): boolean {
   return USE_SUPABASE_PHONE_OTP;
 }
 
+/** Регистрация владельца через создание ПВЗ + PIN без Supabase SMS. */
+export function canRegisterOwnerWithoutPhoneOtp(): boolean {
+  return !USE_SUPABASE_PHONE_OTP;
+}
+
 export function getOtpCodeLength(): number {
-  return USE_SUPABASE_PHONE_OTP ? 6 : 4;
+  return 6;
+}
+
+function assertPhoneOtpAvailable(): void {
+  if (!USE_SUPABASE_PHONE_OTP) {
+    if (DEMO_MODE) {
+      throw new Error(t('alerts.auth.demoSmsDisabled'));
+    }
+    throw new Error(t('alerts.auth.smsNotConfigured'));
+  }
 }
 
 export interface AuthProfilePayload {
@@ -35,25 +55,26 @@ export interface AuthProfilePayload {
 export function formatSupabaseAuthError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('phone provider') && lower.includes('disabled')) {
-    return (
-      'В Supabase отключён вход по телефону. Включите: Dashboard → Authentication → ' +
-      'Sign In / Providers → Phone → Enable Phone provider и настройте SMS (Twilio и др.).'
-    );
+    return t('alerts.auth.phoneProviderDisabled');
   }
   if (lower.includes('email logins are disabled')) {
-    return 'Вход по email отключён — приложение использует только SMS (Phone OTP).';
+    return t('alerts.auth.emailLoginDisabled');
   }
   if (lower.includes('token has expired') || lower.includes('otp_expired')) {
-    return 'Код из SMS истёк. Запросите новый.';
+    return t('alerts.auth.otpExpired');
   }
   if (lower.includes('invalid otp') || lower.includes('invalid token')) {
-    return 'Неверный код из SMS.';
+    return t('alerts.auth.invalidOtpCode');
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return t('alerts.auth.rateLimit');
   }
   return message;
 }
 
-/** Ошибка настройки Supabase — можно войти локально без облака. */
+/** Ошибка настройки Supabase — можно войти локально без облака (только DEMO_MODE). */
 export function isSupabaseProviderConfigError(error: unknown): boolean {
+  if (!DEMO_MODE) return false;
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes('phone provider') ||
@@ -112,18 +133,9 @@ export async function fetchProfileUser(userId: string): Promise<User | null> {
   return data ? mapProfileRow(data as Record<string, unknown>) : null;
 }
 
-export interface SendPhoneOtpResult {
-  /** Код для экрана-заглушки (только в режиме разработки). */
-  devCode?: string;
-}
-
-/** Отправить SMS-код (заглушка или Supabase Phone OTP). */
-export async function sendPhoneOtp(cleanPhone: string): Promise<SendPhoneOtpResult> {
-  if (!USE_SUPABASE_PHONE_OTP) {
-    const code = SmsService.generateCode();
-    await SmsService.sendSms(cleanPhone, code);
-    return { devCode: code };
-  }
+/** Отправить SMS-код через Supabase Phone OTP. */
+export async function sendPhoneOtp(cleanPhone: string): Promise<void> {
+  assertPhoneOtpAvailable();
 
   const phone = toE164Phone(cleanPhone);
   const { error } = await supabase.auth.signInWithOtp({ phone });
@@ -131,20 +143,11 @@ export async function sendPhoneOtp(cleanPhone: string): Promise<SendPhoneOtpResu
   if (error) {
     throw new Error(formatSupabaseAuthError(error.message));
   }
-
-  return {};
 }
 
-/** Подтвердить код из SMS. В режиме Supabase создаёт сессию. */
+/** Подтвердить код из SMS. Создаёт Supabase-сессию. */
 export async function verifyPhoneOtp(cleanPhone: string, token: string): Promise<string> {
-  if (!USE_SUPABASE_PHONE_OTP) {
-    const isValid = await SmsService.verifyCode(cleanPhone, token.trim());
-    if (!isValid) {
-      throw new Error('Неверный или истёкший код');
-    }
-    await SmsService.clearCode(cleanPhone);
-    return '';
-  }
+  assertPhoneOtpAvailable();
 
   const phone = toE164Phone(cleanPhone);
   const { data, error } = await supabase.auth.verifyOtp({
@@ -159,7 +162,7 @@ export async function verifyPhoneOtp(cleanPhone: string, token: string): Promise
 
   const userId = data.user?.id || data.session?.user?.id;
   if (!userId) {
-    throw new Error('Supabase не вернул ID пользователя после проверки SMS');
+    throw new Error(t('alerts.auth.supabaseNoUserId'));
   }
 
   return userId;
@@ -182,58 +185,88 @@ export async function linkSupabaseProfile(profile: AuthProfilePayload): Promise<
   return session.user.id;
 }
 
-/** Перенос локального id на UUID Supabase (смены, ПВЗ, pvz_users). */
+/** Перенос локального id на UUID Supabase (смены, ПВЗ, pvz_users) с откатом при ошибке. */
 export async function migrateLocalUserId(oldId: string, newId: string, role: UserRole): Promise<void> {
-  const { setUserIdMapping } = await import('../utils/supabaseHelpers');
-  await setUserIdMapping(oldId, newId);
+  const backupKey = `migration_backup_${oldId}`;
+  const storeKeys = ['pvz_users', 'shifts', 'all_shift_requests', 'all_invitations', `invitations_${oldId}`];
 
-  const usersRaw = await SecureStore.getItemAsync('pvz_users');
-  if (usersRaw) {
-    const users = JSON.parse(usersRaw);
-    const updated = users.map((u: User) => (u.id === oldId ? { ...u, id: newId } : u));
-    await SecureStore.setItemAsync('pvz_users', JSON.stringify(updated));
+  const backup: Record<string, string | null> = {};
+  for (const key of storeKeys) {
+    backup[key] = await SecureStore.getItemAsync(key);
   }
+  await SecureStore.setItemAsync(backupKey, JSON.stringify(backup));
 
-  if (role === 'owner') {
-    const pvzs = await DataService.getPvzs();
-    for (const p of pvzs) {
-      if (p.ownerId === oldId) {
-        await DataService.savePvz({ ...p, ownerId: newId });
+  const rollback = async () => {
+    const raw = await SecureStore.getItemAsync(backupKey);
+    if (!raw) return;
+    const snapshot = safeParseJson<Record<string, string | null>>(raw, {});
+    for (const [key, value] of Object.entries(snapshot)) {
+      if (value === null) {
+        await SecureStore.deleteItemAsync(key);
+      } else {
+        await SecureStore.setItemAsync(key, value);
       }
     }
-  }
+    await SecureStore.deleteItemAsync(backupKey);
+  };
 
-  const shiftsRaw = await SecureStore.getItemAsync('shifts');
-  if (shiftsRaw) {
-    const shifts = JSON.parse(shiftsRaw);
-    const updatedShifts = shifts.map((s: { employeeId?: string }) =>
-      s.employeeId === oldId ? { ...s, employeeId: newId } : s
-    );
-    await SecureStore.setItemAsync('shifts', JSON.stringify(updatedShifts));
-  }
+  try {
+    const { setUserIdMapping } = await import('../utils/supabaseHelpers');
+    await setUserIdMapping(oldId, newId);
 
-  const shiftRequestsRaw = await SecureStore.getItemAsync('all_shift_requests');
-  if (shiftRequestsRaw) {
-    const requests = JSON.parse(shiftRequestsRaw);
-    const updatedRequests = requests.map((r: { employeeId?: string }) =>
-      r.employeeId === oldId ? { ...r, employeeId: newId } : r
-    );
-    await SecureStore.setItemAsync('all_shift_requests', JSON.stringify(updatedRequests));
-  }
+    const usersRaw = await SecureStore.getItemAsync('pvz_users');
+    if (usersRaw) {
+      const users = safeParseJson<User[]>(usersRaw, []);
+      const updated = users.map((u) => (u.id === oldId ? { ...u, id: newId } : u));
+      await SecureStore.setItemAsync('pvz_users', JSON.stringify(updated));
+    }
 
-  const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
-  if (allInvitationsRaw) {
-    const invitations = JSON.parse(allInvitationsRaw);
-    const updatedInvitations = invitations.map((inv: { invitedBy?: string }) =>
-      inv.invitedBy === oldId ? { ...inv, invitedBy: newId } : inv
-    );
-    await SecureStore.setItemAsync('all_invitations', JSON.stringify(updatedInvitations));
-  }
+    if (role === 'owner') {
+      const pvzs = await DataService.getPvzs();
+      for (const p of pvzs) {
+        if (p.ownerId === oldId) {
+          await DataService.savePvz({ ...p, ownerId: newId });
+        }
+      }
+    }
 
-  const ownerInvitationsRaw = await SecureStore.getItemAsync(`invitations_${oldId}`);
-  if (ownerInvitationsRaw) {
-    await SecureStore.setItemAsync(`invitations_${newId}`, ownerInvitationsRaw);
-    await SecureStore.deleteItemAsync(`invitations_${oldId}`);
+    const shiftsRaw = await SecureStore.getItemAsync('shifts');
+    if (shiftsRaw) {
+      const shifts = safeParseJson<Array<{ employeeId?: string }>>(shiftsRaw, []);
+      const updatedShifts = shifts.map((s) =>
+        s.employeeId === oldId ? { ...s, employeeId: newId } : s
+      );
+      await SecureStore.setItemAsync('shifts', JSON.stringify(updatedShifts));
+    }
+
+    const shiftRequestsRaw = await SecureStore.getItemAsync('all_shift_requests');
+    if (shiftRequestsRaw) {
+      const requests = safeParseJson<Array<{ employeeId?: string }>>(shiftRequestsRaw, []);
+      const updatedRequests = requests.map((r) =>
+        r.employeeId === oldId ? { ...r, employeeId: newId } : r
+      );
+      await SecureStore.setItemAsync('all_shift_requests', JSON.stringify(updatedRequests));
+    }
+
+    const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
+    if (allInvitationsRaw) {
+      const invitations = safeParseJson<Array<{ invitedBy?: string }>>(allInvitationsRaw, []);
+      const updatedInvitations = invitations.map((inv) =>
+        inv.invitedBy === oldId ? { ...inv, invitedBy: newId } : inv
+      );
+      await SecureStore.setItemAsync('all_invitations', JSON.stringify(updatedInvitations));
+    }
+
+    const ownerInvitationsRaw = await SecureStore.getItemAsync(`invitations_${oldId}`);
+    if (ownerInvitationsRaw) {
+      await SecureStore.setItemAsync(`invitations_${newId}`, ownerInvitationsRaw);
+      await SecureStore.deleteItemAsync(`invitations_${oldId}`);
+    }
+
+    await SecureStore.deleteItemAsync(backupKey);
+  } catch (error) {
+    await rollback();
+    throw error;
   }
 }
 

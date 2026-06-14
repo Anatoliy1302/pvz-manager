@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "107880408552",
+    "project_id": "pvz-manager-ce3fd",
+    "storage_bucket": "pvz-manager-ce3fd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:107880408552:android:18b0f3e5cb79ff122c705d",
+        "android_client_info": {
+          "package_name": "com.yourcompany.pvzmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOkW94ivygUzA-mo3izSdcc8VOHJIXPFo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

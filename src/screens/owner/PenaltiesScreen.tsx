@@ -23,8 +23,11 @@ import { addPenalty as savePenalty, updateEmployeeBalance } from '../../services
 import { ChevronLeft, Plus, X, Check, AlertCircle, User, Calendar, Trash2, RefreshCw } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import EmptyState from '../../components/common/EmptyState';
+import { generateSecureId } from '../../utils/generateSecureId';
+import { safeParseJson } from '../../utils/safeJson';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 
 interface Penalty {
   id: string;
@@ -41,6 +44,7 @@ export default function PenaltiesScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
@@ -67,7 +71,7 @@ export default function PenaltiesScreen({ navigation }: any) {
       for (const emp of pvzEmployees) {
         const raw = await StorageService.getItem(`penalties_${emp.id}`);
         if (raw) {
-          const penaltiesData = JSON.parse(raw);
+          const penaltiesData = safeParseJson<Penalty[]>(raw, []);
           allPenalties = [...allPenalties, ...penaltiesData];
         }
       }
@@ -105,15 +109,15 @@ export default function PenaltiesScreen({ navigation }: any) {
 
   const addPenalty = async () => {
     if (!selectedEmployeeId) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectEmployee'));
+      showError(t('alerts.validation.selectEmployee'));
       return;
     }
     if (!amount || parseFloat(amount) === 0) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterAmount'));
+      showError(t('alerts.validation.enterAmount'));
       return;
     }
     if (!reason.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterReason'));
+      showError(t('alerts.validation.enterReason'));
       return;
     }
     
@@ -123,7 +127,7 @@ export default function PenaltiesScreen({ navigation }: any) {
     const finalAmount = type === 'fine' ? absAmount : -absAmount;
     
     const newPenalty: Penalty = {
-      id: Date.now().toString(),
+      id: generateSecureId(),
       employeeId: selectedEmployeeId,
       employeeName: employee?.name || '',
       amount: finalAmount,
@@ -146,8 +150,7 @@ export default function PenaltiesScreen({ navigation }: any) {
       setReason('');
       setType('fine');
       
-      Alert.alert(
-        t('common.success.title'),
+      showSuccess(
         t('alerts.success.penaltyAdded', {
           type: type === 'fine' ? t('screens.finance.fine') : t('screens.finance.bonusType'),
         })
@@ -155,7 +158,7 @@ export default function PenaltiesScreen({ navigation }: any) {
       
     } catch (error) {
       console.error('Ошибка:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.addPenaltyFailed'));
+      showError(t('alerts.network.addPenaltyFailed'));
     }
   };
 
@@ -175,7 +178,7 @@ export default function PenaltiesScreen({ navigation }: any) {
           onPress: async () => {
             try {
               const existingRaw = await StorageService.getItem(`penalties_${penalty.employeeId}`);
-              const existing = existingRaw ? JSON.parse(existingRaw) : [];
+              const existing = safeParseJson<Penalty[]>(existingRaw ?? '[]', []);
               const filtered = existing.filter((p: any) => p.id !== penalty.id);
               await StorageService.setItem(`penalties_${penalty.employeeId}`, JSON.stringify(filtered));
               DataService.emitChange(`penalties_${penalty.employeeId}`);
@@ -187,9 +190,9 @@ export default function PenaltiesScreen({ navigation }: any) {
               
               await syncEmployeeAccruals(penalty.employeeId);
               
-              Alert.alert(t('common.success.title'), t('alerts.success.penaltyDeleted'));
+              showSuccess(t('alerts.success.penaltyDeleted'));
             } catch (error) {
-              Alert.alert(t('common.error.title'), t('alerts.network.deletePenaltyFailed'));
+              showError(t('alerts.network.deletePenaltyFailed'));
             }
           }
         }
@@ -204,11 +207,11 @@ export default function PenaltiesScreen({ navigation }: any) {
         await syncEmployeeAccruals(emp.id);
       }
 
-      Alert.alert(t('common.success.title'), t('alerts.success.recalcDone'));
+      showSuccess(t('alerts.success.recalcDone'));
       await loadData();
     } catch (error) {
       console.error('Ошибка пересчёта:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.recalcFailed'));
+      showError(t('alerts.network.recalcFailed'));
     } finally {
       setRecalculating(false);
     }

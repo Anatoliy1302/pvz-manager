@@ -16,6 +16,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
@@ -42,6 +43,7 @@ export default function SalaryFormulasScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { pvz } = useAuth();
   const { ui, screen } = useThemedScreen();
+  const { showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [formulas, setFormulas] = useState<SalaryFormula[]>([]);
 
@@ -75,7 +77,7 @@ export default function SalaryFormulasScreen({ navigation }: any) {
             if (pvz?.id) {
               await deleteFormula(pvz.id, formula.id);
               await loadFormulas();
-              Alert.alert(t('common.success.title'), t('alerts.success.formulaDeleted'));
+              showSuccess(t('alerts.success.formulaDeleted'));
             }
           }
         }
@@ -96,7 +98,7 @@ export default function SalaryFormulasScreen({ navigation }: any) {
     }
     
     await loadFormulas();
-    Alert.alert(t('common.success.title'), t('alerts.success.formulaSetDefault', { name: formula.name }));
+    showSuccess(t('alerts.success.formulaSetDefault', { name: formula.name }));
   };
 
   const onRefresh = async () => {

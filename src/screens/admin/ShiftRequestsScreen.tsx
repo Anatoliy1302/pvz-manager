@@ -14,6 +14,7 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -59,6 +60,7 @@ export default function ShiftRequestsScreen({ navigation }: any) {
   const { pvz, user, userPvzs, hasPermission } = useAuth();
   const { colors, screen, ui } = useThemedScreen();
   const styles = useMemo(() => createStyles(screen, colors), [screen, colors]);
+  const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
@@ -152,9 +154,9 @@ export default function ShiftRequestsScreen({ navigation }: any) {
               });
 
               await loadRequests();
-              Alert.alert(t('common.success.done'), t('alerts.success.requestApproved'));
+              showSuccess(t('alerts.success.requestApproved'));
             } catch {
-              Alert.alert(t('common.error.title'), t('alerts.network.approveRequestFailed'));
+              showError(t('alerts.network.approveRequestFailed'));
             }
           },
         },
@@ -183,9 +185,9 @@ export default function ShiftRequestsScreen({ navigation }: any) {
               });
 
               await loadRequests();
-              Alert.alert(t('common.success.done'), t('alerts.success.requestRejected'));
+              showSuccess(t('alerts.success.requestRejected'));
             } catch {
-              Alert.alert(t('common.error.title'), t('alerts.network.rejectRequestFailed'));
+              showError(t('alerts.network.rejectRequestFailed'));
             }
           },
         },

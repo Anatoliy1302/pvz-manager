@@ -1,0 +1,80 @@
+export default {
+  privacy: {
+    title: 'Maxfiylik siyosati',
+    updated: 'Yangilangan: {{date}}',
+    emailSubject: 'ПВЗ персонали — shaxsiy ma\'lumotlar',
+    sections: {
+      general: {
+        title: '1. Umumiy qoidalar',
+        p1: 'Ushbu Maxfiylik siyosati «{{appName}}» mobil ilovasi (keyingi o\'rinlarda — Ilova) foydalanuvchilarining shaxsiy ma\'lumotlarini qayta ishlash tartibini tavsiflaydi.',
+        p2: 'Shaxsiy ma\'lumotlar operatori: {{operator}}.',
+        p3: 'Ilovadan foydalanish orqali siz ushbu Siyosat shartlariga rozilik bildirasiz. Agar rozi bo\'lmasangiz, Ilovadan foydalanmang.',
+      },
+      data: {
+        title: '2. Qanday ma\'lumotlarni qayta ishlaymiz',
+        intro: 'Ilovaning ishlashi uchun quyidagi ma\'lumot toifalari qayta ishlanishi mumkin:',
+        i1: '• identifikatsiya ma\'lumotlari: ism, telefon raqami, tizimdagi rol (ega, administrator, xodim);',
+        i2: '• ish ma\'lumotlari: smenalar, jadval, soatlar, hisob-kitoblar, to\'lovlar, jarimalar va bonuslar, smena arizalari;',
+        i3: '• muloqot ma\'lumotlari: ПВЗ ichki chatidagi xabarlar;',
+        i4: '• texnik ma\'lumotlar: bildirishnomalar uchun qurilma push-tokeni, bulutli xizmat orqali kirishda sessiya ma\'lumotlari;',
+        i5: '• sizning tanlovingiz bo\'yicha: profil rasmi, biometrik autentifikatsiya ma\'lumotlari (Face ID / barmoq izi) — faqat qurilmada tez kirish uchun;',
+        i6: '• geolokatsiya funksiyalaridan foydalanishda — ish smenalari doirasida koordinatalar (ПВЗ egasi yoqgan bo\'lsa).',
+      },
+      purposes: {
+        title: '3. Qayta ishlash maqsadlari',
+        intro: 'Ma\'lumotlar quyidagilar uchun ishlatiladi:',
+        i1: '• Ilovada ro\'yxatdan o\'tish va kirish;',
+        i2: '• ПВЗ xodimlari smenalari va jadvalini tashkil etish;',
+        i3: '• ish vaqti va hisob-kitoblarni hisoblash;',
+        i4: '• xodimlar o\'rtasida xabar almashish;',
+        i5: '• smenalar, arizalar va xabarlar haqida bildirishnomalar yuborish;',
+        i6: '• xavfsizlik va xizmatning barqaror ishlashini ta\'minlash.',
+      },
+      storage: {
+        title: '4. Ma\'lumotlar qayerda saqlanadi',
+        intro: 'Ma\'lumotlar quyidagilarda saqlanishi mumkin:',
+        i1: '• qurilmangizda himoyalangan saqlash joyida;',
+        i2: '• Supabase bulut infratuzilmasida (bulutli rejim yoqilgan va telefon orqali kirish bo\'lsa);',
+        i3: '• Expo push-bildirishnomalar xizmati serverlarida — faqat bildirishnomalarni yetkazish uchun qurilma tokeni.',
+        i4: 'ПВЗ egasi (ish beruvchi) xodimlar boshqaruvi uchun Ilovadan foydalanish doirasida o\'z xodimlarining ish ma\'lumotlariga kirish huquqiga ega.',
+      },
+      sharing: {
+        title: '5. Uchinchi shaxslarga uzatish',
+        p1: 'Biz shaxsiy ma\'lumotlarni reklama tarmoqlariga sotmaymiz va uzatmaymiz.',
+        intro: 'Uzatish faqat quyidagi hollarda mumkin:',
+        i1: '• hosting va bildirishnomalarni yetkazishni ta\'minlovchi texnik hamkorlarga (xizmat ishlashi uchun zarur hajmda);',
+        i2: '• Rossiya Federatsiyasi qonun hujjatlari talabiga binoan.',
+      },
+      retention: {
+        title: '6. Saqlash muddati',
+        p1: 'Ma\'lumotlar akkauntingiz faol bo\'lgan va Ilova ishlatilayotgan vaqt davomida, shuningdek qonunchilik talablarini bajarish va hisob yuritish uchun zarur muddatlarda saqlanadi (agar qo\'llanilsa).',
+        p2: 'Akkaunt o\'chirilgandan keyin yoki so\'rov bo\'yicha ma\'lumotlar oqilona muddatda o\'chiriladi yoki anonimlashtiriladi, agar qonun boshqacha nazarda tutmasa.',
+      },
+      rights: {
+        title: '7. Sizning huquqlaringiz',
+        intro: 'RF shaxsiy ma\'lumotlar qonunchiligiga muvofiq siz quyidagi huquqlarga egasiz:',
+        i1: '• qayta ishlanayotgan ma\'lumotlar haqida ma\'lumot olish;',
+        i2: '• profildagi ma\'lumotlarni aniqlashtirish yoki tuzatish;',
+        i3: '• qurilma va Ilova sozlamalari orqali push-bildirishnomalar va biometriyaga rozilikni qaytarib olish;',
+        i4: '• ma\'lumotlarni o\'chirish so\'rovini operatorning aloqa emailiga yuborish.',
+      },
+      security: {
+        title: '8. Xavfsizlik',
+        p1: 'Biz tashkiliy va texnik himoya choralarini qo\'llaymiz: rollarni ajratish, ma\'lumotlarni uzatishning himoyalangan kanallari (HTTPS), sezgir ma\'lumotlarni qurilmada himoyalangan saqlash joyida saqlash.',
+        p2: 'Ma\'lumotlarni uzatish yoki saqlashning hech bir usuli mutlaq xavfsizlikni kafolatlamaydi, biroq biz ma\'lumotlarni ruxsatsiz kirishdan himoya qilishga intilamiz.',
+      },
+      children: {
+        title: '9. Bolalar',
+        p1: 'Ilova 18 yoshdan kichik shaxslar uchun mo\'ljallanmagan. Biz voyaga yetmaganlarning ma\'lumotlarini ataylab to\'plamaymiz.',
+      },
+      changes: {
+        title: '10. Siyosat o\'zgarishlari',
+        p1: 'Biz ushbu Siyosatni yangilashimiz mumkin. Joriy versiya doimo Ilovada mavjud. O\'zgarishlar e\'lon qilingandan keyin foydalanishni davom ettirish yangilangan tahrirga rozilik bildiradi.',
+      },
+      contacts: {
+        title: '11. Aloqa',
+        p1: 'Shaxsiy ma\'lumotlarni qayta ishlash bo\'yicha savollar uchun {{operator}} operatoriga murojaat qiling:',
+      },
+    },
+  },
+} as const;

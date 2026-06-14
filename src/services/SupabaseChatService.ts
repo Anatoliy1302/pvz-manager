@@ -155,7 +155,15 @@ export async function loadRooms(
     return null;
   }
 
-  const rooms: ChatRoomSummary[] = [];
+  type RoomRow = {
+    id: string;
+    type: 'general' | 'private';
+    name: string;
+    pvz_id: string;
+    unread_count: number;
+  };
+
+  const pvzRooms: RoomRow[] = [];
 
   for (const row of memberships || []) {
     const rawRoom = row.room as
@@ -165,13 +173,36 @@ export async function loadRooms(
     const room = Array.isArray(rawRoom) ? rawRoom[0] : rawRoom;
     if (!room || room.pvz_id !== pvzUuid) continue;
 
-    const { data: lastMsg } = await supabase
-      .from('chat_messages')
-      .select('text, user_id, created_at')
-      .eq('room_id', room.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    pvzRooms.push({
+      ...room,
+      unread_count: row.unread_count || 0,
+    });
+  }
+
+  const lastMsgByRoom = new Map<
+    string,
+    { text: string; user_id: string; created_at: string }
+  >();
+
+  if (pvzRooms.length > 0) {
+    const { data: lastMessages, error: lastMsgError } = await supabase.rpc(
+      'get_chat_room_last_messages',
+      { p_room_ids: pvzRooms.map((room) => room.id) }
+    );
+
+    if (lastMsgError) {
+      console.warn('loadRooms last messages:', lastMsgError.message);
+    } else {
+      for (const msg of lastMessages || []) {
+        lastMsgByRoom.set(msg.room_id, msg);
+      }
+    }
+  }
+
+  const rooms: ChatRoomSummary[] = [];
+
+  for (const room of pvzRooms) {
+    const lastMsg = lastMsgByRoom.get(room.id);
 
     const isPrivate = room.type === 'private';
     const participantIds = isPrivate ? room.id.replace('private_', '').split('_') : undefined;
@@ -189,7 +220,7 @@ export async function loadRooms(
       lastMessage: lastMsg?.text || (room.type === 'general' ? 'Добро пожаловать!' : ''),
       lastMessageTime: lastMsg?.created_at ? formatTimeFromDate(lastMsg.created_at) : '',
       lastMessageUserId: lastMsg?.user_id,
-      unreadCount: row.unread_count || 0,
+      unreadCount: room.unread_count,
       pvzId: localPvzId,
       participants: participantIds,
     });
@@ -272,21 +303,13 @@ export async function sendMessage(
   const notifyIds = options?.notifyUserIds || [];
   for (const targetId of notifyIds) {
     if (targetId === userId) continue;
-    await ensureMember(roomId, targetId);
-    const { data: member } = await supabase
-      .from('chat_members')
-      .select('unread_count')
-      .eq('room_id', roomId)
-      .eq('user_id', targetId)
-      .maybeSingle();
-
-    await supabase
-      .from('chat_members')
-      .upsert({
-        room_id: roomId,
-        user_id: targetId,
-        unread_count: (member?.unread_count || 0) + 1,
-      }, { onConflict: 'room_id,user_id' });
+    const { error: unreadError } = await supabase.rpc('increment_chat_unread', {
+      p_room_id: roomId,
+      p_target_user_id: targetId,
+    });
+    if (unreadError) {
+      console.warn('increment_chat_unread:', unreadError.message);
+    }
   }
 
   return {
@@ -323,9 +346,11 @@ export async function deleteRoom(roomId: string): Promise<boolean> {
 }
 
 export interface IncomingChatPayload {
+  id?: string;
   userId: string;
   userName: string;
   text: string;
+  createdAt?: string;
 }
 
 export function subscribeRoomMessages(
@@ -339,15 +364,19 @@ export function subscribeRoomMessages(
       { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room_id=eq.${roomId}` },
       (payload) => {
         const row = payload.new as {
+          id?: string;
           user_id?: string;
           user_name?: string;
           text?: string;
+          created_at?: string;
         };
         if (row?.user_id && row?.text) {
           onMessage({
+            id: row.id,
             userId: row.user_id,
             userName: row.user_name || 'Пользователь',
             text: row.text,
+            createdAt: row.created_at,
           });
         } else {
           onMessage();

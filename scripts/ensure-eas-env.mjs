@@ -20,6 +20,7 @@ for (const name of requiredSecrets) {
   console.log(`  - ${name}`);
 }
 console.log('  - EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP (set in eas.json env for preview/production)');
+console.log('  - EXPO_PUBLIC_DEMO_MODE (optional, local dev without Supabase OTP — demo data only)');
 
 console.log('\nPush from local .env:');
 console.log('  npm run eas:secrets:push');
@@ -34,6 +35,11 @@ if (whoami.status === 0) {
 } else {
   console.log('\nNot logged in — run: npx eas-cli login');
 }
+
+console.log('\nAndroid FCM (push notifications):');
+console.log('  npm run fcm:check');
+console.log('  Firebase → Service accounts → private key JSON → eas credentials (FCM V1)');
+console.log('  npm run deploy:push');
 
 console.log('\nPreview Android build:');
 console.log('  npm run build:preview:android');

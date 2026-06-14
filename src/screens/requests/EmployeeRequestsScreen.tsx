@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Modal,
   TextInput,
   RefreshControl,
@@ -26,6 +25,7 @@ import UnifiedCalendar from '../../components/common/UnifiedCalendar';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import PermissionGate from '../../components/common/PermissionGate';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -37,6 +37,7 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { formatDate, toDateKey } from '../../utils/dateHelpers';
+import { generateSecureId } from '../../utils/generateSecureId';
 import {
   getShiftPresetsForPvz,
   DEFAULT_SHIFT_PRESETS,
@@ -75,6 +76,7 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { screen, ui } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [requests, setRequests] = useState<ShiftRequest[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
@@ -176,19 +178,19 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
 
   const saveRequest = async () => {
     if (!selectedDate) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.selectDate'));
+      showError(t('alerts.validation.selectDate'));
       return;
     }
     if (selectedDate < toDateKey(new Date())) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.pastDate'));
+      showError(t('alerts.validation.pastDate'));
       return;
     }
     if (!validateTime(startTime) || !validateTime(endTime)) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.timeFormat'));
+      showError(t('alerts.validation.timeFormat'));
       return;
     }
     if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.endAfterStart'));
+      showError(t('alerts.validation.endAfterStart'));
       return;
     }
 
@@ -196,14 +198,14 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
       (r) => r.date === selectedDate && r.status === 'pending'
     );
     if (duplicate) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.duplicateRequest'));
+      showError(t('alerts.validation.duplicateRequest'));
       return;
     }
 
     setLoading(true);
     try {
       const newRequest: ShiftRequest = {
-        id: Date.now().toString(),
+        id: generateSecureId(),
         employeeId: user?.id || '',
         employeeName: user?.name || t('common.roles.employee'),
         date: selectedDate,
@@ -237,10 +239,10 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
         { saveToHistory: true, notificationType: 'request' }
       );
 
-      Alert.alert(t('common.success.done'), t('screens.requests.requestSentDone'));
+      showSuccess(t('screens.requests.requestSentDone'));
       closeModal();
     } catch {
-      Alert.alert(t('common.error.title'), t('alerts.network.submitRequestFailed'));
+      showError(t('alerts.network.submitRequestFailed'));
     } finally {
       setLoading(false);
     }

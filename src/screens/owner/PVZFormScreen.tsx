@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
   Platform,
   KeyboardAvoidingView,
@@ -19,6 +18,7 @@ import {
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
@@ -27,6 +27,7 @@ import { MapPin, Clock, Phone, AlertCircle } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatPhoneInput, cleanPhone, isValidPhone } from '../../utils/phoneHelpers';
 import { ensurePvzSynced } from '../../services/SupabasePvzService';
+import { generateSecureId } from '../../utils/generateSecureId';
 
 type TimePickerField = 'start' | 'end' | null;
 
@@ -34,6 +35,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
   const { t } = useTranslation();
   const { user, refreshUserData } = useAuth();
   const { ui, screen, theme } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const { pvz } = route.params || {};
   const isEditing = !!pvz;
 
@@ -87,26 +89,26 @@ export default function PVZFormScreen({ navigation, route }: any) {
 
   const savePvz = async () => {
     if (!formData.name.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterPvzName'));
+      showError(t('alerts.validation.enterPvzName'));
       return;
     }
     if (!formData.address.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterPvzAddress'));
+      showError(t('alerts.validation.enterPvzAddress'));
       return;
     }
     if (!formData.workStart || !formData.workEnd) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.workHours'));
+      showError(t('alerts.validation.workHours'));
       return;
     }
     if (formData.phone && !isValidPhone(formData.phone)) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.invalidPhone'));
+      showError(t('alerts.validation.invalidPhone'));
       return;
     }
 
     const [startH, startM] = formData.workStart.split(':').map(Number);
     const [endH, endM] = formData.workEnd.split(':').map(Number);
     if (startH * 60 + startM >= endH * 60 + endM) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.closeAfterOpen'));
+      showError(t('alerts.validation.closeAfterOpen'));
       return;
     }
 
@@ -114,7 +116,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
     try {
       const cleanedPhone = formData.phone ? cleanPhone(formData.phone) : '';
       const pvzPayload: Pvz = {
-        id: isEditing && pvz ? pvz.id : Date.now().toString(),
+        id: isEditing && pvz ? pvz.id : generateSecureId(),
         name: formData.name.trim(),
         address: formData.address.trim(),
         workStart: formData.workStart,
@@ -128,14 +130,11 @@ export default function PVZFormScreen({ navigation, route }: any) {
       await ensurePvzSynced(pvzPayload);
       await refreshUserData();
 
-      Alert.alert(
-        t('common.success.done'),
-        isEditing ? t('alerts.success.pvzUpdated') : t('alerts.success.pvzCreated')
-      );
+      showSuccess(isEditing ? t('alerts.success.pvzUpdated') : t('alerts.success.pvzCreated'));
       navigation.goBack();
     } catch (error) {
       console.error('Ошибка сохранения ПВЗ:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.savePvzFailed'));
+      showError(t('alerts.network.savePvzFailed'));
     } finally {
       setLoading(false);
     }

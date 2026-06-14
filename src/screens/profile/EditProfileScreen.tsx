@@ -18,14 +18,18 @@ import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
 import { ChevronLeft, User, Phone, Save, Camera } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
-import { LAST_LOGIN_PROFILE_KEY } from '../../context/AuthContext';
+import { LAST_LOGIN_PROFILE_KEY, type LastLoginProfile } from '../../context/AuthContext';
 import { formatPhoneInput, cleanPhone } from '../../utils/phoneHelpers';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useScreenToast } from '../../hooks/useScreenToast';
+import { safeParseJson } from '../../utils/safeJson';
+import type { User as StoredUser } from '../../types/user';
 
 export default function EditProfileScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, refreshUserData } = useAuth();
   const { colors, screen } = useThemedScreen();
+  const { showError, showSuccess } = useScreenToast();
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone ? formatPhoneInput(user.phone) : '');
   const [avatarUri, setAvatarUri] = useState(user?.avatarUri || '');
@@ -59,7 +63,7 @@ export default function EditProfileScreen({ navigation }: any) {
       if (source === 'library') {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
-          Alert.alert(t('common.access.denied'), t('alerts.permission.noPhotoAccess'));
+          showError(t('alerts.permission.noPhotoAccess'));
           return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -74,7 +78,7 @@ export default function EditProfileScreen({ navigation }: any) {
       } else {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-          Alert.alert(t('common.access.denied'), t('alerts.permission.noCameraAccess'));
+          showError(t('alerts.permission.noCameraAccess'));
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -88,7 +92,7 @@ export default function EditProfileScreen({ navigation }: any) {
       }
     } catch (error) {
       console.error('Ошибка выбора фото:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.photoFailed'));
+      showError(t('alerts.network.photoFailed'));
     } finally {
       setPickingPhoto(false);
     }
@@ -96,14 +100,14 @@ export default function EditProfileScreen({ navigation }: any) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.enterName'));
+      showError(t('alerts.validation.enterName'));
       return;
     }
 
     setLoading(true);
     try {
       const usersRaw = await SecureStore.getItemAsync('pvz_users');
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
+      const users = safeParseJson<StoredUser[]>(usersRaw ?? '[]', []);
 
       const userIndex = users.findIndex((u: { id: string }) => u.id === user?.id);
       if (userIndex !== -1) {
@@ -124,7 +128,7 @@ export default function EditProfileScreen({ navigation }: any) {
 
         const lastLoginRaw = await SecureStore.getItemAsync(LAST_LOGIN_PROFILE_KEY);
         if (lastLoginRaw) {
-          const lastLogin = JSON.parse(lastLoginRaw);
+          const lastLogin = safeParseJson<LastLoginProfile>(lastLoginRaw, { phone: '', name: '', role: 'employee' });
           if (lastLogin.phone === cleanedPhone) {
             await SecureStore.setItemAsync(
               LAST_LOGIN_PROFILE_KEY,
@@ -135,12 +139,12 @@ export default function EditProfileScreen({ navigation }: any) {
 
         await refreshUserData();
 
-        Alert.alert(t('common.success.title'), t('alerts.success.profileUpdated'));
+        showSuccess(t('alerts.success.profileUpdated'));
         navigation.goBack();
       }
     } catch (error) {
       console.error('Ошибка сохранения:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.saveFailed'));
+      showError(t('alerts.network.saveFailed'));
     } finally {
       setLoading(false);
     }

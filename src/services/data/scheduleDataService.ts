@@ -12,10 +12,11 @@ import { dataEventBus } from './dataEventBus';
 import { ShiftRequest } from './dataTypes';
 import { addShift, getShifts } from './shiftDataService';
 import { updateShiftRequest } from './shiftRequestDataService';
+import { safeParseJson } from '../../utils/safeJson';
 
 export async function getScheduleAssignments(pvzId: string): Promise<ScheduleAssignment[]> {
   const stored = await SecureStore.getItemAsync(getScheduleAssignmentsKey(pvzId));
-  return stored ? JSON.parse(stored) : [];
+  return safeParseJson<ScheduleAssignment[]>(stored ?? '[]', []);
 }
 
 export async function saveScheduleAssignments(

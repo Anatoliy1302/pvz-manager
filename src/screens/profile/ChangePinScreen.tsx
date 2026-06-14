@@ -6,10 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import { colors } from '../../constants/colors';
 import { KeyRound, Save } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
@@ -17,12 +15,15 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { cleanPhone } from '../../utils/phoneHelpers';
+import PinService from '../../services/PinService';
+import { useToast } from '../../components/common/Toast';
 
 const PIN_LENGTH = 4;
 
-export default function ChangePinScreen({ navigation }: any) {
+export default function ChangePinScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { ui, screen } = useThemedScreen();
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -30,50 +31,49 @@ export default function ChangePinScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const cleanedPhone = user?.phone ? cleanPhone(user.phone) : '';
-  const pinKey = cleanedPhone ? `user_pin_${cleanedPhone}` : '';
 
   const handleSave = async () => {
-    if (!pinKey) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.noAccount'));
+    if (!cleanedPhone) {
+      showToast(t('alerts.validation.noAccount'), 'error');
       return;
     }
     if (!currentPin || !newPin || !confirmPin) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.fillAll'));
+      showToast(t('alerts.validation.fillAll'), 'error');
       return;
     }
-    if (currentPin.length !== PIN_LENGTH || newPin.length !== PIN_LENGTH || confirmPin.length !== PIN_LENGTH) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.pinLength', { length: PIN_LENGTH }));
+    if (
+      currentPin.length !== PIN_LENGTH ||
+      newPin.length !== PIN_LENGTH ||
+      confirmPin.length !== PIN_LENGTH
+    ) {
+      showToast(t('alerts.validation.pinLength', { length: PIN_LENGTH }), 'error');
       return;
     }
     if (newPin !== confirmPin) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.pinMismatch'));
+      showToast(t('alerts.validation.pinMismatch'), 'error');
       return;
     }
     if (currentPin === newPin) {
-      Alert.alert(t('common.error.title'), t('alerts.validation.pinSame'));
+      showToast(t('alerts.validation.pinSame'), 'error');
       return;
     }
 
     setLoading(true);
     try {
-      const storedPin = await SecureStore.getItemAsync(pinKey);
-
-      if (!storedPin) {
-        Alert.alert(t('alerts.validation.pinNotSet'), t('alerts.validation.pinNotSetHint'));
-        return;
-      }
-
-      if (storedPin !== currentPin) {
-        Alert.alert(t('common.error.title'), t('alerts.validation.wrongCurrentPin'));
-        return;
-      }
-
-      await SecureStore.setItemAsync(pinKey, newPin);
-      Alert.alert(t('common.success.done'), t('alerts.success.pinChanged'));
+      await PinService.changePin(cleanedPhone, currentPin, newPin);
+      showToast(t('alerts.success.pinChanged'), 'success');
       navigation.goBack();
     } catch (error) {
+      if (error instanceof Error && error.message === 'PIN_NOT_SET') {
+        showToast(t('alerts.validation.pinNotSetHint'), 'error');
+        return;
+      }
+      if (error instanceof Error && error.message === 'WRONG_PIN') {
+        showToast(t('alerts.validation.wrongCurrentPin'), 'error');
+        return;
+      }
       console.error('Ошибка смены PIN:', error);
-      Alert.alert(t('common.error.title'), t('alerts.network.changePinFailed'));
+      showToast(t('alerts.network.changePinFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -125,19 +125,23 @@ export default function ChangePinScreen({ navigation }: any) {
       />
 
       <View style={styles.content}>
-        <View style={[styles.infoCard, ui.card]}>
-          <KeyRound size={16} color={colors.primary} />
-          <Text style={[styles.infoText, { color: screen.textSecondary }]}>
-            {t('settings.changePin.info')}
-          </Text>
-        </View>
-
-        {renderPinField(t('settings.changePin.current'), currentPin, setCurrentPin, t('settings.changePin.placeholder'))}
-        {renderPinField(t('settings.changePin.new'), newPin, setNewPin, t('settings.changePin.placeholder'))}
-        {renderPinField(t('settings.changePin.confirm'), confirmPin, setConfirmPin, t('settings.changePin.placeholder'))}
-
-        {confirmPin.length === PIN_LENGTH && newPin !== confirmPin && (
-          <Text style={styles.errorText}>{t('settings.changePin.mismatch')}</Text>
+        {renderPinField(
+          t('settings.changePin.current'),
+          currentPin,
+          setCurrentPin,
+          t('settings.changePin.currentPlaceholder')
+        )}
+        {renderPinField(
+          t('settings.changePin.new'),
+          newPin,
+          setNewPin,
+          t('settings.changePin.newPlaceholder')
+        )}
+        {renderPinField(
+          t('settings.changePin.confirm'),
+          confirmPin,
+          setConfirmPin,
+          t('settings.changePin.confirmPlaceholder')
         )}
       </View>
     </ThemedSafeAreaView>
@@ -146,27 +150,17 @@ export default function ChangePinScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20 },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 24,
-  },
-  infoText: { flex: 1, fontSize: 12, lineHeight: 18 },
-  inputContainer: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
+  content: { padding: 20, gap: 16 },
+  inputContainer: { gap: 8 },
+  label: { fontSize: 14, fontWeight: '600' },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     gap: 12,
     borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   input: { flex: 1, fontSize: 18, letterSpacing: 4 },
-  errorText: { fontSize: 12, color: colors.danger, marginTop: -12, marginLeft: 4 },
 });

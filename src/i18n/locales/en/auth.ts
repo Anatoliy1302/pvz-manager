@@ -39,7 +39,12 @@ export default {
     setupSubtitle: '4 digits for quick sign-in',
     biometric: 'Biometrics',
     biometricLogin: 'Sign in with {{label}}',
-    orEnterPin: 'or enter PIN',
+    forgot: 'Forgot PIN?',
+    forgotTitle: 'Reset PIN',
+    forgotMessage: 'Your PIN will be removed. SMS verification will be required to sign in again.',
+    forgotConfirm: 'Reset',
+    forgotRequiresOtp: 'Enable SMS sign-in (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true) to reset PIN.',
+    locked: 'Too many attempts. Try again in {{seconds}} sec.',
     expoGoHint: 'Face ID is not available in Expo Go. Use PIN or build a standalone app.',
     expoGoDeviceAuthHint:
       'App Face ID is not available in Expo Go. Confirm via iPhone — the prompt will show «Expo Go».',

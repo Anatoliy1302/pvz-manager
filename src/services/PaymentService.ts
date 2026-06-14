@@ -13,6 +13,8 @@ import {
   updateAdvanceRequestInSupabase,
 } from './SupabaseAdvanceRequestService';
 import { resolvePvzId } from '../utils/supabaseHelpers';
+import { generateSecureId } from '../utils/generateSecureId';
+import { safeParseJson } from '../utils/safeJson';
 import {
   fetchPenaltiesFromSupabase,
   mergePenalties,
@@ -26,7 +28,7 @@ import {
   PeriodFinanceSummary,
   EmployeePeriodDetail 
 } from '../types/payment';
-import { Shift, ShiftStatus } from '../types/user';
+import { Shift, ShiftStatus, User } from '../types/user';
 import { getShiftStatus, isShiftCountableForAccruals } from '../utils/shiftStatusHelper';
 
 // ============ КЛЮЧИ ДЛЯ ХРАНЕНИЯ ============
@@ -74,7 +76,7 @@ export async function getPenaltyTotals(
       return { totalFines: 0, totalBonuses: 0, netDeduction: 0 };
     }
 
-    let penalties = JSON.parse(stored);
+    let penalties = safeParseJson<SyncPenalty[]>(stored, []);
     if (periodStart && periodEnd) {
       penalties = penalties.filter(
         (p: { date: string }) => p.date >= periodStart && p.date <= periodEnd
@@ -128,7 +130,7 @@ export async function syncShiftStatusesInStorage(): Promise<void> {
   const shiftsRaw = await StorageService.getItem('shifts');
   if (!shiftsRaw) return;
 
-  const allShifts: Shift[] = JSON.parse(shiftsRaw);
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   let updated = false;
 
   const synced = allShifts.map(shift => {
@@ -163,7 +165,7 @@ export async function calculateEmployeeAccruals(
   await syncShiftStatusesInStorage();
 
   const shiftsRaw = await StorageService.getItem('shifts');
-  const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   const employeeShifts = filterCountableShifts(
     allShifts,
     employeeId,
@@ -206,7 +208,7 @@ export async function calculateEmployeeAccruals(
 export async function getPayments(pvzId: string): Promise<Payment[]> {
   try {
     const stored = await StorageService.getItem(getPaymentsKey(pvzId));
-    const local: Payment[] = stored ? JSON.parse(stored) : [];
+    const local = safeParseJson<Payment[]>(stored ?? '[]', []);
     const remote = await fetchPaymentsFromSupabase();
 
     if (!remote) {
@@ -249,7 +251,7 @@ export async function getPaymentsByPeriod(
 export async function getEmployeePayments(employeeId: string): Promise<Payment[]> {
   try {
     const usersRaw = await StorageService.getItem('pvz_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : [];
+    const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
     const employee = users.find((user: { id: string; pvzId?: string }) => user.id === employeeId);
 
     if (employee?.pvzId) {
@@ -258,7 +260,7 @@ export async function getEmployeePayments(employeeId: string): Promise<Payment[]
     }
 
     const stored = await StorageService.getItem(getEmployeePaymentsKey(employeeId));
-    return stored ? JSON.parse(stored) : [];
+    return safeParseJson<Payment[]>(stored ?? '[]', []);
   } catch (error) {
     console.error('Ошибка загрузки выплат сотрудника:', error);
     return [];
@@ -268,7 +270,7 @@ export async function getEmployeePayments(employeeId: string): Promise<Payment[]
 /** Обновить локальный кэш выплат по ПВЗ (для Realtime). */
 export async function refreshPaymentsCache(pvzId: string): Promise<Payment[]> {
   const stored = await StorageService.getItem(getPaymentsKey(pvzId));
-  const local: Payment[] = stored ? JSON.parse(stored) : [];
+  const local = safeParseJson<Payment[]>(stored ?? '[]', []);
   const remote = await fetchPaymentsFromSupabase();
 
   if (!remote) {
@@ -323,7 +325,7 @@ export async function refreshPenaltiesCache(pvzIds: string[]): Promise<void> {
   for (const employeeId of employeeIds) {
     const key = `penalties_${employeeId}`;
     const stored = await StorageService.getItem(key);
-    const local: SyncPenalty[] = stored ? JSON.parse(stored) : [];
+    const local = safeParseJson<SyncPenalty[]>(stored ?? '[]', []);
     const employee = users.find((u) => u.id === employeeId);
     const pvzId = employee?.pvzId;
 
@@ -358,7 +360,7 @@ export async function addPayment(
 ): Promise<Payment> {
   const newPayment: Payment = {
     ...payment,
-    id: Date.now().toString(),
+    id: generateSecureId(),
     status: 'completed',
     paidAt: new Date().toISOString(),
   };
@@ -395,7 +397,7 @@ export async function addPenalty(
   pvzId: string
 ): Promise<void> {
   const existingRaw = await StorageService.getItem(`penalties_${employeeId}`);
-  const existing = existingRaw ? JSON.parse(existingRaw) : [];
+  const existing = safeParseJson<SyncPenalty[]>(existingRaw ?? '[]', []);
   existing.push({ ...penalty, employeeId });
   await StorageService.setItem(`penalties_${employeeId}`, JSON.stringify(existing));
 
@@ -417,7 +419,7 @@ export async function updateEmployeeBalance(employeeId: string, pvzId: string): 
   const accruals = await calculateEmployeeAccruals(employeeId, pvzId);
 
   const usersRaw = await StorageService.getItem('pvz_users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
+  const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employee = users.find((u: { id: string }) => u.id === employeeId);
 
   const balanceData: EmployeeBalance = {
@@ -444,7 +446,7 @@ export async function updateEmployeeBalance(employeeId: string, pvzId: string): 
 export async function getEmployeeBalance(employeeId: string): Promise<EmployeeBalance | null> {
   try {
     const usersRaw = await StorageService.getItem('pvz_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : [];
+    const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
     const employee = users.find((u: any) => u.id === employeeId);
     
     if (!employee) return null;
@@ -462,7 +464,7 @@ export async function getEmployeeBalance(employeeId: string): Promise<EmployeeBa
 export async function getAdvanceRequests(pvzId: string): Promise<AdvanceRequest[]> {
   try {
     const stored = await StorageService.getItem(getAdvanceRequestsKey(pvzId));
-    const local: AdvanceRequest[] = stored ? JSON.parse(stored) : [];
+    const local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
     const remote = await fetchAdvanceRequestsFromSupabase();
 
     if (!remote) {
@@ -493,7 +495,7 @@ export async function getAdvanceRequests(pvzId: string): Promise<AdvanceRequest[
 export async function getEmployeeAdvanceRequests(employeeId: string): Promise<AdvanceRequest[]> {
   try {
     const usersRaw = await StorageService.getItem('pvz_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : [];
+    const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
     const employee = users.find((user: { id: string; pvzId?: string }) => user.id === employeeId);
 
     if (employee?.pvzId) {
@@ -502,7 +504,7 @@ export async function getEmployeeAdvanceRequests(employeeId: string): Promise<Ad
     }
 
     const stored = await StorageService.getItem(getEmployeeAdvanceRequestsKey(employeeId));
-    return stored ? JSON.parse(stored) : [];
+    return safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
   } catch (error) {
     console.error('Ошибка загрузки запросов сотрудника:', error);
     return [];
@@ -512,7 +514,7 @@ export async function getEmployeeAdvanceRequests(employeeId: string): Promise<Ad
 /** Обновить локальный кэш авансов по ПВЗ (для Realtime). */
 export async function refreshAdvanceRequestsCache(pvzId: string): Promise<AdvanceRequest[]> {
   const stored = await StorageService.getItem(getAdvanceRequestsKey(pvzId));
-  const local: AdvanceRequest[] = stored ? JSON.parse(stored) : [];
+  const local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
   const remote = await fetchAdvanceRequestsFromSupabase();
 
   if (!remote) {
@@ -558,7 +560,7 @@ export async function createAdvanceRequest(
   reason?: string
 ): Promise<AdvanceRequest> {
   const newRequest: AdvanceRequest = {
-    id: Date.now().toString(),
+    id: generateSecureId(),
     employeeId,
     employeeName,
     amount,
@@ -636,7 +638,7 @@ export async function getPeriodFinanceSummary(
   periodEnd: string
 ): Promise<PeriodFinanceSummary> {
   const usersRaw = await StorageService.getItem('pvz_users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
+  const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employees = users.filter((u: any) => 
     u.role !== 'owner' && u.status === 'active' && u.pvzId === pvzId
   );
@@ -644,7 +646,7 @@ export async function getPeriodFinanceSummary(
   await syncShiftStatusesInStorage();
 
   const shiftsRaw = await StorageService.getItem('shifts');
-  const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
 
   let totalEarned = 0;
   for (const emp of employees) {
@@ -673,7 +675,7 @@ export async function getEmployeePeriodDetail(
   periodEnd: string
 ): Promise<EmployeePeriodDetail | null> {
   const usersRaw = await StorageService.getItem('pvz_users');
-  const users = usersRaw ? JSON.parse(usersRaw) : [];
+  const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employee = users.find((u: any) => u.id === employeeId);
   
   if (!employee) return null;
@@ -681,7 +683,7 @@ export async function getEmployeePeriodDetail(
   const accruals = await calculateEmployeeAccruals(employeeId, pvzId, { periodStart, periodEnd });
 
   const shiftsRaw = await StorageService.getItem('shifts');
-  const allShifts: Shift[] = shiftsRaw ? JSON.parse(shiftsRaw) : [];
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   const periodShifts = filterCountableShifts(allShifts, employeeId, pvzId, periodStart, periodEnd);
 
   const allPayments = await getEmployeePayments(employeeId);
