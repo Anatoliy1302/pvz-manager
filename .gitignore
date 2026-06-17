@@ -15,6 +15,7 @@ ios/build/
 .env
 .env.local
 .env.production
+.cursor/mcp.json
 
 # OS generated files
 .DS_Store
