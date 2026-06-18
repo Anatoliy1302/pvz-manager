@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'Supabase-те телефон аркылуу кирүү өчүрүлгөн.',
     emailLoginDisabled: 'Email аркылуу кирүү өчүрүлгөн — гана SMS.',
     otpExpired: 'SMS коду мөөнөтү өттү. Жаңысын сураңыз.',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'SMS коду туура эмес.',
     rateLimit: 'Өтө көп аракет. Күтүп, кайра аракет кылыңыз.',
   },

@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Xavfsizlik',
     changePin: 'PIN-kodni almashtirish',
+    deleteAccount: 'Hisobni o\'chirish',
+    deleteAccountDesc: 'Hisob va barcha bog\'liq ma\'lumotlarni qaytarib bo\'lmaydigan tarzda o\'chirish',
     biometricLogin: '{{label}} orqali kirish',
     biometricHint: 'Tez kirish uchun qurilmangiz himoyasi ishlatiladi.',
   },

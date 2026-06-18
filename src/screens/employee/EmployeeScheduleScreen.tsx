@@ -1,5 +1,5 @@
 // src/screens/employee/EmployeeScheduleScreen.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
-import { useFocusEffect } from '@react-navigation/native';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
 import notificationService from '../../services/NotificationService';
@@ -25,6 +25,7 @@ import EmployeeMonthGrid from './schedule/components/EmployeeMonthGrid';
 import DayDetailSection from './schedule/components/DayDetailSection';
 import SwapRequestModal from './schedule/components/SwapRequestModal';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { ScheduleSkeleton } from '../../components/common/Skeleton';
 
 export default function EmployeeScheduleScreen({ navigation }: any) {
   const { t } = useTranslation();
@@ -43,6 +44,7 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
   const [swapTargetEmployeeId, setSwapTargetEmployeeId] = useState('');
   const [swapTargetShiftId, setSwapTargetShiftId] = useState('');
   const [swapReason, setSwapReason] = useState('');
+  const [loading, markLoaded] = useScopedInitialLoading(pvz?.id);
 
   const weekDays = useMemo(() => {
     const days: Date[] = [];
@@ -91,7 +93,7 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
     if (!user?.id) return;
 
     try {
-      const allShifts = await DataService.getShifts();
+      const allShifts = await DataService.getShiftsLocal();
       const rangeShifts: EmployeeShift[] = [];
 
       for (const shift of allShifts) {
@@ -114,16 +116,20 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
       setEmployees(pvzEmployees);
     } catch (error) {
       console.error('Ошибка загрузки расписания:', error);
+    } finally {
+      markLoaded();
     }
-  }, [user?.id, dateRange, pvz?.id]);
+  }, [user?.id, dateRange, pvz?.id, markLoaded]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-      const unsub = DataService.subscribe('shifts', loadData);
-      return () => unsub();
-    }, [loadData])
-  );
+  useScreenRefresh(loadData, [loadData], {
+    subscribeKeys: ['shifts'],
+  });
+
+  useEffect(() => {
+    if (!loading) {
+      void loadData();
+    }
+  }, [dateRange.start, dateRange.end]);
 
   const changeWeek = (delta: number) => {
     const newDate = new Date(currentDate);
@@ -241,6 +247,7 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await DataService.refreshShiftsCache();
     await loadData();
     setRefreshing(false);
   };
@@ -293,7 +300,9 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
           />
 
           <View style={styles.gridCard}>
-            {calendarView === 'week' ? (
+            {loading ? (
+              <ScheduleSkeleton />
+            ) : calendarView === 'week' ? (
               <EmployeeWeekGrid
                 weekDays={weekDays}
                 userId={user?.id}

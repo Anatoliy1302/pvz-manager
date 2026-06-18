@@ -9,10 +9,15 @@ import {
   restoreSupabaseSession,
   signOutSupabase,
   subscribeToAuthChanges,
+  warmSupabaseClientSession,
 } from '../services/SupabaseAuthService';
 import notificationService from '../services/NotificationService';
 import { stopSupabaseRealtime } from '../services/SupabaseRealtimeService';
 import { withTimeout } from '../utils/withTimeout';
+import subscriptionService, { Subscription } from '../services/subscriptionService';
+import analyticsService from '../services/AnalyticsService';
+import { AnalyticsEvents } from '../services/analytics/events';
+import { clearQueryCache } from '../lib/queryClient';
 
 export { LAST_LOGIN_PROFILE_KEY, type LastLoginProfile } from './auth/lastLoginProfile';
 export type { SignInOptions } from './auth/types';
@@ -26,7 +31,7 @@ import {
   loadPendingEmployeesFromStorage,
 } from './auth/userMemoryStore';
 import { performSignIn } from './auth/signInFlow';
-import { hydrateSessionUser, loadStoredUser, refreshUserData } from './auth/sessionOps';
+import { hydrateSessionUser, loadStoredUser, refreshUserData, quickRestoreFromStorage } from './auth/sessionOps';
 import {
   addEmployeeInvitation,
   revokeEmployeeInvitation,
@@ -34,6 +39,7 @@ import {
   updateEmployeePvzAssignment,
   getActiveEmployees,
   getActiveEmployeesByPvz,
+  countStaffForPvz,
   getPendingEmployeeList,
   getPendingEmployeesCountForUser,
 } from './auth/employeeOps';
@@ -42,6 +48,7 @@ import {
   checkOwnerExists,
   registerOwnerAccount,
 } from './auth/ownerOps';
+import { deleteUserAccount, AccountDeletionError } from './accountDeletionService';
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
@@ -50,37 +57,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pvz, setPvz] = useState<Pvz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userPvzs, setUserPvzs] = useState<Pvz[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   const setters: AuthSetters = { setUser, setPvz, setUserPvzs, setIsLoading };
 
   const signOut = async () => {
+    analyticsService.track(AnalyticsEvents.SIGN_OUT, { role: user?.role });
     stopSupabaseRealtime();
-    await signOutSupabase();
     notificationService.setCurrentUserId(undefined);
     notificationService.setCurrentUserRole(undefined);
+
+    try {
+      await DataService.clearAllData();
+      await subscriptionService.clearCache();
+      clearQueryCache();
+    } catch (error) {
+      console.error('signOut: не удалось очистить локальные данные:', error);
+    }
+
+    await signOutSupabase();
     await notificationService.applyUserPreferences();
-    await SecureStore.deleteItemAsync('user');
-    await SecureStore.deleteItemAsync('pvz');
+
     setUser(null);
     setPvz(null);
     setUserPvzs([]);
+    setSubscription(null);
+  };
+
+  const deleteAccount = async () => {
+    try {
+      await deleteUserAccount();
+    } catch (error) {
+      if (error instanceof AccountDeletionError) {
+        throw error;
+      }
+      throw new AccountDeletionError(
+        error instanceof Error ? error.message : 'Не удалось удалить аккаунт'
+      );
+    }
+    await signOut();
   };
 
   const initDoneRef = useRef(false);
+  const userRef = useRef(user);
+  const pvzRef = useRef(pvz);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    pvzRef.current = pvz;
+  }, [pvz]);
 
   useEffect(() => {
     const init = async () => {
       try {
-        await loadUsersFromStorage();
-        await loadPendingEmployeesFromStorage();
+        await Promise.all([
+          loadUsersFromStorage(),
+          loadPendingEmployeesFromStorage(),
+        ]);
+
+        // Быстрый путь: показать UI из локального кэша без ожидания сети
+        const hasLocalSession = await quickRestoreFromStorage(setters);
+        if (hasLocalSession) {
+          initDoneRef.current = true;
+          setIsLoading(false);
+          const cached = await subscriptionService.getCachedSubscription();
+          if (cached) setSubscription(cached);
+        }
 
         const supabaseUser = await withTimeout(restoreSupabaseSession(), 8000, null);
         if (supabaseUser) {
           await hydrateSessionUser(supabaseUser, setters);
+          const sub = await subscriptionService.fetchSubscription(supabaseUser.id);
+          setSubscription(sub);
           return;
         }
 
-        await loadStoredUser(setters, signOut);
+        if (!hasLocalSession) {
+          await loadStoredUser(setters, signOut);
+          warmSupabaseClientSession();
+          const cached = await subscriptionService.getCachedSubscription();
+          if (cached) setSubscription(cached);
+        } else {
+          warmSupabaseClientSession();
+        }
       } catch (error) {
         console.error('Ошибка инициализации сессии:', error);
       } finally {
@@ -92,13 +154,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    return subscribeToAuthChanges(async () => {
+    return subscribeToAuthChanges(() => {
       if (!initDoneRef.current) return;
 
-      const supabaseUser = await restoreSupabaseSession();
-      if (supabaseUser) {
-        await hydrateSessionUser(supabaseUser, setters);
-      }
+      void (async () => {
+        try {
+          const supabaseUser = await restoreSupabaseSession();
+          if (supabaseUser) {
+            await hydrateSessionUser(supabaseUser, setters);
+            const sub = await subscriptionService.fetchSubscription(supabaseUser.id);
+            setSubscription(sub);
+          }
+        } catch (error) {
+          if (__DEV__) {
+            console.warn('[Auth] auth state sync failed:', error);
+          }
+        }
+      })();
     });
   }, []);
 
@@ -156,34 +228,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = DataService.subscribe('pvz_list', async () => {
-      if (!user || (user.role !== 'owner' && user.role !== 'admin')) return;
+      const currentUser = userRef.current;
+      if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'admin')) return;
 
       let userPvzList: Pvz[] = [];
-      if (user.role === 'owner') {
-        userPvzList = await DataService.getPvzsByOwner(user.id);
+      if (currentUser.role === 'owner') {
+        userPvzList = await DataService.getPvzsByOwner(currentUser.id);
       } else {
-        userPvzList = await DataService.getPvzsForAdmin(user);
+        userPvzList = await DataService.getPvzsForAdmin(currentUser);
       }
 
       setUserPvzs(userPvzList);
-      if (userPvzList.length > 0 && (!pvz || !userPvzList.some((p) => p.id === pvz.id))) {
+      const currentPvz = pvzRef.current;
+      if (userPvzList.length > 0 && (!currentPvz || !userPvzList.some((p) => p.id === currentPvz.id))) {
         setPvz(userPvzList[0]);
         await SecureStore.setItemAsync('pvz', JSON.stringify(userPvzList[0]));
       }
     });
 
     return () => unsubscribe();
-  }, [user, pvz]);
+  }, []);
+
+  const refreshSubscription = async (): Promise<Subscription | null> => {
+    if (!user?.id) return null;
+    const sub = await subscriptionService.fetchSubscription(user.id);
+    setSubscription(sub);
+    return sub;
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
         pvz,
+        subscription,
         isLoading,
         userPvzs,
         signIn: (phone, role, options) => performSignIn(phone, role, setters, options),
         signOut,
+        deleteAccount,
+        deleteUserAccount: deleteAccount,
         hasRole: (roles) => checkHasRole(user, roles),
         hasPermission: (permission) => checkHasPermission(user, permission),
         switchPvz: async (pvzId) => {
@@ -229,6 +313,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           registerOwnerAccount(phone, name, pvzName, address, setters),
         isOwnerExists: checkOwnerExists,
         blockUser: (userId) => blockUserAccount(userId, user?.id, signOut),
+        refreshSubscription,
       }}
     >
       {children}

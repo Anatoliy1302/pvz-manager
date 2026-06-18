@@ -8,7 +8,7 @@ export default {
     sectionSubtitle: 'To sign in to the app',
     owner: {
       title: 'PVZ Owner',
-      description: 'Finances, employees, schedule, and pickup point settings',
+      description: 'Register with email. Finances, staff, and settings',
     },
     admin: {
       title: 'Administrator',
@@ -16,13 +16,36 @@ export default {
     },
     employee: {
       title: 'Employee',
-      description: 'Shifts, schedule, statistics, and personal payouts',
+      description: 'Sign in with phone number and SMS code from invitation',
     },
   },
   phone: {
     title: 'Phone number',
-    subtitle: 'Enter your number to sign in',
+    subtitle: 'Enter the number from your invitation',
     placeholder: '+7 (___) ___-__-__',
+  },
+  email: {
+    title: 'Owner email',
+    subtitle: 'Enter your email to register or sign in',
+    placeholder: 'name@example.com',
+  },
+  emailOtp: {
+    title: 'Email code',
+    subtitle: 'Enter the {{length}}-digit code sent to {{email}}',
+    resend: 'Resend code',
+    checkInbox: 'Code sent to your email. Check inbox and spam. It usually arrives within 1–2 minutes. Do not resend until the timer expires.',
+    sendUncertain: 'Server response was delayed. If the email does not arrive within 2 minutes, request a new code.',
+  },
+  otpDelivery: {
+    sending: 'Sending code…',
+    sentEmail: 'Email sent to {{contact}}',
+    sentSms: 'SMS sent to {{contact}}',
+    eta: 'Usually arrives within 1–2 minutes',
+    spamHint: 'Check your spam folder — from noreply@pvzpersonal.ru',
+    useLatest: 'Enter the code from the latest email or SMS',
+    uncertain: 'Request sent. If no code arrives in 2 minutes, tap resend after the timer.',
+    rateLimited: 'Too many requests. Wait ~{{minutes}} min, then request a code once.',
+    resendAfter: 'Resend available in {{seconds}} s',
   },
   sms: {
     title: 'SMS code',
@@ -30,6 +53,9 @@ export default {
     subtitleStub: 'Enter the {{length}}-digit code (test stub) for {{phone}}',
     resendTimer: 'Resend code ({{seconds}}s)',
     resend: 'Resend code',
+    checkPhone: 'Code sent. Wait for the SMS (up to 2 min) and enter the latest code you received.',
+    sendUncertain: 'Server response was delayed. If the SMS does not arrive within 2 minutes, request a new code.',
+    demoHint: 'Demo mode: SMS is not sent. Use code {{code}}.',
     placeholder: 'SMS code',
   },
   pin: {
@@ -42,6 +68,8 @@ export default {
     forgot: 'Forgot PIN?',
     forgotTitle: 'Reset PIN',
     forgotMessage: 'Your PIN will be removed. SMS verification will be required to sign in again.',
+    forgotMessageEmail: 'Your PIN will be removed. Email verification will be required to sign in again.',
+    otpSkipped: 'Set a new PIN.',
     forgotConfirm: 'Reset',
     forgotRequiresOtp: 'Enable SMS sign-in (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true) to reset PIN.',
     locked: 'Too many attempts. Try again in {{seconds}} sec.',
@@ -67,7 +95,7 @@ export default {
   quickLogin: {
     title: 'Welcome back!',
     submit: 'Sign in',
-    switchAccount: 'Sign in with another number',
+    switchAccount: 'Sign in with another account',
   },
   biometric: {
     enableTitle: 'Enable {{label}}?',
@@ -79,6 +107,7 @@ export default {
     confirmLogin: 'Confirm sign-in to the app',
   },
   sessionExpired: 'Session expired. Enter the SMS code to sign in.',
+  sessionExpiredEmail: 'Session expired. Enter the code from your email to sign in.',
   confirmationTitle: 'Confirmation',
   devCodeStub: 'Verification code (stub)',
   devCodeMessage: 'Your code: {{code}}',

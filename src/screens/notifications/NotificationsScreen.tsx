@@ -18,7 +18,7 @@ import notificationService, { NotificationRecord } from '../../services/Notifica
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
 import { Bell, ChevronLeft, Clock, CheckCircle, AlertCircle, Calendar, RefreshCw, Trash2 } from 'lucide-react-native';
-import EmptyState from '../../components/common/EmptyState';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { getDateLocale } from '../../i18n';
@@ -203,6 +203,7 @@ export default function NotificationsScreen({ navigation }: any) {
             />
           ) : null
         }
+        {...FLAT_LIST_PERF}
       />
     </ThemedSafeAreaView>
   );

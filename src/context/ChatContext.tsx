@@ -74,6 +74,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const loadMessagesRef = useRef<() => Promise<void>>(async () => {});
   const lastNotifiedRef = useRef<Record<string, string>>({});
   const roomNamesRef = useRef<Record<string, string>>({});
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const pvzId = pvz?.id || user?.pvzId || '';
 
@@ -87,6 +95,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
+    if (user) return;
+
+    setActiveChat(null);
+    setMessages([]);
+    setChats([]);
+    setAllUsers([]);
+    setSupabaseEnabled(false);
+    activeChatIdRef.current = null;
+    setActiveChatRoomId(null);
+    lastNotifiedRef.current = {};
+  }, [user]);
+
+  useEffect(() => {
     if (!user?.id) {
       setSupabaseEnabled(false);
       return;
@@ -96,6 +117,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     roomNamesRef.current = Object.fromEntries(chats.map((room) => [room.id, room.name]));
+    const roomIds = new Set(chats.map((room) => room.id));
+    for (const roomId of Object.keys(lastNotifiedRef.current)) {
+      if (!roomIds.has(roomId)) {
+        delete lastNotifiedRef.current[roomId];
+      }
+    }
   }, [chats]);
 
   const totalUnreadCount = useMemo(
@@ -155,14 +182,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setLoadingChats(true);
     try {
       const users = await DataService.getUsers();
+      if (!mountedRef.current) return;
       setAllUsers(users);
 
       if (supabaseEnabled && pvz) {
         const generalRoomId = await SupabaseChat.ensureGeneralRoom(pvzId, pvz.name);
+        if (!mountedRef.current) return;
         if (generalRoomId) {
           await SupabaseChat.syncPvzMembersToGeneralRoom(generalRoomId, users, pvz);
         }
         const remoteRooms = await SupabaseChat.loadRooms(user.id, pvzId, pvz.name, users);
+        if (!mountedRef.current) return;
         if (remoteRooms) {
           setChats(remoteRooms);
           return;
@@ -170,11 +200,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
 
       const localRooms = await loadLocalChatRooms(user.id, pvzId, pvz, t);
+      if (!mountedRef.current) return;
       setChats(localRooms);
     } catch (error) {
       console.error('Ошибка загрузки чатов:', error);
     } finally {
-      setLoadingChats(false);
+      if (mountedRef.current) {
+        setLoadingChats(false);
+      }
     }
   }, [user?.id, pvzId, pvz, supabaseEnabled, t]);
 
@@ -185,6 +218,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     try {
       if (supabaseEnabled) {
         const remoteMessages = await SupabaseChat.loadMessages(activeChat.id, user.id);
+        if (!mountedRef.current) return;
         if (remoteMessages) {
           setMessages(remoteMessages);
           await SupabaseChat.markRoomRead(activeChat.id, user.id);
@@ -198,6 +232,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
 
       const savedMessages = await readChatMessages(activeChat.id);
+      if (!mountedRef.current) return;
       setMessages(
         savedMessages.map((msg) => ({
           ...msg,
@@ -211,7 +246,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Ошибка загрузки сообщений:', error);
     } finally {
-      setLoadingMessages(false);
+      if (mountedRef.current) {
+        setLoadingMessages(false);
+      }
     }
   }, [activeChat, user?.id, supabaseEnabled]);
 
@@ -544,7 +581,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!activeChat) return;
     void loadMessages();
     if (!supabaseEnabled) {
-      return DataService.subscribe(chatMessagesEventKey(activeChat.id), loadMessages);
+      return DataService.subscribe(chatMessagesEventKey(activeChat.id), () => {
+        if (mountedRef.current) void loadMessages();
+      });
     }
   }, [activeChat, loadMessages, supabaseEnabled]);
 

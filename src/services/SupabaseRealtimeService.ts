@@ -6,6 +6,8 @@ import DataService from './DataService';
 
 import { hasSupabaseSession } from './SupabaseAuthService';
 
+import { debounceAsync } from '../utils/debounceAsync';
+
 import {
   refreshAdvanceRequestsCache,
   refreshPaymentsCache,
@@ -23,6 +25,41 @@ const channels: ReturnType<typeof supabase.channel>[] = [];
 const loginChannels: ReturnType<typeof supabase.channel>[] = [];
 
 
+
+const REALTIME_DEBOUNCE_MS = 400;
+
+const debouncedRefreshShiftRequests = debounceAsync(
+  async (user: User) => refreshShiftRequests(user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshInvitations = debounceAsync(
+  async (user: User) => refreshInvitations(user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshNotifications = debounceAsync(
+  async (user: User) => refreshNotifications(user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshAdvanceRequests = debounceAsync(
+  async (pvzIds: string[], user: User) => refreshAdvanceRequests(pvzIds, user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshPayments = debounceAsync(
+  async (pvzIds: string[], user: User) => refreshPayments(pvzIds, user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshPenalties = debounceAsync(
+  async (pvzIds: string[], user: User) => refreshPenalties(pvzIds, user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshSalarySettings = debounceAsync(
+  async (pvzIds: string[], user: User) => refreshSalarySettings(pvzIds, user),
+  REALTIME_DEBOUNCE_MS
+);
+const debouncedRefreshShifts = debounceAsync(
+  async (user: User) => refreshShifts(user),
+  REALTIME_DEBOUNCE_MS
+);
 
 async function getPvzIdsForUser(user: User): Promise<string[]> {
 
@@ -61,14 +98,12 @@ async function getPvzIdsForUser(user: User): Promise<string[]> {
 
 
 async function refreshAdvanceRequests(pvzIds: string[], user: User): Promise<void> {
-
-  for (const pvzId of pvzIds) {
-
-    await refreshAdvanceRequestsCache(pvzId);
-
-    DataService.emitChange(`advance_requests_${pvzId}`);
-
-  }
+  await Promise.all(
+    pvzIds.map(async (pvzId) => {
+      await refreshAdvanceRequestsCache(pvzId);
+      DataService.emitChange(`advance_requests_${pvzId}`);
+    })
+  );
 
 
 
@@ -83,12 +118,7 @@ async function refreshAdvanceRequests(pvzIds: string[], user: User): Promise<voi
 
 
 async function refreshPayments(pvzIds: string[], user: User): Promise<void> {
-
-  for (const pvzId of pvzIds) {
-
-    await refreshPaymentsCache(pvzId);
-
-  }
+  await Promise.all(pvzIds.map((pvzId) => refreshPaymentsCache(pvzId)));
 
 
 
@@ -127,16 +157,13 @@ async function refreshNotifications(user: User): Promise<void> {
 
 
 async function refreshSalarySettings(pvzIds: string[], user: User): Promise<void> {
-
-  for (const pvzId of pvzIds) {
-
-    await syncPvzSalarySettings(pvzId);
-
-    DataService.emitChange(`salary_settings_${pvzId}`);
-
-    DataService.emitChange(`salary_formulas_${pvzId}`);
-
-  }
+  await Promise.all(
+    pvzIds.map(async (pvzId) => {
+      await syncPvzSalarySettings(pvzId);
+      DataService.emitChange(`salary_settings_${pvzId}`);
+      DataService.emitChange(`salary_formulas_${pvzId}`);
+    })
+  );
 
 
 
@@ -153,9 +180,9 @@ async function refreshSalarySettings(pvzIds: string[], user: User): Promise<void
 async function refreshShifts(user: User): Promise<void> {
   await DataService.refreshShiftsCache();
   const pvzIds = await getPvzIdsForUser(user);
-  for (const pvzId of pvzIds) {
+  pvzIds.forEach((pvzId) => {
     DataService.emitChange(`schedule_assignments_${pvzId}`);
-  }
+  });
 }
 
 async function refreshShiftRequests(user: User): Promise<void> {
@@ -286,7 +313,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshShiftRequests(user).catch((error) => {
+        debouncedRefreshShiftRequests(user).catch((error) => {
 
           console.warn('realtime shift_requests:', error);
 
@@ -314,7 +341,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshInvitations(user).catch((error) => {
+        debouncedRefreshInvitations(user).catch((error) => {
 
           console.warn('realtime invitations:', error);
 
@@ -342,7 +369,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshNotifications(user).catch((error) => {
+        debouncedRefreshNotifications(user).catch((error) => {
 
           console.warn('realtime notifications:', error);
 
@@ -378,7 +405,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshAdvanceRequests(pvzIds, user).catch((error) => {
+        debouncedRefreshAdvanceRequests(pvzIds, user).catch((error) => {
 
           console.warn('realtime advance_requests:', error);
 
@@ -406,7 +433,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshPayments(pvzIds, user).catch((error) => {
+        debouncedRefreshPayments(pvzIds, user).catch((error) => {
 
           console.warn('realtime payments:', error);
 
@@ -434,7 +461,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshPenalties(pvzIds, user).catch((error) => {
+        debouncedRefreshPenalties(pvzIds, user).catch((error) => {
 
           console.warn('realtime penalties:', error);
 
@@ -462,7 +489,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshSalarySettings(pvzIds, user).catch((error) => {
+        debouncedRefreshSalarySettings(pvzIds, user).catch((error) => {
 
           console.warn('realtime global_salary_settings:', error);
 
@@ -490,7 +517,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
 
       () => {
 
-        refreshSalarySettings(pvzIds, user).catch((error) => {
+        debouncedRefreshSalarySettings(pvzIds, user).catch((error) => {
 
           console.warn('realtime employee_salary_settings:', error);
 
@@ -510,7 +537,7 @@ export async function startSupabaseRealtime(user: User): Promise<void> {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'shifts' },
       () => {
-        refreshShifts(user).catch((error) => {
+        debouncedRefreshShifts(user).catch((error) => {
           console.warn('realtime shifts:', error);
         });
       }

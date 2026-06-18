@@ -109,6 +109,8 @@ export default {
     support: 'Support',
     aboutApp: 'About app',
     privacy: 'Privacy policy',
+    terms: 'Terms of Use',
+    consent: 'Consent to personal data processing',
     editProfileDescContact: 'Name and contact details',
     editProfileDescFull: 'Name, phone, and photo',
     settingsDesc: 'Theme, notifications, PIN, and sign-in',
@@ -121,11 +123,21 @@ export default {
     supportDesc: 'Report an issue or suggestion',
     aboutDesc: 'Version and app info',
     privacyDesc: 'How your data is stored',
+    termsDesc: 'App terms of use',
+    consentDesc: 'Personal data processing',
     sections: {
       organization: 'Organization',
       salary: 'Salary',
       reports: 'Reports',
     },
+  },
+  deleteAccount: {
+    title: 'Delete account',
+    description:
+      'You can permanently delete your account and associated data. Recovery is not possible after deletion.',
+    warning: 'Warning: this action is irreversible.',
+    profileLink: 'Delete account',
+    profileLinkDesc: 'Permanently delete your account',
   },
   requests: {
     title: 'Shift requests',
@@ -302,6 +314,8 @@ export default {
     pvzAddressPlaceholder: '1 Main St',
     pvzHoursLabel: 'Working hours *',
     pvzPhoneLabel: 'PVZ phone',
+    pvzOwnerInnLabel: 'Owner INN *',
+    pvzOwnerInnPlaceholder: '10 or 12 digits',
     pvzEditHint: 'Changes will apply everywhere this PVZ is used',
     pvzCreateHint: 'After creation you can add employees and set up the schedule',
     openTime: 'Opening time',
@@ -328,6 +342,8 @@ export default {
     title: 'About',
     support: 'Contact support',
     privacy: 'Privacy policy',
+    terms: 'Terms of Use',
+    consent: 'Consent to personal data processing',
     version: 'Version {{version}}',
     disclaimerTitle: 'Important',
     disclaimer: '{{appName}} is an independent app for PVZ staff management. It is not an official product of Wildberries, Ozon, or other marketplaces and is not affiliated with them.',
@@ -338,6 +354,8 @@ export default {
     supportTitle: 'Support',
     supportHint: 'Report an issue or suggestion about the app.',
     privacyHint: 'How your data is processed',
+    termsHint: 'App terms of use',
+    consentHint: 'Personal data processing',
     copyright: '© {{year}} {{name}}. All rights reserved.',
   },
   support: {
@@ -621,5 +639,10 @@ export default {
     changePhoto: 'Change photo',
     namePlaceholder: 'Enter your name',
     phoneHint: 'Phone number is required to sign in',
+  },
+  salary: {
+    title: 'Payroll',
+    employees: 'Employees',
+    noEmployees: 'No employees to display',
   },
 } as const;

@@ -1,5 +1,5 @@
 // src/screens/common/EmployeesListScreen.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
@@ -16,11 +16,10 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
-import { useFocusEffect } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 import StorageService from '../../services/StorageService';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
-import { getEmployeeBalance } from '../../services/PaymentService';
+import { loadPvzPayrollBundle } from '../../services/PaymentService';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { User } from '../../types/user';
@@ -36,7 +35,10 @@ import {
   Search,
   Clock,
 } from 'lucide-react-native';
-import MoneyIcon from '../../components/icons/MoneyIcon';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
+import { markScreenLoadStart, markScreenLoadEnd } from '../../utils/perfMonitor';
+import { EmployeesListSkeleton } from '../../components/common/Skeleton';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 interface EmployeesListScreenProps {
   navigation: any;
@@ -91,6 +93,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
   >([]);
 
   const currentPvzId = propPvzId || pvz?.id;
+  const [loading, markLoaded] = useScopedInitialLoading(currentPvzId);
   const todayKey = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const loadShifts = async () => {
@@ -144,8 +147,9 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     );
   };
 
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
     if (!currentPvzId) return;
+    markScreenLoadStart('EmployeesList');
     try {
       const stored = await StorageService.getItem('pvz_users');
       if (stored) {
@@ -160,27 +164,37 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
         const shiftsRaw = await StorageService.getItem('shifts');
         const allShifts = safeParseJson<unknown[]>(shiftsRaw ?? '[]', []);
 
-        const employeesWithStats = await Promise.all(
-          filtered.map(async (emp: User) => {
-            const employeeShifts = allShifts.filter(
-              (s: any) =>
-                s.employeeId === emp.id &&
-                (s.status === 'completed' || s.status === 'paid')
-            );
-            const totalHours = employeeShifts.reduce(
-              (sum: number, s: any) => sum + (s.totalHours || s.actualHours || 0),
-              0
-            );
-            const balance = isOwner ? await getEmployeeBalance(emp.id) : null;
+        let payrollMap: Map<string, { lifetimeBalance: number; periodAccruals: { netEarned: number } }> | null =
+          null;
+        if (isOwner && filtered.length > 0) {
+          payrollMap = await loadPvzPayrollBundle(
+            currentPvzId,
+            filtered.map((e) => e.id),
+            '1970-01-01',
+            '2099-12-31'
+          );
+        }
 
-            return {
-              ...emp,
-              totalHours: Math.round(totalHours * 10) / 10,
-              totalEarned: balance?.totalEarned ?? 0,
-              balance: balance?.balance ?? 0,
-            };
-          })
-        );
+        const employeesWithStats = filtered.map((emp: User) => {
+          const employeeShifts = allShifts.filter(
+            (s: { employeeId?: string; status?: string }) =>
+              s.employeeId === emp.id &&
+              (s.status === 'completed' || s.status === 'paid')
+          );
+          const totalHours = employeeShifts.reduce(
+            (sum: number, s: { totalHours?: number; actualHours?: number }) =>
+              sum + (s.totalHours || s.actualHours || 0),
+            0
+          );
+          const row = payrollMap?.get(emp.id);
+
+          return {
+            ...emp,
+            totalHours: Math.round(totalHours * 10) / 10,
+            totalEarned: row?.periodAccruals.netEarned ?? 0,
+            balance: row?.lifetimeBalance ?? 0,
+          };
+        });
 
         const onShiftToday = employeesWithStats.filter((emp) =>
           allShifts.some(
@@ -200,8 +214,19 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
       }
     } catch (error) {
       console.error('Ошибка загрузки сотрудников:', error);
+    } finally {
+      markLoaded();
+      markScreenLoadEnd('EmployeesList');
     }
-  };
+  }, [currentPvzId, isOwner, todayKey, markLoaded]);
+
+  const refreshList = useCallback(async () => {
+    await Promise.all([loadEmployees(), loadShifts(), loadPendingEmployees()]);
+  }, [loadEmployees, currentPvzId, canAdd]);
+
+  useScreenRefresh(refreshList, [refreshList], {
+    subscribeKeys: ['employee_balance', 'pending_employees', 'pvz_users', 'shifts'],
+  });
 
   const applyFilters = (
     empList: EmployeeWithStats[],
@@ -269,23 +294,6 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     return { text: t('common.shiftStatus.scheduled'), color: colors.gray, bg: '#F5F5F5' };
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadEmployees();
-      loadShifts();
-      loadPendingEmployees();
-      const unsubBalance = DataService.subscribe('employee_balance', loadEmployees);
-      const unsubPending = DataService.subscribe('pending_employees', () => {
-        loadPendingEmployees();
-        loadEmployees();
-      });
-      return () => {
-        unsubBalance();
-        unsubPending();
-      };
-    }, [currentPvzId, canAdd, isOwner])
-  );
-
   const deleteEmployee = (id: string, name: string) => {
     Alert.alert(t('alerts.confirm.deleteEmployeeTitle'), t('alerts.confirm.deleteEmployee', { name }), [
       { text: t('common.actions.cancel'), style: 'cancel' },
@@ -324,6 +332,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await DataService.refreshShiftsCache();
     await loadEmployees();
     await loadShifts();
     await loadPendingEmployees();
@@ -533,6 +542,9 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
         onBack={showBack ? () => navigation.goBack() : undefined}
       />
 
+      {loading ? (
+        <EmployeesListSkeleton />
+      ) : (
       <FlatList
         style={styles.list}
         data={filteredEmployees}
@@ -548,7 +560,9 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
             <Text style={[styles.emptyText, ui.subtitle]}>{t('screens.employees.empty')}</Text>
           </View>
         }
+        {...FLAT_LIST_PERF}
       />
+      )}
     </ThemedSafeAreaView>
   );
 }

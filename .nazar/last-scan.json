@@ -1,0 +1,3320 @@
+{
+  "timestamp": "2026-06-18T11:32:36.016340",
+  "profile": "full",
+  "grade": "B",
+  "pass_rate": 84.0,
+  "passed": 226,
+  "failed": 43,
+  "total": 269,
+  "duration": 66.5,
+  "categories": {
+    "security": {
+      "passed": 62,
+      "failed": 4
+    },
+    "license": {
+      "passed": 2,
+      "failed": 0
+    },
+    "structure": {
+      "passed": 1,
+      "failed": 1
+    },
+    "documentation": {
+      "passed": 3,
+      "failed": 0
+    },
+    "git": {
+      "passed": 2,
+      "failed": 2
+    },
+    "sca": {
+      "passed": 7,
+      "failed": 0
+    },
+    "yaml_rules": {
+      "passed": 1,
+      "failed": 2
+    },
+    "code_quality": {
+      "passed": 6,
+      "failed": 6
+    },
+    "import_graph": {
+      "passed": 1,
+      "failed": 1
+    },
+    "error_handling": {
+      "passed": 2,
+      "failed": 1
+    },
+    "naming": {
+      "passed": 2,
+      "failed": 1
+    },
+    "cross_file": {
+      "passed": 5,
+      "failed": 2
+    },
+    "dependency": {
+      "passed": 3,
+      "failed": 0
+    },
+    "env": {
+      "passed": 2,
+      "failed": 0
+    },
+    "config": {
+      "passed": 2,
+      "failed": 0
+    },
+    "type_safety": {
+      "passed": 2,
+      "failed": 1
+    },
+    "performance": {
+      "passed": 2,
+      "failed": 1
+    },
+    "taint": {
+      "passed": 5,
+      "failed": 0
+    },
+    "ui_analysis": {
+      "passed": 1,
+      "failed": 5
+    },
+    "ui_quality": {
+      "passed": 3,
+      "failed": 2
+    },
+    "ux_text": {
+      "passed": 8,
+      "failed": 0
+    },
+    "ui_component": {
+      "passed": 8,
+      "failed": 2
+    },
+    "visual": {
+      "passed": 10,
+      "failed": 0
+    },
+    "accessibility": {
+      "passed": 1,
+      "failed": 1
+    },
+    "appstore": {
+      "passed": 41,
+      "failed": 3
+    },
+    "playstore": {
+      "passed": 7,
+      "failed": 2
+    },
+    "yaml_ui": {
+      "passed": 3,
+      "failed": 0
+    },
+    "i18n_deep": {
+      "passed": 5,
+      "failed": 1
+    },
+    "responsive": {
+      "passed": 2,
+      "failed": 2
+    },
+    "perf_static": {
+      "passed": 1,
+      "failed": 1
+    },
+    "docker": {
+      "passed": 2,
+      "failed": 0
+    },
+    "compliance": {
+      "passed": 24,
+      "failed": 2
+    }
+  },
+  "results": [
+    {
+      "name": "SEC: Payment service keys (Stripe/Square)",
+      "type": "security",
+      "subtype": "payment_keys",
+      "passed": true,
+      "duration": 0.05524563789367676,
+      "detail": "Payment credential temiz",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: API endpoints use HTTPS",
+      "type": "security",
+      "subtype": "https",
+      "passed": true,
+      "duration": 0.20555496215820312,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: No hardcoded IPs or internal URLs",
+      "type": "security",
+      "subtype": "hardcoded_ips",
+      "passed": true,
+      "duration": 0.041921377182006836,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "SEC: Private keys in repo",
+      "type": "security",
+      "subtype": "private_keys",
+      "passed": true,
+      "duration": 0.3247408866882324,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: Hardcoded secrets in source code",
+      "type": "security",
+      "subtype": "secrets",
+      "passed": true,
+      "duration": 0.39229655265808105,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: No SQL injection patterns",
+      "type": "security",
+      "subtype": "sql_injection",
+      "passed": true,
+      "duration": 0.13979125022888184,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: No dangerous function usage",
+      "type": "security",
+      "subtype": "dangerous_functions",
+      "passed": true,
+      "duration": 0.18381237983703613,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "SEC: Database connection strings",
+      "type": "security",
+      "subtype": "db_connection_strings",
+      "passed": true,
+      "duration": 0.06197166442871094,
+      "detail": "DB connection string temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: Sensitive files not in repo",
+      "type": "security",
+      "subtype": "sensitive_files",
+      "passed": true,
+      "duration": 0.29682397842407227,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 98,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: API keys in source code",
+      "type": "security",
+      "subtype": "api_keys",
+      "passed": true,
+      "duration": 0.3904874324798584,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: Communication tokens (Slack/Discord/Twilio)",
+      "type": "security",
+      "subtype": "communication_keys",
+      "passed": true,
+      "duration": 0.13926124572753906,
+      "detail": "Communication credential temiz",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: Cryptographic private keys in repo",
+      "type": "security",
+      "subtype": "crypto_keys",
+      "passed": true,
+      "duration": 0.01071023941040039,
+      "detail": "Cryptographic key temiz",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: Insecure deserialization",
+      "type": "security",
+      "subtype": "insecure_deserialization",
+      "passed": true,
+      "duration": 0.27080202102661133,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: Command injection risk",
+      "type": "security",
+      "subtype": "command_injection",
+      "passed": true,
+      "duration": 0.4725077152252197,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: Cloud provider credentials (AWS/GCP/Azure)",
+      "type": "security",
+      "subtype": "cloud_keys",
+      "passed": true,
+      "duration": 0.5167930126190186,
+      "detail": "Cloud credential temiz",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: VCS tokens (GitHub/GitLab/Bitbucket)",
+      "type": "security",
+      "subtype": "vcs_keys",
+      "passed": true,
+      "duration": 0.16110444068908691,
+      "detail": "VCS credential temiz",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SEC: Path traversal risk",
+      "type": "security",
+      "subtype": "path_traversal",
+      "passed": true,
+      "duration": 0.3167695999145508,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "SEC: CORS wildcard misconfiguration",
+      "type": "security",
+      "subtype": "cors_wildcard",
+      "passed": true,
+      "duration": 0.08236455917358398,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: Debug mode enabled",
+      "type": "security",
+      "subtype": "debug_mode",
+      "passed": true,
+      "duration": 0.1265408992767334,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SEC: Weak cryptography (MD5/SHA1/DES)",
+      "type": "security",
+      "subtype": "weak_crypto",
+      "passed": true,
+      "duration": 0.11338090896606445,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Weak/hardcoded JWT secret",
+      "type": "security",
+      "subtype": "jwt_weak_secret",
+      "passed": true,
+      "duration": 0.1136629581451416,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DEEP-SEC: Tokens/keys in URL parameters",
+      "type": "security",
+      "subtype": "tokens_in_urls",
+      "passed": true,
+      "duration": 0.5065371990203857,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DEEP-SEC: JWT tokens without expiry",
+      "type": "security",
+      "subtype": "jwt_no_expiry",
+      "passed": true,
+      "duration": 0.28494906425476074,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Info leakage in error messages",
+      "type": "security",
+      "subtype": "sensitive_errors",
+      "passed": true,
+      "duration": 0.44654297828674316,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Sensitive data in log statements",
+      "type": "security",
+      "subtype": "sensitive_logs",
+      "passed": true,
+      "duration": 0.30892205238342285,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Missing auth middleware on routes",
+      "type": "security",
+      "subtype": "missing_auth_middleware",
+      "passed": true,
+      "duration": 0.761160135269165,
+      "detail": "0 route, 305 auth referansi",
+      "priority": "high",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "SEC: Comprehensive secret scan (50+ patterns)",
+      "type": "security",
+      "subtype": "secrets_comprehensive",
+      "passed": true,
+      "duration": 1.6183812618255615,
+      "detail": "50+ pattern taranidi, temiz",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: XSS vectors (innerHTML/dangerouslySet)",
+      "type": "security",
+      "subtype": "xss_vectors",
+      "passed": true,
+      "duration": 0.6381189823150635,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Unvalidated redirects (open redirect)",
+      "type": "security",
+      "subtype": "unvalidated_redirects",
+      "passed": true,
+      "duration": 0.5343859195709229,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Missing CSRF protection",
+      "type": "security",
+      "subtype": "missing_csrf",
+      "passed": true,
+      "duration": 0.7769699096679688,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Sensitive data in insecure storage",
+      "type": "security",
+      "subtype": "insecure_session_storage",
+      "passed": true,
+      "duration": 1.069983720779419,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Mass assignment vulnerability",
+      "type": "security",
+      "subtype": "mass_assignment",
+      "passed": true,
+      "duration": 0.006859302520751953,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: NoSQL injection patterns",
+      "type": "security",
+      "subtype": "nosql_injection",
+      "passed": true,
+      "duration": 1.056525468826294,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: IDOR risk (direct object reference)",
+      "type": "security",
+      "subtype": "idor_risk",
+      "passed": true,
+      "duration": 0.30706143379211426,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Hardcoded credentials in config",
+      "type": "security",
+      "subtype": "hardcoded_credentials",
+      "passed": true,
+      "duration": 1.3302180767059326,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Missing RLS / horizontal privilege",
+      "type": "security",
+      "subtype": "horizontal_privilege",
+      "passed": true,
+      "duration": 0.2359142303466797,
+      "detail": "0 RLS policy aktif",
+      "priority": "critical",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: CORS misconfiguration (deep)",
+      "type": "security",
+      "subtype": "cors_misconfiguration",
+      "passed": true,
+      "duration": 0.01295328140258789,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Server env vars exposed to client",
+      "type": "security",
+      "subtype": "exposed_env_vars",
+      "passed": true,
+      "duration": 0.018465757369995117,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Weak encryption (DES/RC4/ECB)",
+      "type": "security",
+      "subtype": "weak_encryption",
+      "passed": true,
+      "duration": 0.017347335815429688,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Default credentials left in code",
+      "type": "security",
+      "subtype": "default_credentials",
+      "passed": true,
+      "duration": 0.18015575408935547,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DEEP-SEC: Weak hashing algorithm (MD5/SHA1)",
+      "type": "security",
+      "subtype": "weak_hashing",
+      "passed": true,
+      "duration": 0.27599263191223145,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Hardcoded IV/salt in crypto",
+      "type": "security",
+      "subtype": "hardcoded_iv_salt",
+      "passed": true,
+      "duration": 0.22631192207336426,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Predictable random for security",
+      "type": "security",
+      "subtype": "insecure_random",
+      "passed": true,
+      "duration": 0.3132309913635254,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: File upload without validation",
+      "type": "security",
+      "subtype": "file_upload_no_validation",
+      "passed": true,
+      "duration": 1.1427562236785889,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Verbose error messages exposed",
+      "type": "security",
+      "subtype": "verbose_errors",
+      "passed": true,
+      "duration": 0.6173267364501953,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Risky postinstall scripts",
+      "type": "security",
+      "subtype": "postinstall_scripts",
+      "passed": true,
+      "duration": 0.05169677734375,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Known vulnerable packages",
+      "type": "security",
+      "subtype": "known_vulnerable_packages",
+      "passed": true,
+      "duration": 0.3427591323852539,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DEEP-SEC: Excessive data exposure (SELECT *)",
+      "type": "security",
+      "subtype": "excessive_data_exposure",
+      "passed": true,
+      "duration": 0.007258415222167969,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Missing security headers",
+      "type": "security",
+      "subtype": "missing_security_headers",
+      "passed": true,
+      "duration": 1.0575778484344482,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Unpinned dependencies (*/latest)",
+      "type": "security",
+      "subtype": "unpinned_deps",
+      "passed": true,
+      "duration": 0.45118188858032227,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: No request body size limit",
+      "type": "security",
+      "subtype": "no_input_size_limit",
+      "passed": true,
+      "duration": 0.3992490768432617,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: No rate limiting on API",
+      "type": "security",
+      "subtype": "rate_limiting",
+      "passed": true,
+      "duration": 0.8294863700866699,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: No user data deletion (GDPR)",
+      "type": "security",
+      "subtype": "gdpr_data_deletion",
+      "passed": true,
+      "duration": 0.8723645210266113,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: No React ErrorBoundary",
+      "type": "security",
+      "subtype": "error_boundary",
+      "passed": true,
+      "duration": 0.46035003662109375,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: No privacy policy reference",
+      "type": "security",
+      "subtype": "privacy_policy",
+      "passed": true,
+      "duration": 1.0632236003875732,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Sensitive data in AsyncStorage",
+      "type": "security",
+      "subtype": "insecure_storage_mobile",
+      "passed": true,
+      "duration": 0.01931309700012207,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Memory leak risk (uncleared timers)",
+      "type": "security",
+      "subtype": "memory_leaks",
+      "passed": true,
+      "duration": 1.1700129508972168,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 50,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Hardcoded production URLs",
+      "type": "security",
+      "subtype": "hardcoded_urls",
+      "passed": true,
+      "duration": 0.4647860527038574,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: PII exposure in client-side code",
+      "type": "security",
+      "subtype": "pii_exposure",
+      "passed": false,
+      "duration": 1.3169457912445068,
+      "detail": "98 client-side PII exposure: lib\\supabaseAuthDirect.ts:11",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta",
+      "guide": {
+        "title": "Kisisel Veri Korumasi",
+        "risk": "KVKK/GDPR cezasi.",
+        "what": "Email, telefon client-side'da acikta.",
+        "why": "Client kodu gorulebilir.",
+        "steps": [
+          "Sadece gerekli yerlerde gosterin",
+          "Maskeleyin: k***@gmail.com"
+        ],
+        "before": "<Text>{user.email}</Text>",
+        "after": "<Text>{maskEmail(user.email)}</Text>",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "DEEP-SEC: Debug mode in production",
+      "type": "security",
+      "subtype": "debug_production",
+      "passed": false,
+      "duration": 0.0507962703704834,
+      "detail": "1 debug modu acik: src\\components\\common\\ErrorBoundary.tsx:96",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: No SSL certificate pinning",
+      "type": "security",
+      "subtype": "certificate_pinning",
+      "passed": false,
+      "duration": 0.27595973014831543,
+      "detail": "Mobil uygulama ama SSL certificate pinning yok - MITM riski",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta",
+      "guide": {
+        "title": "SSL Certificate Pinning",
+        "risk": "WiFi'de trafik dinlenebilir.",
+        "what": "Certificate pinning yok.",
+        "why": "Sahte sertifika ile trafik okunur.",
+        "steps": [
+          "ssl-pinning kutuphane kurun",
+          "Public key gomin"
+        ],
+        "before": "// Standart fetch",
+        "after": "import {fetch} from 'react-native-ssl-pinning'",
+        "warning": "Sertifika yenilendiginde uygulama da guncelleyin.",
+        "tools": [
+          "react-native-ssl-pinning"
+        ]
+      }
+    },
+    {
+      "name": "DEEP-SEC: No consent management",
+      "type": "security",
+      "subtype": "consent_management",
+      "passed": true,
+      "duration": 1.771665334701538,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: HTTP calls without timeout",
+      "type": "security",
+      "subtype": "missing_timeout",
+      "passed": true,
+      "duration": 1.3212368488311768,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "LICENSE: Project has a license file",
+      "type": "license",
+      "subtype": "has_license",
+      "passed": true,
+      "duration": 0.2489018440246582,
+      "detail": "LICENSE mevcut",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "LICENSE: No GPL deps in proprietary code",
+      "type": "license",
+      "subtype": "gpl_check",
+      "passed": true,
+      "duration": 5.269050598144531e-05,
+      "detail": "Kontrol edildi",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEEP-SEC: Deep link URL validation missing",
+      "type": "security",
+      "subtype": "deeplink_validation",
+      "passed": true,
+      "duration": 0.7145302295684814,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: Race condition risk (no locking)",
+      "type": "security",
+      "subtype": "race_conditions",
+      "passed": true,
+      "duration": 1.7172667980194092,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "DEEP-SEC: No root/jailbreak detection",
+      "type": "security",
+      "subtype": "root_jailbreak_detection",
+      "passed": false,
+      "duration": 0.8137674331665039,
+      "detail": "Mobil uygulama ama root/jailbreak tespiti yok",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta",
+      "guide": {
+        "title": "Root/Jailbreak Tespiti",
+        "risk": "Kirilmis telefonda uygulama manipule edilir.",
+        "what": "Root tespiti yok.",
+        "why": "Bellek okunabilir, API degistirilebilir.",
+        "steps": [
+          "jail-monkey kurun",
+          "Baslarken kontrol yapin"
+        ],
+        "before": "// Kontrol yok",
+        "after": "if (JailMonkey.isJailBroken()) Alert.alert('Uyari')",
+        "warning": null,
+        "tools": [
+          "jail-monkey"
+        ]
+      }
+    },
+    {
+      "name": "STRUCT: Test coverage (0/394)",
+      "type": "structure",
+      "subtype": "test_coverage",
+      "passed": false,
+      "duration": 4.1484832763671875e-05,
+      "detail": "0.0% (0/394)",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin",
+      "guide": {
+        "title": "Test Yazma",
+        "risk": "Degisiklik yapmak riskli.",
+        "what": "Test yok veya cok az.",
+        "why": "Her degisiklikte bir sey kirilabilir.",
+        "steps": [
+          "Jest kurun",
+          "Kritik logic icin unit test yazin"
+        ],
+        "before": "// Test yok",
+        "after": "describe('fn', () => { it('works', () => expect(fn(1)).toBe(2)) })",
+        "warning": null,
+        "tools": [
+          "jest"
+        ]
+      }
+    },
+    {
+      "name": "DOC: CHANGELOG exists",
+      "type": "documentation",
+      "subtype": "changelog",
+      "passed": true,
+      "duration": 0.06308174133300781,
+      "detail": "CHANGELOG.md mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DOC: README.md exists",
+      "type": "documentation",
+      "subtype": "readme_exists",
+      "passed": true,
+      "duration": 0.011406421661376953,
+      "detail": "README.md mevcut",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DOC: README has content (>10 lines)",
+      "type": "documentation",
+      "subtype": "readme_quality",
+      "passed": true,
+      "duration": 0.06331777572631836,
+      "detail": "81 satir",
+      "priority": "low",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "GIT: .gitignore covers essentials",
+      "type": "git",
+      "subtype": "gitignore_quality",
+      "passed": true,
+      "duration": 0.8163292407989502,
+      "detail": "Kapsamli",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "GIT: No sensitive files in history",
+      "type": "git",
+      "subtype": "sensitive_history",
+      "passed": false,
+      "duration": 0.5173993110656738,
+      "detail": "Repo'da: ['.env']",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "GIT: Lock file committed",
+      "type": "git",
+      "subtype": "lock_file",
+      "passed": true,
+      "duration": 0.4352116584777832,
+      "detail": "Lock: package-lock.json",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SCA: govulncheck - Go guvenlik aciklari",
+      "type": "sca",
+      "subtype": "go_vulncheck",
+      "passed": true,
+      "duration": 0.0021359920501708984,
+      "detail": "go.mod yok, SKIP",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SCA: pip-audit - Python guvenlik aciklari",
+      "type": "sca",
+      "subtype": "pip_audit",
+      "passed": true,
+      "duration": 0.00620579719543457,
+      "detail": "Python dependency dosyasi yok, SKIP",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SCA: Deprecated paket kullanimi",
+      "type": "sca",
+      "subtype": "deprecated_packages",
+      "passed": true,
+      "duration": 0.0023851394653320312,
+      "detail": "Deprecated paket yok",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SCA: npm audit - bilinen guvenlik aciklari",
+      "type": "sca",
+      "subtype": "npm_audit",
+      "passed": true,
+      "duration": 0.01643967628479004,
+      "detail": "npm bulunamadi, SKIP",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SCA: Typosquatting paket tespiti",
+      "type": "sca",
+      "subtype": "typosquatting",
+      "passed": true,
+      "duration": 0.005314350128173828,
+      "detail": "Typosquatting yok",
+      "priority": "critical",
+      "confidence": 98,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "SCA: Major versiyon gerideleri",
+      "type": "sca",
+      "subtype": "outdated_packages",
+      "passed": true,
+      "duration": 0.017156362533569336,
+      "detail": "npm outdated calistirilamadi, SKIP",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "YAML: Guvenlik kurallari",
+      "type": "yaml_rules",
+      "subtype": "yaml_security",
+      "passed": true,
+      "duration": 1.1818196773529053,
+      "detail": "Temiz - 4 kural ile tarandi",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: No functions longer than 50 lines",
+      "type": "code_quality",
+      "subtype": "long_functions",
+      "passed": false,
+      "duration": 0.023194313049316406,
+      "detail": "8 uzun fonksiyon: App.tsx:42 (RootNavigation: 91 satir)",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin",
+      "how_to_fix": {
+        "sorun": "50 satirdan uzun fonksiyonlar var",
+        "cozum": "Uzun fonksiyonlari kucuk alt fonksiyonlara bolerek yeniden yapilandirin",
+        "quick_fix": "Her fonksiyonu tek bir sorumluluk ile sinirlayin"
+      },
+      "detail_rich": "SORUN: 50 satirdan uzun fonksiyonlar var | COZUM: Uzun fonksiyonlari kucuk alt fonksiyonlara bolerek yeniden yapilandirin | QUICK FIX: Her fonksiyonu tek bir sorumluluk ile sinirlayin",
+      "guide": {
+        "title": "Uzun Fonksiyon Bolme",
+        "risk": "Okumak ve debug etmek zorlasir.",
+        "what": "50+ satirlik fonksiyonlar var.",
+        "why": "Cok fazla sorumluluk = karmasiklik.",
+        "steps": [
+          "Tek is yapan alt fonksiyonlara bolin"
+        ],
+        "before": "function handle() { // 80 satir }",
+        "after": "function handle() {\n  validate(); prepare(); submit();\n}",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "YAML: Kod kalitesi kurallari",
+      "type": "yaml_rules",
+      "subtype": "yaml_code_quality",
+      "passed": false,
+      "duration": 2.052189350128174,
+      "detail": "6 bulgu: [warning] Ic ice ternary operatoru - okunabilirligi azaltir (src\\hooks\\useAccessiblePvzs.ts:30)",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: No deeply nested code (>4 levels)",
+      "type": "code_quality",
+      "subtype": "nesting_depth",
+      "passed": true,
+      "duration": 0.005497932434082031,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "QUALITY: No duplicate code blocks",
+      "type": "code_quality",
+      "subtype": "duplication",
+      "passed": true,
+      "duration": 0.013321638107299805,
+      "detail": "4 tekrar eden blok",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: No TODO/FIXME/HACK left behind",
+      "type": "code_quality",
+      "subtype": "todo_count",
+      "passed": true,
+      "duration": 0.12342500686645508,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "QUALITY: No debug statements in production",
+      "type": "code_quality",
+      "subtype": "debug_statements",
+      "passed": false,
+      "duration": 0.3070673942565918,
+      "detail": "1 debug: src\\context\\auth\\sessionOps.ts:117",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "QUALITY: Cyclomatic complexity reasonable",
+      "type": "code_quality",
+      "subtype": "complexity",
+      "passed": false,
+      "duration": 0.017819881439208984,
+      "detail": "2 karmasik fonksiyon: src\\context\\auth\\localSignInFlow.ts:13 (roleLabel: CC=21)",
+      "priority": "medium",
+      "confidence": 85,
+      "confidence_label": "Yuksek",
+      "how_to_fix": {
+        "sorun": "Yuksek cyclomatic complexity",
+        "cozum": "If/else zincirlerini strategy pattern veya lookup table ile degistirin",
+        "quick_fix": "Guard clause'lar ve early return kullanin"
+      },
+      "detail_rich": "SORUN: Yuksek cyclomatic complexity | COZUM: If/else zincirlerini strategy pattern veya lookup table ile degistirin | QUICK FIX: Guard clause'lar ve early return kullanin"
+    },
+    {
+      "name": "QUALITY: Cyclomatic complexity per function (CC<15)",
+      "type": "code_quality",
+      "subtype": "cyclomatic_complexity",
+      "passed": false,
+      "duration": 0.016329050064086914,
+      "detail": "2 karmasik fonksiyon: src\\context\\auth\\localSignInFlow.ts:13 (roleLabel: CC=21)",
+      "priority": "medium",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: Maintainability Index (MI>20)",
+      "type": "code_quality",
+      "subtype": "maintainability_index",
+      "passed": false,
+      "duration": 0.04311394691467285,
+      "detail": "5 dosya dusuk MI: lib\\supabaseAuthDirect.ts (MI=10)",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: No dead code (unused functions)",
+      "type": "code_quality",
+      "subtype": "dead_code",
+      "passed": true,
+      "duration": 0.0437014102935791,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "QUALITY: No == loose equality (JS)",
+      "type": "code_quality",
+      "subtype": "loose_equality",
+      "passed": true,
+      "duration": 0.10689187049865723,
+      "detail": "1 == kullanimi (=== oneriliyor)",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "QUALITY: No var usage (JS)",
+      "type": "code_quality",
+      "subtype": "var_usage",
+      "passed": true,
+      "duration": 0.13654375076293945,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 50,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "YAML: Ozel kurallar (proje + dahili)",
+      "type": "yaml_rules",
+      "subtype": "yaml_custom",
+      "passed": false,
+      "duration": 4.209239959716797,
+      "detail": "6 bulgu: [warning] Ic ice ternary operatoru - okunabilirligi azaltir (src\\hooks\\useAccessiblePvzs.ts:30)",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "IMPORT: No unused imports",
+      "type": "import_graph",
+      "subtype": "unused",
+      "passed": false,
+      "duration": 0.033371925354003906,
+      "detail": "13 kullanilmayan",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "ERROR: No empty catch blocks",
+      "type": "error_handling",
+      "subtype": "empty_catch",
+      "passed": true,
+      "duration": 0.024918317794799805,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "ERROR: No swallowed errors",
+      "type": "error_handling",
+      "subtype": "swallowed_errors",
+      "passed": true,
+      "duration": 0.028190135955810547,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "ERROR: Async functions have error handling",
+      "type": "error_handling",
+      "subtype": "async_errors",
+      "passed": false,
+      "duration": 0.008520364761352539,
+      "detail": "7 dosya: lib\\supabase.ts",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "NAMING: Files follow naming convention",
+      "type": "naming",
+      "subtype": "file_names",
+      "passed": true,
+      "duration": 0.002662181854248047,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "NAMING: No single-letter variables",
+      "type": "naming",
+      "subtype": "short_vars",
+      "passed": false,
+      "duration": 0.07329225540161133,
+      "detail": "6 tek harfli",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "NAMING: Constants are UPPER_CASE",
+      "type": "naming",
+      "subtype": "constants",
+      "passed": true,
+      "duration": 3.5762786865234375e-05,
+      "detail": "Kontrol edildi",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Unused exports (dead code across files)",
+      "type": "cross_file",
+      "subtype": "unused_exports",
+      "passed": false,
+      "duration": 0.013229131698608398,
+      "detail": "73 export edilip kullanilmayan: supabase in lib\\supabase.ts",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "SCA: GPL dependency MIT projede",
+      "type": "sca",
+      "subtype": "license_compatibility",
+      "passed": true,
+      "duration": 4.449612379074097,
+      "detail": "Lisans uyumlulugu temiz",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Same secret in multiple files",
+      "type": "cross_file",
+      "subtype": "duplicate_secrets",
+      "passed": true,
+      "duration": 0.03639817237854004,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Orphan component files (never imported)",
+      "type": "cross_file",
+      "subtype": "orphan_components",
+      "passed": false,
+      "duration": 0.0049953460693359375,
+      "detail": "19 kullanilmayan component dosyasi: src\\components\\common\\AppEnvBanner.tsx",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Deep circular imports",
+      "type": "cross_file",
+      "subtype": "circular_imports_deep",
+      "passed": true,
+      "duration": 0.0938720703125,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Inconsistent file naming convention",
+      "type": "cross_file",
+      "subtype": "inconsistent_naming",
+      "passed": true,
+      "duration": 0.0019390583038330078,
+      "detail": "Tutarli",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: API routes without auth middleware",
+      "type": "cross_file",
+      "subtype": "api_auth_coverage",
+      "passed": true,
+      "duration": 0.03011178970336914,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CROSS: Env vars used but not in .env.example",
+      "type": "cross_file",
+      "subtype": "env_var_mismatch",
+      "passed": true,
+      "duration": 0.13605141639709473,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEP: Dependency count (50)",
+      "type": "dependency",
+      "subtype": "count",
+      "passed": true,
+      "duration": 5.7220458984375e-05,
+      "detail": "50 dependency",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEP: No deprecated packages",
+      "type": "dependency",
+      "subtype": "deprecated",
+      "passed": true,
+      "duration": 5.53131103515625e-05,
+      "detail": "Gelecek surumde",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "ENV: .env.example exists for team",
+      "type": "env",
+      "subtype": "env_example",
+      "passed": true,
+      "duration": 0.0013763904571533203,
+      "detail": ".env.example mevcut",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "ENV: No undefined env vars in code",
+      "type": "env",
+      "subtype": "undefined_vars",
+      "passed": true,
+      "duration": 0.0007886886596679688,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "CFG: .env not committed to git",
+      "type": "config",
+      "subtype": "env_safety",
+      "passed": true,
+      "duration": 7.271766662597656e-05,
+      "detail": ".env gitignore'da",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "CFG: package.json exists",
+      "type": "config",
+      "subtype": "required",
+      "passed": true,
+      "duration": 0.0015110969543457031,
+      "detail": "package.json mevcut",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DEP: No known vulnerabilities",
+      "type": "dependency",
+      "subtype": "vulnerability",
+      "passed": true,
+      "duration": 0.020952701568603516,
+      "detail": "SKIP",
+      "priority": "critical",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "TYPE: No 'any' type usage",
+      "type": "type_safety",
+      "subtype": "any_usage",
+      "passed": false,
+      "duration": 0.010837316513061523,
+      "detail": "7 adet",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "TYPE: No @ts-ignore / @ts-nocheck",
+      "type": "type_safety",
+      "subtype": "ts_ignore",
+      "passed": true,
+      "duration": 0.006855487823486328,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "TYPE: No 'as any' type assertions",
+      "type": "type_safety",
+      "subtype": "as_any",
+      "passed": true,
+      "duration": 0.05803728103637695,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PERF: Source code total size",
+      "type": "performance",
+      "subtype": "source_size",
+      "passed": true,
+      "duration": 5.02079176902771,
+      "detail": "2.3MB (394 dosya)",
+      "priority": "low",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PERF: No oversized images (>500KB)",
+      "type": "performance",
+      "subtype": "large_images",
+      "passed": true,
+      "duration": 5.09765887260437,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "TAINT: XSS (source -> innerHTML/dangerouslySet)",
+      "type": "taint",
+      "subtype": "xss_taint",
+      "passed": true,
+      "duration": 0.6488678455352783,
+      "detail": "Temiz - taint tracking ile dogrulandi",
+      "priority": "critical",
+      "confidence": 88,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "GIT: No large binary files tracked",
+      "type": "git",
+      "subtype": "large_tracked",
+      "passed": false,
+      "duration": 6.091523885726929,
+      "detail": "1 buyuk",
+      "priority": "medium",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI-MVP: Sayfa/ekran kesfetme ve test kapsami",
+      "type": "ui_analysis",
+      "subtype": "page_discovery",
+      "passed": false,
+      "duration": 0.2532188892364502,
+      "detail": "121 ekran bulundu, 121 tanesi test edilmemis",
+      "priority": "medium",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PERF: No files larger than 10MB",
+      "type": "performance",
+      "subtype": "large_files",
+      "passed": false,
+      "duration": 6.103769063949585,
+      "detail": "1 buyuk: builds\\pvz-manager-debug.apk (121.9MB)",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI-MVP: Kirik route / dead navigation tespiti",
+      "type": "ui_analysis",
+      "subtype": "dead_routes",
+      "passed": true,
+      "duration": 1.1402480602264404,
+      "detail": "65 navigate cagrisi, hepsi gecerli",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI-MVP: Loading state eksikligi",
+      "type": "ui_analysis",
+      "subtype": "loading_state",
+      "passed": false,
+      "duration": 0.030011892318725586,
+      "detail": "9 dosyada loading state eksik: lib\\supabaseAuthDirect.ts",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI-MVP: Error state eksikligi",
+      "type": "ui_analysis",
+      "subtype": "error_state",
+      "passed": false,
+      "duration": 0.054776668548583984,
+      "detail": "7 dosyada error state eksik: lib\\supabaseRest.ts",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI-MVP: Placeholder / test verisi (lorem ipsum)",
+      "type": "ui_analysis",
+      "subtype": "content_quality",
+      "passed": false,
+      "duration": 0.9703283309936523,
+      "detail": "44 placeholder: Anlamsiz karakter dizisi (src\\context\\ThemeContext.tsx:44, AAAAAA)",
+      "priority": "high",
+      "confidence": 92,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI-MVP: Empty state eksikligi (bos liste)",
+      "type": "ui_analysis",
+      "subtype": "empty_state",
+      "passed": false,
+      "duration": 0.014130115509033203,
+      "detail": "7 dosyada empty state eksik: src\\components\\common\\LanguagePicker.tsx",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta",
+      "guide": {
+        "title": "Bos Durum Ekrani",
+        "risk": "Bos liste bozuk izlenim verir.",
+        "what": "Listede bos durum yok.",
+        "why": "Kullanici bozuk sandigi icin terk eder.",
+        "steps": [
+          "ListEmptyComponent ekleyin"
+        ],
+        "before": "<FlatList data={items} />",
+        "after": "<FlatList data={items} ListEmptyComponent={<Text>Henuz yok</Text>} />",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "UI-CORE: Hardcoded renk (tema disinda)",
+      "type": "ui_quality",
+      "subtype": "color_consistency",
+      "passed": false,
+      "duration": 0.040679931640625,
+      "detail": "8 hardcoded renk (4 farkli): #f5f5f5 (src\\components\\common\\EmptyState.tsx:61)",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI-CORE: WCAG AA kontrast orani (min 4.5:1)",
+      "type": "ui_quality",
+      "subtype": "contrast_wcag",
+      "passed": true,
+      "duration": 0.01421356201171875,
+      "detail": "WCAG AA kontrast kontrolu gecti",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI-CORE: Font tutarliligi (fontSize/fontFamily)",
+      "type": "ui_quality",
+      "subtype": "font_consistency",
+      "passed": false,
+      "duration": 0.005103588104248047,
+      "detail": "11 farkli fontSize: 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 32",
+      "priority": "low",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UI-CORE: Form validation kapsami (Zod/Yup)",
+      "type": "ui_quality",
+      "subtype": "form_validation_coverage",
+      "passed": true,
+      "duration": 0.6188473701477051,
+      "detail": "Form bulunamadi",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI-CORE: Form hata mesaji render kontrolu",
+      "type": "ui_quality",
+      "subtype": "form_error_messages",
+      "passed": true,
+      "duration": 0.5884566307067871,
+      "detail": "Form hata mesajlari render ediliyor",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "TAINT: SQL injection (source -> query)",
+      "type": "taint",
+      "subtype": "sql_injection_taint",
+      "passed": true,
+      "duration": 4.546241760253906,
+      "detail": "Temiz - taint tracking ile dogrulandi",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UX: Terminology consistency (Login vs Sign in)",
+      "type": "ux_text",
+      "subtype": "term_consistency",
+      "passed": true,
+      "duration": 0.2356281280517578,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UX: i18n readiness (hardcoded strings)",
+      "type": "ux_text",
+      "subtype": "i18n_readiness",
+      "passed": true,
+      "duration": 0.19468092918395996,
+      "detail": "307 i18n kullanimi",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UX: Button text quality (vague labels)",
+      "type": "ux_text",
+      "subtype": "button_text_quality",
+      "passed": true,
+      "duration": 0.07040095329284668,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UX: Error message quality (user-friendly)",
+      "type": "ux_text",
+      "subtype": "error_message_quality",
+      "passed": true,
+      "duration": 0.038376569747924805,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UX: Common spelling mistakes in UI",
+      "type": "ux_text",
+      "subtype": "spelling",
+      "passed": true,
+      "duration": 1.6832668781280518,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UX: Missing alt text on images",
+      "type": "ux_text",
+      "subtype": "missing_alt_text",
+      "passed": true,
+      "duration": 0.008577108383178711,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UX: Text truncation risk (long strings)",
+      "type": "ux_text",
+      "subtype": "truncation_risk",
+      "passed": true,
+      "duration": 0.03364253044128418,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UX: Placeholder vs label quality",
+      "type": "ux_text",
+      "subtype": "placeholder_quality",
+      "passed": true,
+      "duration": 0.06894898414611816,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UI: Accessibility labels on interactive elements",
+      "type": "ui_component",
+      "subtype": "a11y_labels",
+      "passed": false,
+      "duration": 0.012541532516479492,
+      "detail": "16/18 interaktif element a11y label eksik",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin",
+      "guide": {
+        "title": "Erisilebilirlik Etiketleri",
+        "risk": "Ekran okuyucu kullananlar kullanamaz.",
+        "what": "Butonlarda accessibilityLabel yok.",
+        "why": "VoiceOver 'buton' der, ne butonu bilinmez.",
+        "steps": [
+          "accessibilityLabel ekleyin",
+          "accessibilityRole belirtin"
+        ],
+        "before": "<TouchableOpacity><Icon /></TouchableOpacity>",
+        "after": "<TouchableOpacity accessibilityLabel='Kaydet'><Icon /></TouchableOpacity>",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "UI: Hardcoded colors (use theme)",
+      "type": "ui_component",
+      "subtype": "hardcoded_colors",
+      "passed": true,
+      "duration": 0.10949039459228516,
+      "detail": "119 tema kullanimi",
+      "priority": "medium",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UI: Touch target size (min 44px)",
+      "type": "ui_component",
+      "subtype": "touch_target_size",
+      "passed": false,
+      "duration": 0.279695987701416,
+      "detail": "56 kucuk touch target (min 44px oneriliyor)",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta",
+      "how_to_fix": {
+        "sorun": "Dokunma hedefleri cok kucuk (44x44px altinda)",
+        "cozum": "Interaktif elementlerin min boyutunu 44x44px yapin (WCAG 2.5.5)",
+        "quick_fix": "min-width: 44px; min-height: 44px ekleyin"
+      },
+      "detail_rich": "SORUN: Dokunma hedefleri cok kucuk (44x44px altinda) | COZUM: Interaktif elementlerin min boyutunu 44x44px yapin (WCAG 2.5.5) | QUICK FIX: min-width: 44px; min-height: 44px ekleyin",
+      "guide": {
+        "title": "Dokunma Alani Buyutme",
+        "risk": "Kucuk butonlara basilamaz.",
+        "what": "Elementler 44px'den kucuk.",
+        "why": "Apple/Google min 44x44px oneriyor.",
+        "steps": [
+          "minHeight:44 verin",
+          "hitSlop ekleyin"
+        ],
+        "before": "style={{width:24, height:24}}",
+        "after": "style={{width:44, height:44}}",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "UI: Hardcoded dimensions (responsive)",
+      "type": "ui_component",
+      "subtype": "hardcoded_dimensions",
+      "passed": true,
+      "duration": 0.2656679153442383,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UI: Dark mode support",
+      "type": "ui_component",
+      "subtype": "dark_mode_support",
+      "passed": true,
+      "duration": 0.1380603313446045,
+      "detail": "Dark mode: 9 referans",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "UI: Error boundary (crash protection)",
+      "type": "ui_component",
+      "subtype": "ui_error_boundary",
+      "passed": true,
+      "duration": 0.1809539794921875,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "UI: Keyboard handling (form overlap)",
+      "type": "ui_component",
+      "subtype": "keyboard_handling",
+      "passed": true,
+      "duration": 0.02055978775024414,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI: Empty state for lists",
+      "type": "ui_component",
+      "subtype": "empty_state",
+      "passed": true,
+      "duration": 0.2557668685913086,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "VIS: ThemedSafeAreaView exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.017154455184936523,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI: Loading states for async ops",
+      "type": "ui_component",
+      "subtype": "loading_states",
+      "passed": true,
+      "duration": 0.3967747688293457,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 55,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "VIS: ScreenHeader exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.010993003845214844,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "UI: Image optimization (cache/placeholder)",
+      "type": "ui_component",
+      "subtype": "image_optimization",
+      "passed": true,
+      "duration": 0.20227551460266113,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 50,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "VIS: useScreenRefresh exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.002454042434692383,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: useScreenToast exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.002290487289428711,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: useThemedScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.004458189010620117,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: ChatStackScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.0032033920288085938,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: AdminEmployeesScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.00048279762268066406,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: ShiftRequestsScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.0004603862762451172,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: SwapRequestsScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.010013818740844727,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "A11Y: Interactive elements have testID",
+      "type": "accessibility",
+      "subtype": "test_ids",
+      "passed": false,
+      "duration": 0.01737833023071289,
+      "detail": "1/12 (8%)",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "VIS: AdminDashboardScreen exists",
+      "type": "visual",
+      "subtype": "render_check",
+      "passed": true,
+      "duration": 0.02006220817565918,
+      "detail": "Mevcut",
+      "priority": "low",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "A11Y: Images have accessible labels",
+      "type": "accessibility",
+      "subtype": "image_labels",
+      "passed": true,
+      "duration": 0.01082468032836914,
+      "detail": "1 etiketsiz Image",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Sign in with Apple required",
+      "type": "appstore",
+      "subtype": "sign_in_with_apple",
+      "passed": true,
+      "duration": 0.11015200614929199,
+      "detail": "3rd party login yok veya Apple Sign In mevcut",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Account deletion mechanism",
+      "type": "appstore",
+      "subtype": "account_deletion_apple",
+      "passed": true,
+      "duration": 0.048853158950805664,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: ATT compliance for IDFA",
+      "type": "appstore",
+      "subtype": "att_compliance",
+      "passed": true,
+      "duration": 0.025507688522338867,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No external payment for digital goods",
+      "type": "appstore",
+      "subtype": "external_payment",
+      "passed": true,
+      "duration": 0.050563812255859375,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Restore Purchases mechanism",
+      "type": "appstore",
+      "subtype": "iap_restore",
+      "passed": true,
+      "duration": 0.052506208419799805,
+      "detail": "IAP kullanilmiyor",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: IAP transaction verification",
+      "type": "appstore",
+      "subtype": "iap_verification",
+      "passed": true,
+      "duration": 0.03158903121948242,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Recording consent + indicator",
+      "type": "appstore",
+      "subtype": "recording_consent",
+      "passed": true,
+      "duration": 0.03894329071044922,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No tracking in kids category",
+      "type": "appstore",
+      "subtype": "kids_tracking",
+      "passed": true,
+      "duration": 0.018222570419311523,
+      "detail": "Cocuk kategorisi degil",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: Health data not for advertising",
+      "type": "appstore",
+      "subtype": "health_data_ads",
+      "passed": true,
+      "duration": 0.023351192474365234,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Required Reason API declarations",
+      "type": "appstore",
+      "subtype": "required_reason_api",
+      "passed": true,
+      "duration": 0.0205996036529541,
+      "detail": "Required Reason API kullanimi yok",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: App icon sizes complete",
+      "type": "appstore",
+      "subtype": "app_icon_sizes",
+      "passed": true,
+      "duration": 0.0001685619354248047,
+      "detail": "app.json'da icon tanimli (Expo build sirasinda tum boyutlari uretir)",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "TAINT: Command injection (source -> system/exec)",
+      "type": "taint",
+      "subtype": "command_injection_taint",
+      "passed": true,
+      "duration": 6.787762880325317,
+      "detail": "Temiz - taint tracking ile dogrulandi",
+      "priority": "critical",
+      "confidence": 92,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "STRUCT: No empty source files",
+      "type": "structure",
+      "subtype": "empty_files",
+      "passed": true,
+      "duration": 11.873944997787476,
+      "detail": "Temiz",
+      "priority": "low",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No deprecated API usage",
+      "type": "appstore",
+      "subtype": "deprecated_api_apple",
+      "passed": true,
+      "duration": 0.024005413055419922,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No ads in widgets",
+      "type": "appstore",
+      "subtype": "widget_no_ads",
+      "passed": true,
+      "duration": 0.00015234947204589844,
+      "detail": "Widget target yok",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "QUALITY: No files longer than 300 lines",
+      "type": "code_quality",
+      "subtype": "long_files",
+      "passed": false,
+      "duration": 10.41886305809021,
+      "detail": "63 dosya: lib\\supabaseAuthDirect.ts (436 satir)",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin",
+      "guide": {
+        "title": "Buyuk Dosya Bolme",
+        "risk": "Merge conflict ve hata riski.",
+        "what": "300+ satirlik dosyalar var.",
+        "why": "Code review zorlasir.",
+        "steps": [
+          "Component'leri ayrin",
+          "Hook'lari ayrin",
+          "Stilleri ayrin"
+        ],
+        "before": "// 500 satir tek dosya",
+        "after": "// component.tsx + useHook.ts + styles.ts",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "APPSTORE: Face auth uses LocalAuthentication",
+      "type": "appstore",
+      "subtype": "face_auth_method",
+      "passed": true,
+      "duration": 0.012031078338623047,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: VoiceOver accessibility support",
+      "type": "appstore",
+      "subtype": "voiceover_support",
+      "passed": true,
+      "duration": 0.01376485824584961,
+      "detail": "6/18 accessibility kapsamli",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "IMPORT: No circular dependencies",
+      "type": "import_graph",
+      "subtype": "circular",
+      "passed": true,
+      "duration": 8.49225902557373,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Data collection types declared",
+      "type": "appstore",
+      "subtype": "data_collection_types",
+      "passed": true,
+      "duration": 0.049640655517578125,
+      "detail": "2 veri tipi",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Subscription state handling",
+      "type": "appstore",
+      "subtype": "subscription_handling",
+      "passed": false,
+      "duration": 0.042199134826660156,
+      "detail": "Abonelik sistemi var (39 referans) ama durum kontrolu bulunamadi",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek",
+      "guide": {
+        "title": "Abonelik Durumu Yonetimi",
+        "risk": "Abonelik durumu kontrol edilmezse kullanici ucretsiz erisim saglayabilir.",
+        "what": "Abonelik sistemi var ama durum kontrolu (aktif/suresi dolmus) bulunamadi.",
+        "why": "Abonelik durumu her uygulama acilisinda kontrol edilmeli.",
+        "steps": [
+          "Her acilista abonelik durumunu kontrol edin",
+          "RevenueCat: Purchases.getCustomerInfo() kullanin",
+          "Suresi dolan abonelik icin icerigi kisitlayin"
+        ],
+        "before": "// Durum kontrolu yok",
+        "after": "const info = await Purchases.getCustomerInfo()\nconst isActive = info.entitlements.active['pro']",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "APPSTORE: App completeness (no placeholder/test data)",
+      "type": "appstore",
+      "subtype": "app_completeness",
+      "passed": true,
+      "duration": 0.019881486892700195,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No debug/development URLs in production",
+      "type": "appstore",
+      "subtype": "debug_urls",
+      "passed": true,
+      "duration": 0.012224674224853516,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: Device orientation support",
+      "type": "appstore",
+      "subtype": "orientation_support",
+      "passed": true,
+      "duration": 0.07975602149963379,
+      "detail": "Yon destegi yapilandirilmis",
+      "priority": "low",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "APPSTORE: Third-party SDK privacy manifests",
+      "type": "appstore",
+      "subtype": "sdk_privacy_manifests",
+      "passed": true,
+      "duration": 0.0002086162567138672,
+      "detail": "Expo managed workflow - SDK privacy manifest'leri build sirasinda otomatik eklenir",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: OTA update compliance (Guideline 3.3.2)",
+      "type": "appstore",
+      "subtype": "ota_compliance",
+      "passed": true,
+      "duration": 0.007807254791259766,
+      "detail": "OTA update kullanilmiyor",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: App Transport Security not overridden",
+      "type": "appstore",
+      "subtype": "ats_override",
+      "passed": true,
+      "duration": 0.09892582893371582,
+      "detail": "ATS yapilandirmasi uygun",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No reserved URL scheme conflicts",
+      "type": "appstore",
+      "subtype": "url_scheme_conflict",
+      "passed": true,
+      "duration": 0.07453083992004395,
+      "detail": "Temiz",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "TAINT: Genel taint akisi (tum source-sink)",
+      "type": "taint",
+      "subtype": "general_taint",
+      "passed": true,
+      "duration": 6.933840751647949,
+      "detail": "Temiz - taint tracking ile dogrulandi",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No secrets in EXPO_PUBLIC_ variables",
+      "type": "appstore",
+      "subtype": "bundle_secrets",
+      "passed": true,
+      "duration": 0.027583837509155273,
+      "detail": "Temiz",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: SIWA standard Apple button (Guideline 4.0)",
+      "type": "appstore",
+      "subtype": "siwa_standard_button",
+      "passed": true,
+      "duration": 0.019838333129882812,
+      "detail": "SIWA kullanilmiyor",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No post-SIWA data request (Guideline 4.0)",
+      "type": "appstore",
+      "subtype": "siwa_post_data_request",
+      "passed": true,
+      "duration": 0.01526331901550293,
+      "detail": "SIWA kullanilmiyor",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Minimum functionality check (Guideline 4.2)",
+      "type": "appstore",
+      "subtype": "minimum_functionality",
+      "passed": true,
+      "duration": 0.24315786361694336,
+      "detail": "10 ekran, veri katmani var",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No unnecessary personal data required (Guideline 5.1.1)",
+      "type": "appstore",
+      "subtype": "unnecessary_data",
+      "passed": true,
+      "duration": 0.09905028343200684,
+      "detail": "Gereksiz zorunlu veri talebi yok",
+      "priority": "critical",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Subscription pricing not misleading (Guideline 3.1.2)",
+      "type": "appstore",
+      "subtype": "misleading_pricing",
+      "passed": false,
+      "duration": 0.09874534606933594,
+      "detail": "Hesaplanmis fiyat gosterimi var (4 yer) ama gercek faturalandirma tutari belirgin degil - Guideline 3.1.2: gercek tutar EN BUYUK ve EN BELIRGIN olmali",
+      "priority": "critical",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: ToS/PP links in subscription paywall (Guideline 3.1.2)",
+      "type": "appstore",
+      "subtype": "missing_tos_pp_paywall",
+      "passed": true,
+      "duration": 0.07363200187683105,
+      "detail": "Paywall'da ToS ve PP linkleri mevcut",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "TAINT: Path traversal (source -> open/writeFile)",
+      "type": "taint",
+      "subtype": "path_traversal_taint",
+      "passed": true,
+      "duration": 7.90710973739624,
+      "detail": "Temiz - taint tracking ile dogrulandi",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Subscription metadata complete (Guideline 3.1.2)",
+      "type": "appstore",
+      "subtype": "subscription_metadata_info",
+      "passed": true,
+      "duration": 0.17260265350341797,
+      "detail": "Abonelik metadata bilgileri mevcut",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Privacy manifest (PrivacyInfo.xcprivacy)",
+      "type": "appstore",
+      "subtype": "privacy_manifest",
+      "passed": true,
+      "duration": 2.254112482070923,
+      "detail": "PrivacyInfo.xcprivacy mevcut: ios\\PrivacyInfo.xcprivacy",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No Apple trademark misuse (Guideline 5.2.5)",
+      "type": "appstore",
+      "subtype": "apple_trademark",
+      "passed": true,
+      "duration": 0.002688884735107422,
+      "detail": "Apple trademark ihlali yok",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No banned AI references for China (Guideline 5)",
+      "type": "appstore",
+      "subtype": "china_storefront_ai",
+      "passed": true,
+      "duration": 0.2173299789428711,
+      "detail": "Lisanssiz AI servis referansi yok",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No unused entitlements (Guideline 2.4.5)",
+      "type": "appstore",
+      "subtype": "unused_entitlements",
+      "passed": true,
+      "duration": 0.0002760887145996094,
+      "detail": "Entitlements dosyasi yok",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Accurate metadata / no device frames in previews (Guideline 2.3.4)",
+      "type": "appstore",
+      "subtype": "accurate_metadata",
+      "passed": true,
+      "duration": 0.0009176731109619141,
+      "detail": "App preview video dosyasi tespit edilmedi",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: No competitor platform terms (Guideline 2.3.1)",
+      "type": "appstore",
+      "subtype": "competitor_terms",
+      "passed": false,
+      "duration": 0.0573580265045166,
+      "detail": "8 rakip platform referansi: 'android' in app.json:70 - Guideline 2.3.1: rakip platform isimleri metadata'da YASAK",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PLAYSTORE: Exported component beyannamesi",
+      "type": "playstore",
+      "subtype": "exported_components",
+      "passed": true,
+      "duration": 0.007868289947509766,
+      "detail": "Tum component'lerde exported belirtilmis",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PLAYSTORE: targetSdkVersion >= 34 (Android 14)",
+      "type": "playstore",
+      "subtype": "target_sdk",
+      "passed": true,
+      "duration": 0.008289098739624023,
+      "detail": "targetSdk bulunamadi, SKIP",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PLAYSTORE: Gereksiz izin kontrolu",
+      "type": "playstore",
+      "subtype": "permissions",
+      "passed": false,
+      "duration": 0.0003159046173095703,
+      "detail": "2 riskli izin: RECORD_AUDIO: Mikrofon - gercekten gerekli mi?",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek",
+      "guide": {
+        "title": "Android Izin Gozden Gecirme",
+        "risk": "Gereksiz izin = kullanici guvensizligi + Play Store inceleme.",
+        "what": "Riskli veya gereksiz olabilecek izinler tespit edildi.",
+        "why": "Google Play hassas izinleri (SMS, arama, konum) ozel incelemeye aliyor.",
+        "steps": [
+          "Her iznin gercekten gerekli olup olmadigini degerlendirin",
+          "ACCESS_FINE yerine COARSE_LOCATION yeterli olabilir",
+          "Runtime permission kullanin",
+          "Izin aciklamasi ekleyin"
+        ],
+        "before": "ACCESS_FINE_LOCATION + CAMERA + READ_SMS",
+        "after": "ACCESS_COARSE_LOCATION + CAMERA (gerektigi kadar)",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "PLAYSTORE: Backup kurallari",
+      "type": "playstore",
+      "subtype": "backup_rules",
+      "passed": true,
+      "duration": 7.128715515136719e-05,
+      "detail": "allowBackup=true + backup rules tanimli",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PLAYSTORE: Release debuggable=false",
+      "type": "playstore",
+      "subtype": "debuggable",
+      "passed": true,
+      "duration": 0.004094362258911133,
+      "detail": "debuggable kapalı, guvenli",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "PLAYSTORE: Metadata (versionName/Code)",
+      "type": "playstore",
+      "subtype": "metadata",
+      "passed": true,
+      "duration": 0.0042726993560791016,
+      "detail": "Metadata mevcut",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PLAYSTORE: Data Safety beyani",
+      "type": "playstore",
+      "subtype": "data_safety",
+      "passed": false,
+      "duration": 0.0037603378295898438,
+      "detail": "Veri toplaniyor ama Data Safety beyani yok: Analytics kullanimi tespit edildi",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek",
+      "guide": {
+        "title": "Play Store Data Safety Beyani",
+        "risk": "Data Safety formu doldurmak zorunlu.",
+        "what": "Veri toplama yapiliyor ama Data Safety beyani yok.",
+        "why": "Google Play tum uygulamalarin veri toplama pratikerini beyan etmesini zorunlu kilar.",
+        "steps": [
+          "Play Console'da Data Safety formunu doldurun",
+          "Analytics, konum, reklam verisi toplamayi beyan edin",
+          "Ucuncu parti SDK'larin topladigi verileri dahil edin"
+        ],
+        "before": "// Beyan yok",
+        "after": "// Play Console > Data Safety formu dolduruldu",
+        "warning": null,
+        "tools": []
+      }
+    },
+    {
+      "name": "PLAYSTORE: AAB format zorunlulugu",
+      "type": "playstore",
+      "subtype": "app_bundle",
+      "passed": true,
+      "duration": 6.723403930664062e-05,
+      "detail": "AAB format: Play Store Agustos 2021'den beri zorunlu. ./gradlew bundleRelease ile uretilir.",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PLAYSTORE: ProGuard/R8 obfuscation",
+      "type": "playstore",
+      "subtype": "proguard",
+      "passed": true,
+      "duration": 8.034706115722656e-05,
+      "detail": "minifyEnabled=true, R8/ProGuard aktif",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "YAML-UI: Test dosyalari syntax kontrolu",
+      "type": "yaml_ui",
+      "subtype": "yaml_ui_syntax",
+      "passed": true,
+      "duration": 0.003945589065551758,
+      "detail": "UI test dosyasi yok (.nazar/ui-tests/)",
+      "priority": "medium",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "YAML-UI: Hedefler projede mevcut mu",
+      "type": "yaml_ui",
+      "subtype": "yaml_ui_targets",
+      "passed": true,
+      "duration": 0.002560138702392578,
+      "detail": "UI test dosyasi yok",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "YAML-UI: Ekran test kapsami",
+      "type": "yaml_ui",
+      "subtype": "yaml_ui_coverage",
+      "passed": true,
+      "duration": 0.0005300045013427734,
+      "detail": "UI test dosyasi yok",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "I18N: Detayli coverage analizi",
+      "type": "i18n_deep",
+      "subtype": "i18n_coverage",
+      "passed": true,
+      "duration": 0.6999926567077637,
+      "detail": "i18n coverage 98% (1333/1358 string translated)",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "I18N: Hardcoded string ve i18n kapsami",
+      "type": "i18n_deep",
+      "subtype": "i18n_deep",
+      "passed": false,
+      "duration": 0.7558469772338867,
+      "detail": "25 hardcoded string (i18n coverage 98%): \"Главная\", \"Чат\", \"Профиль\", \"Нет доступа\", \"У вашей роли нет пра\"",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek",
+      "how_to_fix": {
+        "sorun": "UI'da hardcoded string'ler var, i18n kapsami dusuk",
+        "cozum": "Tum UI string'lerini i18n sistemiyle yonetin (i18next, react-intl vb.)",
+        "quick_fix": "npm install i18next react-i18next && t('key') seklinde kullanin"
+      },
+      "detail_rich": "SORUN: UI'da hardcoded string'ler var, i18n kapsami dusuk | COZUM: Tum UI string'lerini i18n sistemiyle yonetin (i18next, react-intl vb.) | QUICK FIX: npm install i18next react-i18next && t('key') seklinde kullanin"
+    },
+    {
+      "name": "I18N: Kullanilmayan translation key tespiti",
+      "type": "i18n_deep",
+      "subtype": "unused_translation_keys",
+      "passed": true,
+      "duration": 0.013661623001098633,
+      "detail": "Locale dosyasi bulunamadi, kontrol atlanir",
+      "priority": "low",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Permission purpose strings in Info.plist",
+      "type": "appstore",
+      "subtype": "purpose_strings",
+      "passed": true,
+      "duration": 3.117121934890747,
+      "detail": "1 API icin izin aciklamalari mevcut",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "I18N: Eksik translation key tespiti",
+      "type": "i18n_deep",
+      "subtype": "missing_translation_keys",
+      "passed": true,
+      "duration": 0.0179135799407959,
+      "detail": "Locale dosyasi bulunamadi, kontrol atlanir",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "RESPONSIVE: Sabit pixel boyutlari",
+      "type": "responsive",
+      "subtype": "fixed_dimensions",
+      "passed": true,
+      "duration": 0.004301548004150391,
+      "detail": "Sabit boyut sorunu yok",
+      "priority": "medium",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "RESPONSIVE: ScrollView icinde FlatList",
+      "type": "responsive",
+      "subtype": "scroll_issues",
+      "passed": true,
+      "duration": 0.001956462860107422,
+      "detail": "Scroll sorunu yok",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "RESPONSIVE: Responsive pattern kontrolu",
+      "type": "responsive",
+      "subtype": "responsive_patterns",
+      "passed": false,
+      "duration": 0.0036401748657226562,
+      "detail": "9 responsive sorunu: Dimensions.get yerine useWindowDimensions oneriliyor (src\\components\\common\\AnimatedBanner.tsx:14)",
+      "priority": "low",
+      "confidence": 65,
+      "confidence_label": "Orta",
+      "how_to_fix": {
+        "sorun": "Eski responsive pattern'ler kullaniliyor",
+        "cozum": "Dimensions.get yerine useWindowDimensions hook'u kullanin",
+        "quick_fix": "const { width, height } = useWindowDimensions()"
+      },
+      "detail_rich": "SORUN: Eski responsive pattern'ler kullaniliyor | COZUM: Dimensions.get yerine useWindowDimensions hook'u kullanin | QUICK FIX: const { width, height } = useWindowDimensions()"
+    },
+    {
+      "name": "I18N: RTL (sag-sola) dil destegi",
+      "type": "i18n_deep",
+      "subtype": "rtl_support",
+      "passed": true,
+      "duration": 0.09688878059387207,
+      "detail": "RTL locale dosyasi yok, kontrol atlanir",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "I18N: Locale dosyasi tutarliligi",
+      "type": "i18n_deep",
+      "subtype": "locale_consistency",
+      "passed": true,
+      "duration": 0.04933643341064453,
+      "detail": "Tek locale veya locale dosyasi yok, consistency kontrolu atlanir",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: Launch/splash screen exists",
+      "type": "appstore",
+      "subtype": "launch_screen",
+      "passed": true,
+      "duration": 2.7805910110473633,
+      "detail": "Launch screen mevcut",
+      "priority": "high",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: Minimum iOS deployment target",
+      "type": "appstore",
+      "subtype": "min_deployment_target",
+      "passed": true,
+      "duration": 2.527411937713623,
+      "detail": "Xcode project bulunamadi (Expo yonetiyor olabilir)",
+      "priority": "medium",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: No UIWebView usage (deprecated 2020)",
+      "type": "appstore",
+      "subtype": "uiwebview_deprecated",
+      "passed": true,
+      "duration": 2.0894358158111572,
+      "detail": "UIWebView kullanimi yok",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "APPSTORE: App thinning (large assets)",
+      "type": "appstore",
+      "subtype": "app_thinning",
+      "passed": true,
+      "duration": 2.4087793827056885,
+      "detail": "Temiz",
+      "priority": "medium",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PERF: Render performans sorunlari",
+      "type": "perf_static",
+      "subtype": "render_performance",
+      "passed": false,
+      "duration": 0.005895137786865234,
+      "detail": "24 performans sorunu: useEffect+setState dependency dizisi eksik (src\\components\\common\\AnimatedBanner.tsx:41)",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "PERF: Bundle boyut sorunlari",
+      "type": "perf_static",
+      "subtype": "bundle_issues",
+      "passed": true,
+      "duration": 0.004975795745849609,
+      "detail": "Bundle sorunu yok",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "DOCKER: Dockerfile base image pinned",
+      "type": "docker",
+      "subtype": "base_image",
+      "passed": true,
+      "duration": 0.0001995563507080078,
+      "detail": "Dockerfile yok, SKIP",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "APPSTORE: Required Reason API reason codes valid",
+      "type": "appstore",
+      "subtype": "reason_code_validity",
+      "passed": true,
+      "duration": 2.3782365322113037,
+      "detail": "Reason kodlari gecerli",
+      "priority": "critical",
+      "confidence": 95,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "DOCKER: No secrets in Dockerfile",
+      "type": "docker",
+      "subtype": "dockerfile_secrets",
+      "passed": true,
+      "duration": 0.00019741058349609375,
+      "detail": "Dockerfile yok, SKIP",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A01 - Broken Access Control",
+      "type": "compliance",
+      "subtype": "owasp_A01_broken_access_control",
+      "passed": true,
+      "duration": 0.05083179473876953,
+      "detail": "OWASP A01 (Broken Access Control): Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A02 - Cryptographic Failures",
+      "type": "compliance",
+      "subtype": "owasp_A02_cryptographic_failures",
+      "passed": true,
+      "duration": 0.2485344409942627,
+      "detail": "OWASP A02 (Cryptographic Failures): Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A03 - Injection",
+      "type": "compliance",
+      "subtype": "owasp_A03_injection",
+      "passed": true,
+      "duration": 0.40825819969177246,
+      "detail": "OWASP A03 (Injection): Temiz",
+      "priority": "critical",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A05 - Security Misconfiguration",
+      "type": "compliance",
+      "subtype": "owasp_A05_security_misconfiguration",
+      "passed": true,
+      "duration": 0.31357264518737793,
+      "detail": "OWASP A05 (Security Misconfiguration): Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP Top 10 tam tarama",
+      "type": "compliance",
+      "subtype": "owasp_full",
+      "passed": true,
+      "duration": 1.1993858814239502,
+      "detail": "OWASP Top 10: Tum kategoriler temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A07 - Auth Failures",
+      "type": "compliance",
+      "subtype": "owasp_A07_auth_failures",
+      "passed": true,
+      "duration": 0.10701537132263184,
+      "detail": "OWASP A07 (Identification and Authentication Failures): Temiz",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A08 - Integrity Failures",
+      "type": "compliance",
+      "subtype": "owasp_A08_integrity_failures",
+      "passed": true,
+      "duration": 0.09786224365234375,
+      "detail": "OWASP A08 (Software and Data Integrity Failures): Temiz",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A09 - Logging Failures",
+      "type": "compliance",
+      "subtype": "owasp_A09_logging_failures",
+      "passed": true,
+      "duration": 0.17317819595336914,
+      "detail": "OWASP A09 (Security Logging and Monitoring Failures): Temiz",
+      "priority": "medium",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: OWASP A10 - SSRF",
+      "type": "compliance",
+      "subtype": "owasp_A10_ssrf",
+      "passed": true,
+      "duration": 0.37378954887390137,
+      "detail": "OWASP A10 (Server-Side Request Forgery (SSRF)): Temiz",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - Riza mekanizmasi (consent)",
+      "type": "compliance",
+      "subtype": "gdpr_consent_mechanism",
+      "passed": true,
+      "duration": 0.9986045360565186,
+      "detail": "GDPR/KVKK - Riza mekanizmasi (Consent): Mevcut (13 bulgu)",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - Veri silme yetenegi",
+      "type": "compliance",
+      "subtype": "gdpr_data_deletion",
+      "passed": true,
+      "duration": 1.1899042129516602,
+      "detail": "GDPR/KVKK - Veri silme yetenegi (Right to Erasure): Mevcut (126 bulgu)",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - Gizlilik politikasi linki",
+      "type": "compliance",
+      "subtype": "gdpr_privacy_policy",
+      "passed": true,
+      "duration": 0.827387809753418,
+      "detail": "GDPR/KVKK - Gizlilik politikasi baglantisi: Mevcut (34 bulgu)",
+      "priority": "medium",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - Cerez onay mekanizmasi",
+      "type": "compliance",
+      "subtype": "gdpr_cookie_consent",
+      "passed": true,
+      "duration": 0.39316773414611816,
+      "detail": "GDPR/KVKK - Cerez onay mekanizmasi: Kontrol tamamlandi",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - Duragan veri sifreleme",
+      "type": "compliance",
+      "subtype": "gdpr_data_encryption_at_rest",
+      "passed": true,
+      "duration": 1.1948215961456299,
+      "detail": "GDPR/KVKK - Duragan veri sifreleme: Mevcut (207 bulgu)",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: GDPR/KVKK tam tarama",
+      "type": "compliance",
+      "subtype": "gdpr_full",
+      "passed": true,
+      "duration": 5.643213510513306,
+      "detail": "GDPR/KVKK: Tum kontroller (6) gecti",
+      "priority": "high",
+      "confidence": 75,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: GDPR - PII loglama engelleme",
+      "type": "compliance",
+      "subtype": "gdpr_pii_logging_prevention",
+      "passed": true,
+      "duration": 0.6965067386627197,
+      "detail": "GDPR/KVKK - PII loglama engelleme: Kontrol tamamlandi",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: SOC2 - Erisim kontrolu",
+      "type": "compliance",
+      "subtype": "soc2_access_control",
+      "passed": true,
+      "duration": 3.1543781757354736,
+      "detail": "SOC2 - Erisim kontrolu (Access Control): Mevcut (683 bulgu)",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: SOC2 - Kimlik dogrulama",
+      "type": "compliance",
+      "subtype": "soc2_authentication",
+      "passed": true,
+      "duration": 3.886852264404297,
+      "detail": "SOC2 - Kimlik dogrulama (Authentication): Mevcut (694 bulgu)",
+      "priority": "high",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: SOC2 - HTTPS zorunlulugu",
+      "type": "compliance",
+      "subtype": "soc2_encryption_in_transit",
+      "passed": true,
+      "duration": 1.8614113330841064,
+      "detail": "SOC2 - Aktarim sifreleme (HTTPS): Mevcut (31 bulgu)",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: SOC2 - Denetim loglama",
+      "type": "compliance",
+      "subtype": "soc2_audit_logging",
+      "passed": true,
+      "duration": 2.720465898513794,
+      "detail": "SOC2 - Denetim loglama (Audit Logging): Mevcut (10 bulgu)",
+      "priority": "medium",
+      "confidence": 60,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "RESPONSIVE: Viewport meta tag kontrolu",
+      "type": "responsive",
+      "subtype": "viewport_meta",
+      "passed": false,
+      "duration": 15.115074157714844,
+      "detail": "Viewport sorunlari: 2 HTML dosyasinda viewport meta tag eksik: supabase\\templates\\confirmation-otp.html, supabase\\templates\\magic-link-otp.html",
+      "priority": "high",
+      "confidence": 90,
+      "confidence_label": "Kesin",
+      "how_to_fix": {
+        "sorun": "Viewport meta tag eksik veya yanlis yapilandirilmis",
+        "cozum": "HTML <head> icine dogru viewport meta tag ekleyin",
+        "quick_fix": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+      },
+      "detail_rich": "SORUN: Viewport meta tag eksik veya yanlis yapilandirilmis | COZUM: HTML <head> icine dogru viewport meta tag ekleyin | QUICK FIX: <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+    },
+    {
+      "name": "COMPLIANCE: SOC2 - Hata yonetimi",
+      "type": "compliance",
+      "subtype": "soc2_error_handling",
+      "passed": true,
+      "duration": 2.3250482082366943,
+      "detail": "SOC2 - Hata yonetimi (Stack Trace korunmasi): Mevcut (40 bulgu)",
+      "priority": "medium",
+      "confidence": 70,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: PCI-DSS - Kodda kredi karti numarasi",
+      "type": "compliance",
+      "subtype": "pci_no_credit_card_in_code",
+      "passed": true,
+      "duration": 1.294424057006836,
+      "detail": "PCI-DSS - Kaynak kodda kredi karti numarasi yok: Kontrol tamamlandi",
+      "priority": "critical",
+      "confidence": 90,
+      "confidence_label": "Kesin"
+    },
+    {
+      "name": "COMPLIANCE: PCI-DSS - PAN saklama kontrolu",
+      "type": "compliance",
+      "subtype": "pci_no_pan_storage",
+      "passed": false,
+      "duration": 4.578185319900513,
+      "detail": "PCI-DSS - PAN saklama kontrolu: 3 ihlal bulundu - src\\screens\\auth\\components\\LoginRoleCard.tsx:32",
+      "priority": "critical",
+      "confidence": 75,
+      "confidence_label": "Yuksek",
+      "how_to_fix": {
+        "sorun": "Kredi karti numarasi saklanma riski tespit edildi",
+        "cozum": "Kart bilgilerini tokenize edin (Stripe, Braintree vb. kullanin)",
+        "quick_fix": "Stripe PaymentElement veya CardElement kullanin"
+      },
+      "detail_rich": "SORUN: Kredi karti numarasi saklanma riski tespit edildi | COZUM: Kart bilgilerini tokenize edin (Stripe, Braintree vb. kullanin) | QUICK FIX: Stripe PaymentElement veya CardElement kullanin"
+    },
+    {
+      "name": "COMPLIANCE: PCI-DSS - TLS zorunlulugu",
+      "type": "compliance",
+      "subtype": "pci_tls_enforcement",
+      "passed": true,
+      "duration": 5.5332465171813965,
+      "detail": "PCI-DSS - TLS zorunlulugu: Mevcut (31 bulgu)",
+      "priority": "high",
+      "confidence": 85,
+      "confidence_label": "Yuksek"
+    },
+    {
+      "name": "COMPLIANCE: PCI-DSS - Odeme formu girdi dogrulama",
+      "type": "compliance",
+      "subtype": "pci_input_validation_payment",
+      "passed": true,
+      "duration": 6.949102163314819,
+      "detail": "PCI-DSS - Odeme formu girdi dogrulama: Mevcut (8 bulgu)",
+      "priority": "high",
+      "confidence": 65,
+      "confidence_label": "Orta"
+    },
+    {
+      "name": "COMPLIANCE: PCI-DSS tam tarama",
+      "type": "compliance",
+      "subtype": "pci_full",
+      "passed": false,
+      "duration": 11.297065496444702,
+      "detail": "PCI-DSS: 1/4 kontrolde basarisiz - PAN saklama kontrolu",
+      "priority": "high",
+      "confidence": 80,
+      "confidence_label": "Yuksek"
+    }
+  ]
+}

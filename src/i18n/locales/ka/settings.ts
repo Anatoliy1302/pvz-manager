@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'უსაფრთხოება',
     changePin: 'PIN-კოდის შეცვლა',
+    deleteAccount: 'ანგარიშის წაშლა',
+    deleteAccountDesc: 'ანგარიშისა და ყველა დაკავშირებული მონაცემის მუდმივი წაშლა',
     biometricLogin: 'შესვლა {{label}}-ით',
     biometricHint: 'სწრაფი შესვლისთვის გამოიყენება თქვენი მოწყობილობის დაცვა.',
   },

@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { Pvz, User } from '../types/user';
 import {
   getGeneralChatId,
@@ -6,6 +7,7 @@ import {
   getPvzMemberIds,
 } from '../utils/chatHelpers';
 import { formatTimeFromDate, isUuid, resolvePvzId } from '../utils/supabaseHelpers';
+import { CHAT_MESSAGE_COLUMNS } from './supabase/selectColumns';
 import { hasSupabaseSession } from './SupabaseAuthService';
 
 export interface ChatMessage {
@@ -93,8 +95,7 @@ export async function ensurePrivateRoom(
     return null;
   }
 
-  await ensureMember(roomId, userIdA);
-  await ensureMember(roomId, userIdB);
+  await Promise.all([ensureMember(roomId, userIdA), ensureMember(roomId, userIdB)]);
   return roomId;
 }
 
@@ -111,9 +112,7 @@ export async function syncPvzMembersToGeneralRoom(
   pvz: Pvz
 ): Promise<void> {
   const memberIds = getPvzMemberIds(users, pvz);
-  for (const memberId of memberIds) {
-    await ensureMember(roomId, memberId);
-  }
+  await Promise.all(memberIds.map((memberId) => ensureMember(roomId, memberId)));
 }
 
 function privateRoomDisplayName(
@@ -253,23 +252,25 @@ export async function loadMessages(
 ): Promise<ChatMessage[] | null> {
   if (!(await isChatAvailable())) return null;
 
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .select('*')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: true });
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase
+      .from('chat_messages')
+      .select(CHAT_MESSAGE_COLUMNS)
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+  );
 
-  if (error) {
-    console.warn('loadMessages:', error.message);
+  if (!data) {
+    console.warn('loadMessages: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => ({
-    id: row.id,
-    text: row.text,
-    userId: row.user_id,
-    userName: row.user_name,
-    time: formatTimeFromDate(row.created_at),
+  return data.map((row) => ({
+    id: row.id as string,
+    text: row.text as string,
+    userId: row.user_id as string,
+    userName: row.user_name as string,
+    time: formatTimeFromDate(row.created_at as string),
     isOwn: row.user_id === currentUserId,
     status: 'sent' as const,
   }));
@@ -292,7 +293,7 @@ export async function sendMessage(
       user_name: userName,
       text,
     })
-    .select('*')
+    .select(CHAT_MESSAGE_COLUMNS)
     .single();
 
   if (error) {
@@ -301,16 +302,19 @@ export async function sendMessage(
   }
 
   const notifyIds = options?.notifyUserIds || [];
-  for (const targetId of notifyIds) {
-    if (targetId === userId) continue;
-    const { error: unreadError } = await supabase.rpc('increment_chat_unread', {
-      p_room_id: roomId,
-      p_target_user_id: targetId,
-    });
-    if (unreadError) {
-      console.warn('increment_chat_unread:', unreadError.message);
-    }
-  }
+  await Promise.all(
+    notifyIds
+      .filter((targetId) => targetId !== userId)
+      .map(async (targetId) => {
+        const { error: unreadError } = await supabase.rpc('increment_chat_unread', {
+          p_room_id: roomId,
+          p_target_user_id: targetId,
+        });
+        if (unreadError) {
+          console.warn('increment_chat_unread:', unreadError.message);
+        }
+      })
+  );
 
   return {
     id: data.id,

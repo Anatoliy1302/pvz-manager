@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import { useToast, ToastType } from '../components/common/Toast';
+import { useErrorHandler } from '../context/ErrorHandlerContext';
 
 /** Toast-хелпер для экранов: ошибки/успех без модальных Alert. */
 export function useScreenToast() {
   const { showToast } = useToast();
+  const { handleError } = useErrorHandler();
 
   const showError = useCallback((message: string) => showToast(message, 'error'), [showToast]);
   const showSuccess = useCallback((message: string) => showToast(message, 'success'), [showToast]);
@@ -12,5 +14,5 @@ export function useScreenToast() {
     [showToast]
   );
 
-  return { showToast, showError, showSuccess, showInfo };
+  return { showToast, showError, showSuccess, showInfo, handleError };
 }

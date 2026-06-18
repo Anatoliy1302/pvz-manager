@@ -54,7 +54,6 @@ export async function bindPvzForSessionUser(sessionUser: User, setters: AuthSett
   }
 
   if (sessionUser.pvzId) {
-    console.log('📦 Загружаем ПВЗ для сотрудника, pvzId:', sessionUser.pvzId);
     const userPvz = await DataService.getPvzById(sessionUser.pvzId);
     if (userPvz) {
       setters.setPvz(userPvz);
@@ -65,7 +64,6 @@ export async function bindPvzForSessionUser(sessionUser: User, setters: AuthSett
 
     const pvzs = await DataService.getPvzs();
     if (pvzs.length > 0) {
-      console.log('⚠️ ПВЗ не найден, используем первый доступный:', pvzs[0]);
       setters.setPvz(pvzs[0]);
       setters.setUserPvzs([pvzs[0]]);
       await SecureStore.setItemAsync('pvz', JSON.stringify(pvzs[0]));

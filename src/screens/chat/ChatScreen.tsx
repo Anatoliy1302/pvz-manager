@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useAuth } from '../../context/AuthContext';
 import { ChatRoom, useChat } from '../../context/ChatContext';
-import { colors } from '../../constants/colors';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
 import ScreenHeader from '../../components/common/ScreenHeader';
@@ -241,6 +241,7 @@ export default function ChatScreen() {
               </View>
             ) : null
           }
+          {...FLAT_LIST_PERF}
         />
 
         <KeyboardAvoidingView
@@ -310,6 +311,7 @@ export default function ChatScreen() {
             </View>
           )
         }
+        {...FLAT_LIST_PERF}
       />
 
       <Modal
@@ -357,6 +359,7 @@ export default function ChatScreen() {
               ListEmptyComponent={
                 <Text style={[styles.modalEmpty, { color: screen.textSecondary }]}>{t('screens.chat.noContacts')}</Text>
               }
+              {...FLAT_LIST_PERF}
             />
 
             <TouchableOpacity

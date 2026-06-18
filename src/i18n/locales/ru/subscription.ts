@@ -1,0 +1,117 @@
+export default {
+  title: 'Подписка',
+  subtitle: 'Выберите тариф под размер вашего бизнеса. Pro открывает расчёт зарплаты, аналитику и экспорт отчётов.',
+  currentPlan: 'Текущий тариф',
+  choosePlan: 'Выберите тариф',
+  popular: 'Популярный',
+  upgrade: 'Перейти на Pro',
+  payPro: 'Оплатить Pro',
+  renewPro: 'Продлить Pro',
+  cancelSubscription: 'Отменить подписку',
+  cancelConfirmTitle: 'Отменить подписку Pro?',
+  cancelConfirmMessage:
+    'Автопродление будет отключено. Доступ к Pro сохранится до конца оплаченного периода.',
+  cancelSuccessTitle: 'Подписка отменена',
+  cancelSuccessMessage: 'Автопродление отключено. Доступ к Pro сохранится до {{date}}.',
+  cancelSuccessMessageNoDate: 'Автопродление отключено.',
+  cancelError: 'Не удалось отменить подписку. Попробуйте позже.',
+  subscriptionCanceled: 'Отменена',
+  canceledAccessUntil: 'Подписка отменена. Доступ к Pro до {{date}}.',
+  contactUs: 'Связаться с нами',
+  restore: 'Восстановить покупки',
+  subscriptionActive: 'Активна',
+  subscriptionInactive: 'Неактивна',
+  securityNote: 'Оплата через ЮKassa. Подписку можно отменить в любой момент.',
+  paymentNotAvailable: 'Оплата временно недоступна',
+  paymentComingSoon:
+    'Подключение платёжной системы будет доступно в ближайшем обновлении.',
+  paymentAuthRequired: 'Войдите в аккаунт владельца, чтобы оплатить подписку.',
+  paymentReauthRequired:
+    'Для оплаты нужна Supabase-сессия. Выйдите и войдите снова через email и код из письма.',
+  paymentError: 'Не удалось создать платёж. Попробуйте позже.',
+  paymentBrowserError: 'Не удалось открыть страницу оплаты.',
+  paymentOpenedTitle: 'Оплата открыта',
+  paymentOpenedMessage:
+    'Завершите оплату {{amount}} в браузере. После подтверждения подписка Pro активируется автоматически.',
+  checkPayment: 'Проверить оплату',
+  restorePending:
+    'Оплата ещё не подтверждена. Если вы уже оплатили, подождите минуту и нажмите «Восстановить покупки».',
+  paymentReturnSuccess: 'Оплата прошла успешно. Подписка Pro активирована.',
+  enterpriseContactHint:
+    'Enterprise — от 4 950 ₽ / мес (от 5 ПВЗ). Свяжитесь с поддержкой, подберём условия под вашу сеть.',
+  restoreSuccess: 'Покупки успешно восстановлены',
+  trialPlanName: 'Pro (пробный)',
+  trialBanner: 'Пробный Pro активен — осталось {{days}} дн. Все функции Pro доступны бесплатно.',
+  earlyAdopterNote: 'Early Adopter: {{price}} / ПВЗ вместо {{standardPrice}} — на 3 месяца',
+  proPriceNote: 'Подписка на {{days}} дней за каждый ПВЗ. Автопродление при оплате картой.',
+  renewalReminderTitle: 'Подписка Pro заканчивается через {{days}} дн.',
+  renewalExpiredTitle: 'Подписка Pro истекла',
+  renewalManualHint:
+    'Продлите подписку, чтобы сохранить доступ к расчёту зарплаты, аналитике и экспорту.',
+  renewalAutopayHint:
+    'Автопродление включено. Если списание не пройдёт, нажмите «Продлить» вручную.',
+  autopayNote: 'При оплате картой включается автопродление каждые 30 дней (ЮKassa).',
+  enterprisePriceFrom: 'от {{price}} / мес',
+  enterprisePriceNote:
+    'Минимум {{minPvz}} ПВЗ · скидка за объём. Условия для крупных сетей — по запросу.',
+  exportNotAvailable: 'Экспорт доступен только в тарифе Pro',
+  billingAmount: 'К оплате: {{amount}} / месяц за ПВЗ',
+  billingAmountLabel: 'Сумма списания',
+  billingAmountNote: 'Фактическая сумма к оплате за каждый ПВЗ в месяц',
+  paywallLegal: {
+    label: 'Оформляя подписку, вы соглашаетесь с документами:',
+    separator: ' · ',
+    eula: 'EULA',
+  },
+  premiumGate: {
+    title: 'Доступно в Pro',
+    description:
+      'Эта функция доступна на платном тарифе. Перейдите на Pro, чтобы открыть полный функционал.',
+    priceHint: 'Pro — {{price}} / месяц за ПВЗ',
+    upgrade: 'Перейти на Pro',
+  },
+  employeeLimit: {
+    title: 'Достигнут лимит сотрудников',
+    description:
+      'На бесплатном тарифе — до {{limit}} сотрудников. Сейчас у вас {{count}}. Перейдите на Pro для безлимитного добавления.',
+    upgrade: 'Перейти на Pro',
+  },
+  pvzLimit: {
+    title: 'Лимит ПВЗ на бесплатном тарифе',
+    description:
+      'На бесплатном тарифе доступен {{limit}} ПВЗ. У вас уже {{count}}. Перейдите на Pro, чтобы добавить ещё точки.',
+    upgrade: 'Перейти на Pro',
+  },
+  plans: {
+    free: {
+      name: 'Бесплатный',
+      price: '0 ₽ / месяц',
+      feature1: '1 ПВЗ',
+      feature2: 'До 3 сотрудников',
+      feature3: 'Управление сменами и расписанием',
+      feature4: 'Расчёт зарплаты',
+      feature5: 'Аналитика и отчёты',
+      feature6: 'Экспорт данных',
+    },
+    pro: {
+      name: 'Pro',
+      price: '{{price}} / месяц за ПВЗ',
+      feature1: 'Безлимит сотрудников',
+      feature2: 'Расчёт зарплаты и выплат',
+      feature3: 'Аналитика по сменам и финансам',
+      feature4: 'Экспорт отчётов в CSV',
+      feature5: 'Несколько ПВЗ',
+      feature6: 'Приоритетная поддержка',
+    },
+    enterprise: {
+      name: 'Enterprise',
+      price: 'от 4 950 ₽ / мес',
+      feature1: 'От 5 ПВЗ и выше',
+      feature2: 'Все функции Pro',
+      feature3: 'Персональный менеджер',
+      feature4: 'Индивидуальные условия',
+      feature5: 'SLA и приоритетная поддержка',
+      feature6: 'Интеграции по запросу',
+    },
+  },
+} as const;

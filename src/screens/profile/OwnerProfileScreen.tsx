@@ -1,5 +1,5 @@
 // src/screens/profile/OwnerProfileScreen.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,18 @@ import {
   Alert,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { useProfileQuery } from '../../hooks/queries';
 import { colors as staticColors } from '../../constants/colors';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import ProfileHeader from '../../components/common/ProfileHeader';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
-import { getAppVersion } from '../../constants/legal';
+import { getAppVersion, openLegalDocument } from '../../constants/legal';
 import {
   LogOut,
+  Trash2,
   ChevronRight,
   Shield,
   Building2,
@@ -49,6 +52,13 @@ export default function OwnerProfileScreen({ navigation }: any) {
   const { user, pvz, userPvzs, signOut } = useAuth();
   const { colors, screen } = useThemedScreen();
   const styles = createStyles(colors, screen);
+  const { refetch: refetchProfile } = useProfileQuery(user?.id);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refetchProfile();
+    }, [refetchProfile])
+  );
 
   const handleSignOut = () => {
     Alert.alert(
@@ -197,7 +207,7 @@ export default function OwnerProfileScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('Privacy')}
+            onPress={() => openLegalDocument('privacy')}
             activeOpacity={0.7}
           >
             <View style={styles.menuIcon}>
@@ -209,7 +219,47 @@ export default function OwnerProfileScreen({ navigation }: any) {
             </View>
             <ChevronRight size={18} color={staticColors.grayLight} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => openLegalDocument('terms')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIcon}>
+              <FileText size={22} color={colors.primary} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>{t('screens.profile.terms')}</Text>
+              <Text style={styles.menuDescription}>{t('screens.profile.termsDesc')}</Text>
+            </View>
+            <ChevronRight size={18} color={staticColors.grayLight} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => openLegalDocument('consent')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIcon}>
+              <FileText size={22} color={colors.primary} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>{t('screens.profile.consent')}</Text>
+              <Text style={styles.menuDescription}>{t('screens.profile.consentDesc')}</Text>
+            </View>
+            <ChevronRight size={18} color={staticColors.grayLight} />
+          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={styles.deleteAccountLink}
+          onPress={() => navigation.navigate('DeleteAccount')}
+          activeOpacity={0.7}
+          testID="profile-delete-account-link"
+        >
+          <Trash2 size={20} color={staticColors.danger} />
+          <Text style={styles.deleteAccountText}>{t('screens.deleteAccount.profileLink')}</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <LogOut size={20} color={staticColors.danger} />
@@ -302,6 +352,21 @@ const createStyles = (
   menuTitle: { fontSize: 16, fontWeight: '500', color: screen.text, marginBottom: 2 },
   menuDescription: { fontSize: 12, color: screen.textSecondary },
 
+  deleteAccountLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    backgroundColor: '#FFF5F5',
+    minHeight: 48,
+  },
+  deleteAccountText: { fontSize: 15, fontWeight: '600', color: staticColors.danger },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

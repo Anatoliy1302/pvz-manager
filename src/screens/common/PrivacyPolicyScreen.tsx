@@ -7,8 +7,11 @@ import { colors } from '../../constants/colors';
 import {
   APP_DISPLAY_NAME,
   OPERATOR_NAME,
+  OPERATOR_FULL_NAME,
+  OPERATOR_ADDRESS,
   SUPPORT_EMAIL,
   PRIVACY_POLICY_UPDATED,
+  openLegalDocument,
 } from '../../constants/legal';
 import { ChevronLeft, Mail } from 'lucide-react-native';
 
@@ -21,7 +24,12 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
   const { t } = useTranslation();
 
   const sections = useMemo<PolicySection[]>(() => {
-    const vars = { appName: APP_DISPLAY_NAME, operator: OPERATOR_NAME };
+    const vars = {
+      appName: APP_DISPLAY_NAME,
+      operator: OPERATOR_NAME,
+      operatorFull: OPERATOR_FULL_NAME,
+      operatorAddress: OPERATOR_ADDRESS,
+    };
 
     return [
       {
@@ -42,6 +50,7 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
           t('legal.privacy.sections.data.i4'),
           t('legal.privacy.sections.data.i5'),
           t('legal.privacy.sections.data.i6'),
+          t('legal.privacy.sections.data.i7'),
         ],
       },
       {
@@ -135,6 +144,13 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
           {t('legal.privacy.updated', { date: PRIVACY_POLICY_UPDATED })}
         </Text>
 
+        <TouchableOpacity
+          style={styles.webVersionCard}
+          onPress={() => openLegalDocument('privacy')}
+        >
+          <Text style={styles.webVersionText}>{t('legal.privacy.openOnWeb')}</Text>
+        </TouchableOpacity>
+
         {sections.map((section) => (
           <View key={section.title} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -176,6 +192,14 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: 'bold', color: '#FFFFFF', flex: 1, textAlign: 'center' },
   content: { padding: 20 },
   updated: { fontSize: 12, color: '#999', marginBottom: 16 },
+  webVersionCard: {
+    backgroundColor: '#E8F0FE',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  webVersionText: { fontSize: 14, color: colors.primary, fontWeight: '600' },
   section: { marginBottom: 20 },
   sectionTitle: { fontSize: 15, fontWeight: '600', color: '#1A1A1A', marginBottom: 8 },
   paragraph: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 6 },

@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Коопсуздук',
     changePin: 'PINPIN-кодду алмаштыруу',
+    deleteAccount: 'Аккаунтту өчүрүү',
+    deleteAccountDesc: 'Аккаунтту жана бардык байланыштуу маалыматтарды кайтарымсыз өчүрүү',
     biometricLogin: '{{label}}{{label}} аркылуу кирүү',
     biometricHint: 'Тез кирүү үчүн түзмөгүңүздүн коргоосу колдонулат.',
   },

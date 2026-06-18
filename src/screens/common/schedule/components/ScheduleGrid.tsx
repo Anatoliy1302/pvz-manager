@@ -1,7 +1,8 @@
-import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { FlatList, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { toDateKey } from '../../../../utils/dateHelpers';
+import { FLAT_LIST_PERF } from '../../../../constants/flatListPerf';
 import { ShiftAssignment } from '../../scheduleTypes';
 import { ShiftTypeConfig } from '../../scheduleTypes';
 import { getWeekdays, formatScheduleDate } from '../scheduleHelpers';
@@ -47,6 +48,47 @@ export default function ScheduleGrid({
   const { t } = useTranslation();
   const weekdays = getWeekdays();
 
+  const renderEmployeeRow = useCallback(
+    ({ item: employee }: { item: ScheduleEmployee }) => (
+      <View style={scheduleStyles.gridRow}>
+        <View style={[scheduleStyles.gridCell, scheduleStyles.employeeCell]}>
+          <Text style={[scheduleStyles.employeeName, { color: textColor }]}>{employee.name}</Text>
+          <Text style={[scheduleStyles.employeeRole, { color: textSecondary }]}>
+            {employee.role === 'admin'
+              ? t('screens.employees.adminShort')
+              : t('screens.schedule.employee')}
+          </Text>
+        </View>
+        {dates.map((date, idx) => {
+          const dateStr = toDateKey(date);
+          const assignment = getAssignment(employee.id, dateStr);
+
+          return (
+            <ScheduleShiftCell
+              key={idx}
+              assignment={assignment}
+              canEdit={canEdit}
+              emptyCellBackground={emptyCellBackground}
+              shiftTypes={shiftTypes}
+              onPress={() => onCellPress(dateStr, employee.id, employee.name, assignment)}
+            />
+          );
+        })}
+      </View>
+    ),
+    [
+      dates,
+      canEdit,
+      textColor,
+      textSecondary,
+      emptyCellBackground,
+      shiftTypes,
+      getAssignment,
+      onCellPress,
+      t,
+    ]
+  );
+
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <View style={scheduleStyles.gridContainer}>
@@ -68,35 +110,14 @@ export default function ScheduleGrid({
           ))}
         </View>
 
-        <ScrollView>
-          {employees.map((employee) => (
-            <View key={employee.id} style={scheduleStyles.gridRow}>
-              <View style={[scheduleStyles.gridCell, scheduleStyles.employeeCell]}>
-                <Text style={[scheduleStyles.employeeName, { color: textColor }]}>
-                  {employee.name}
-                </Text>
-                <Text style={[scheduleStyles.employeeRole, { color: textSecondary }]}>
-                  {employee.role === 'admin' ? t('screens.employees.adminShort') : t('screens.schedule.employee')}
-                </Text>
-              </View>
-              {dates.map((date, idx) => {
-                const dateStr = toDateKey(date);
-                const assignment = getAssignment(employee.id, dateStr);
-
-                return (
-                  <ScheduleShiftCell
-                    key={idx}
-                    assignment={assignment}
-                    canEdit={canEdit}
-                    emptyCellBackground={emptyCellBackground}
-                    shiftTypes={shiftTypes}
-                    onPress={() => onCellPress(dateStr, employee.id, employee.name, assignment)}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
+        <FlatList
+          data={employees}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEmployeeRow}
+          scrollEnabled
+          nestedScrollEnabled
+          {...FLAT_LIST_PERF}
+        />
       </View>
     </ScrollView>
   );

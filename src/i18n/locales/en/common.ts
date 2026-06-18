@@ -3,6 +3,10 @@ export default {
     name: 'PVZ Staff',
     tagline: 'Pickup point staff management',
   },
+  env: {
+    staging: 'Staging — OTP is sent to real email/SMS',
+    development: 'Development mode (Expo Go)',
+  },
   actions: {
     back: 'Back',
     cancel: 'Cancel',

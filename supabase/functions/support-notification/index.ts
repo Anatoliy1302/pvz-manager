@@ -69,7 +69,7 @@ function buildEmailHtml(record: SupportRecord): string {
 }
 
 async function sendSupportEmail(record: SupportRecord): Promise<void> {
-  const smtpUser = Deno.env.get('SMTP_USER') ?? 'razrabotka_vl@mail.ru';
+  const smtpUser = Deno.env.get('SMTP_USER') ?? 'noreply@pvzpersonal.ru';
   const smtpPassword = Deno.env.get('SMTP_PASSWORD');
   const smtpHost = Deno.env.get('SMTP_HOST') ?? 'smtp.mail.ru';
   const smtpPort = Number(Deno.env.get('SMTP_PORT') ?? '465');

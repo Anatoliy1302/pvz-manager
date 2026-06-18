@@ -46,8 +46,8 @@ function loadEnv() {
   return {
     webhookSecret,
     smtpPassword,
-    smtpUser: get('SMTP_USER') ?? 'razrabotka_vl@mail.ru',
-    supportEmailTo: get('SUPPORT_EMAIL_TO') ?? get('SMTP_USER') ?? 'razrabotka_vl@mail.ru',
+    smtpUser: get('SMTP_USER') ?? 'noreply@pvzpersonal.ru',
+    supportEmailTo: get('SUPPORT_EMAIL_TO') ?? 'support@pvzpersonal.ru',
   };
 }
 

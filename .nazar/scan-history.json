@@ -1,0 +1,146 @@
+{
+  "project": "C:\\pvz",
+  "scans": [
+    {
+      "timestamp": "2026-06-18T11:32:36.016340",
+      "profile": "full",
+      "grade": "B",
+      "pass_rate": 84.0,
+      "passed": 226,
+      "failed": 43,
+      "total": 269,
+      "duration": 66.5,
+      "categories": {
+        "security": {
+          "passed": 62,
+          "failed": 4
+        },
+        "license": {
+          "passed": 2,
+          "failed": 0
+        },
+        "structure": {
+          "passed": 1,
+          "failed": 1
+        },
+        "documentation": {
+          "passed": 3,
+          "failed": 0
+        },
+        "git": {
+          "passed": 2,
+          "failed": 2
+        },
+        "sca": {
+          "passed": 7,
+          "failed": 0
+        },
+        "yaml_rules": {
+          "passed": 1,
+          "failed": 2
+        },
+        "code_quality": {
+          "passed": 6,
+          "failed": 6
+        },
+        "import_graph": {
+          "passed": 1,
+          "failed": 1
+        },
+        "error_handling": {
+          "passed": 2,
+          "failed": 1
+        },
+        "naming": {
+          "passed": 2,
+          "failed": 1
+        },
+        "cross_file": {
+          "passed": 5,
+          "failed": 2
+        },
+        "dependency": {
+          "passed": 3,
+          "failed": 0
+        },
+        "env": {
+          "passed": 2,
+          "failed": 0
+        },
+        "config": {
+          "passed": 2,
+          "failed": 0
+        },
+        "type_safety": {
+          "passed": 2,
+          "failed": 1
+        },
+        "performance": {
+          "passed": 2,
+          "failed": 1
+        },
+        "taint": {
+          "passed": 5,
+          "failed": 0
+        },
+        "ui_analysis": {
+          "passed": 1,
+          "failed": 5
+        },
+        "ui_quality": {
+          "passed": 3,
+          "failed": 2
+        },
+        "ux_text": {
+          "passed": 8,
+          "failed": 0
+        },
+        "ui_component": {
+          "passed": 8,
+          "failed": 2
+        },
+        "visual": {
+          "passed": 10,
+          "failed": 0
+        },
+        "accessibility": {
+          "passed": 1,
+          "failed": 1
+        },
+        "appstore": {
+          "passed": 41,
+          "failed": 3
+        },
+        "playstore": {
+          "passed": 7,
+          "failed": 2
+        },
+        "yaml_ui": {
+          "passed": 3,
+          "failed": 0
+        },
+        "i18n_deep": {
+          "passed": 5,
+          "failed": 1
+        },
+        "responsive": {
+          "passed": 2,
+          "failed": 2
+        },
+        "perf_static": {
+          "passed": 1,
+          "failed": 1
+        },
+        "docker": {
+          "passed": 2,
+          "failed": 0
+        },
+        "compliance": {
+          "passed": 24,
+          "failed": 2
+        }
+      },
+      "id": "scan_20260618_113236"
+    }
+  ]
+}

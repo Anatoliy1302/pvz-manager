@@ -6,7 +6,6 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
-import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
@@ -38,6 +37,8 @@ import ScheduleGrid from './schedule/components/ScheduleGrid';
 import ScheduleShiftModal from './schedule/components/ScheduleShiftModal';
 import ScheduleCopyModal from './schedule/components/ScheduleCopyModal';
 import ScheduleQuickActionsBar from './schedule/components/ScheduleQuickActionsBar';
+import { ScheduleSkeleton } from '../../components/common/Skeleton';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 
 interface Employee {
   id: string;
@@ -88,6 +89,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     workEnd: '21:00',
     totalHours: 12,
   });
+  const [loading, markLoaded] = useScopedInitialLoading(pvz?.id);
 
   const shiftTypes = getShiftTypes(pvzWorkHours);
   const dates = getDatesForView(currentDate, viewMode);
@@ -170,7 +172,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     if (!pvz?.id) return;
     try {
       const allAssignments = await DataService.syncScheduleFromShifts(pvz.id);
-      const allShifts = await DataService.getShifts();
+      const allShifts = await DataService.getShiftsLocal();
 
       const withStatus: ShiftAssignment[] = allAssignments.map((a) => {
         const shiftStatus = allShifts.find((s) => s.id === a.id);
@@ -194,23 +196,24 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPvzWorkHours();
-      loadEmployees();
-      loadAssignments();
+  const loadScheduleData = useCallback(async () => {
+    if (!pvz?.id) {
+      markLoaded();
+      return;
+    }
+    try {
+      await Promise.all([loadPvzWorkHours(), loadEmployees(), loadAssignments()]);
+    } finally {
+      markLoaded();
+    }
+  }, [pvz?.id, markLoaded]);
 
-      const unsubShifts = DataService.subscribe('shifts', loadAssignments);
-      const unsubSchedule = pvz?.id
-        ? DataService.subscribe(`schedule_assignments_${pvz.id}`, loadAssignments)
-        : () => {};
-
-      return () => {
-        unsubShifts();
-        unsubSchedule();
-      };
-    }, [pvz?.id])
-  );
+  useScreenRefresh(loadScheduleData, [loadScheduleData], {
+    subscribeKeys: [
+      'shifts',
+      ...(pvz?.id ? [`schedule_assignments_${pvz.id}`] : []),
+    ],
+  });
 
   const getAssignment = (employeeId: string, dateStr: string): ShiftAssignment | undefined =>
     assignments.find((a) => a.employeeId === employeeId && a.date === dateStr);
@@ -531,6 +534,10 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
           />
         )}
 
+        {loading ? (
+          <ScheduleSkeleton />
+        ) : (
+          <>
         <ScheduleControlPanel
           viewMode={viewMode}
           currentDate={currentDate}
@@ -558,6 +565,8 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
           getAssignment={getAssignment}
           onCellPress={handleCellPress}
         />
+          </>
+        )}
 
         <ScheduleShiftModal
           visible={showShiftModal && canEdit}

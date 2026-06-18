@@ -4,11 +4,23 @@ import { LucideIcon } from 'lucide-react-native';
 export type LoginStep =
   | 'quickLogin'
   | 'role'
+  | 'email'
   | 'phone'
   | 'sms'
   | 'pin'
   | 'createPvz'
   | 'selectPvz';
+
+export type OtpChannel = 'sms' | 'email';
+
+/** Статус доставки OTP на экране ввода кода. */
+export type OtpSendStatus =
+  | 'idle'
+  | 'sending'
+  | 'sent'
+  | 'uncertain'
+  | 'rate_limited'
+  | 'failed';
 
 export type PinMode = 'setup' | 'entry';
 

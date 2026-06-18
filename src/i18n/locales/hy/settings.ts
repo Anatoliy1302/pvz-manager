@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Անվտանգություն',
     changePin: 'Փոխել PIN-կոդը',
+    deleteAccount: 'Ջնջել հաշիվը',
+    deleteAccountDesc: 'Հաշվի և բոլոր կապված տվյալների մշտական ջնջում',
     biometricLogin: 'Մուտք {{label}}-ով',
     biometricHint: 'Արագ մուտքի համար օգտագործվում է ձեր սարքի պաշտպանությունը։',
   },

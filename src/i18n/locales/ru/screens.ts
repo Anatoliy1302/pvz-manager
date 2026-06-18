@@ -109,6 +109,8 @@ export default {
     support: 'Поддержка',
     aboutApp: 'О приложении',
     privacy: 'Политика конфиденциальности',
+    terms: 'Пользовательское соглашение',
+    consent: 'Согласие на обработку персональных данных',
     editProfileDescContact: 'Имя и контактные данные',
     editProfileDescFull: 'Имя, телефон и фото',
     settingsDesc: 'Тема, уведомления, PIN и вход',
@@ -121,11 +123,21 @@ export default {
     supportDesc: 'Написать о проблеме или пожелании',
     aboutDesc: 'Версия и информация',
     privacyDesc: 'Как хранятся ваши данные',
+    termsDesc: 'Условия использования приложения',
+    consentDesc: 'Обработка персональных данных',
     sections: {
       organization: 'Организация',
       salary: 'Зарплата',
       reports: 'Отчёты',
     },
+  },
+  deleteAccount: {
+    title: 'Удаление аккаунта',
+    description:
+      'Вы можете навсегда удалить аккаунт и связанные данные. После удаления восстановление невозможно.',
+    warning: 'Внимание: это действие необратимо.',
+    profileLink: 'Удалить аккаунт',
+    profileLinkDesc: 'Безвозвратное удаление аккаунта',
   },
   requests: {
     title: 'Заявки на смены',
@@ -302,6 +314,8 @@ export default {
     pvzAddressPlaceholder: 'ул. Ленина, д. 1',
     pvzHoursLabel: 'Часы работы *',
     pvzPhoneLabel: 'Телефон ПВЗ',
+    pvzOwnerInnLabel: 'ИНН владельца *',
+    pvzOwnerInnPlaceholder: '10 или 12 цифр',
     pvzEditHint: 'Изменения применятся ко всем разделам, где используется этот ПВЗ',
     pvzCreateHint: 'После создания можно добавить сотрудников и настроить расписание',
     openTime: 'Время открытия',
@@ -328,6 +342,8 @@ export default {
     title: 'О приложении',
     support: 'Написать в поддержку',
     privacy: 'Политика конфиденциальности',
+    terms: 'Пользовательское соглашение',
+    consent: 'Согласие на обработку персональных данных',
     version: 'Версия {{version}}',
     disclaimerTitle: 'Важно',
     disclaimer: '«{{appName}}» — независимое приложение для управления персоналом ПВЗ. Оно не является официальным продуктом Wildberries, Ozon или других маркетплейсов и не аффилировано с ними.',
@@ -338,6 +354,8 @@ export default {
     supportTitle: 'Поддержка',
     supportHint: 'Напишите о проблеме или пожелании по работе приложения.',
     privacyHint: 'Как обрабатываются ваши данные',
+    termsHint: 'Условия использования приложения',
+    consentHint: 'Обработка персональных данных',
     copyright: '© {{year}} {{name}}. Все права защищены.',
   },
   support: {
@@ -621,5 +639,10 @@ export default {
     changePhoto: 'Изменить фото',
     namePlaceholder: 'Введите ваше имя',
     phoneHint: 'Номер нужен для входа в приложение',
+  },
+  salary: {
+    title: 'Расчёт зарплаты',
+    employees: 'Сотрудники',
+    noEmployees: 'Нет сотрудников для отображения',
   },
 } as const;

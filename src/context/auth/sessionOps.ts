@@ -21,6 +21,53 @@ import {
   loadUsersFromStorage,
 } from './userMemoryStore';
 
+export async function quickRestoreFromStorage(setters: AuthSetters): Promise<boolean> {
+  try {
+    const storedUser = await SecureStore.getItemAsync('user');
+    if (!storedUser) return false;
+
+    const parsedUser = safeParseJson<User | null>(storedUser, null);
+    if (!parsedUser) return false;
+
+    const currentUser = userMemory.getUsers().find((u) => u.id === parsedUser.id);
+    if (currentUser && currentUser.status !== 'active') return false;
+
+    let sessionUser = parsedUser;
+    if (sessionUser.role === 'employee') {
+      const source = currentUser || userMemory.getUsers().find((u) => u.id === sessionUser.id);
+      if (source?.permissions) {
+        sessionUser = mergeUserPermissions(sessionUser, source.permissions);
+      } else if (!sessionUser.permissions) {
+        sessionUser = mergeUserPermissions(sessionUser, defaultPermissions);
+      }
+    }
+    sessionUser = ensureFullAdmin(sessionUser);
+    setters.setUser(sessionUser);
+
+    const storedPvz = await SecureStore.getItemAsync('pvz');
+    if (sessionUser.role === 'owner') {
+      const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
+      setters.setUserPvzs(ownerPvzs);
+      if (storedPvz) {
+        const pvzData = safeParseJson<Pvz | null>(storedPvz, null);
+        if (pvzData) setters.setPvz(pvzData);
+      } else if (ownerPvzs.length > 0) {
+        setters.setPvz(ownerPvzs[0]);
+      }
+    } else if (sessionUser.role === 'admin') {
+      await syncAdminPvzContext(sessionUser, setters);
+    } else if (sessionUser.pvzId) {
+      await bindPvzForSessionUser(sessionUser, setters);
+    }
+
+    notificationService.setCurrentUserId(sessionUser.id);
+    notificationService.setCurrentUserRole(sessionUser.role);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function hydrateSessionUser(sessionUser: User, setters: AuthSetters) {
   let userToSet = sessionUser;
 
@@ -42,13 +89,15 @@ export async function hydrateSessionUser(sessionUser: User, setters: AuthSetters
   await SecureStore.setItemAsync('user', JSON.stringify(userToSet));
 
   await bindPvzForSessionUser(userToSet, setters);
-  await runSyncOnLogin(userToSet);
-  await startSupabaseRealtime(userToSet);
   notificationService.setCurrentUserId(userToSet.id);
   notificationService.setCurrentUserRole(userToSet.role);
-  await notificationService.applyUserPreferences();
-  await notificationService.registerPushTokenForUser(userToSet.id);
-  await notificationService.deliverPendingStaffAlerts(userToSet.id);
+  void (async () => {
+    await runSyncOnLogin(userToSet);
+    await startSupabaseRealtime(userToSet);
+    await notificationService.applyUserPreferences();
+    await notificationService.registerPushTokenForUser(userToSet.id);
+    await notificationService.deliverPendingStaffAlerts(userToSet.id);
+  })();
 }
 
 export async function loadStoredUser(

@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { SHIFT_REQUEST_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 
 export interface SyncShiftRequest {
   id: string;
@@ -59,25 +61,27 @@ async function shiftRequestToRow(
 }
 
 export async function fetchShiftRequestsFromSupabase(): Promise<SyncShiftRequest[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
-  const { data, error } = await supabase
-    .from('shift_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase
+      .from('shift_requests')
+      .select(SHIFT_REQUEST_COLUMNS)
+      .order('created_at', { ascending: false })
+  );
 
-  if (error) {
-    console.warn('fetchShiftRequestsFromSupabase:', error.message);
+  if (!data) {
+    console.warn('fetchShiftRequestsFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToShiftRequest(row as Record<string, unknown>));
+  return data.map((row) => rowToShiftRequest(row));
 }
 
 export async function upsertShiftRequestToSupabase(
   request: SyncShiftRequest
 ): Promise<SyncShiftRequest | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await shiftRequestToRow(request);
   if (!row) return null;
@@ -85,14 +89,14 @@ export async function upsertShiftRequestToSupabase(
   const { data, error } = await supabase
     .from('shift_requests')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(SHIFT_REQUEST_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('shift_requests')
       .insert(row)
-      .select('*')
+      .select(SHIFT_REQUEST_COLUMNS)
       .single();
 
     if (insertError) {
@@ -109,7 +113,7 @@ export async function updateShiftRequestInSupabase(
   id: string,
   updates: Partial<SyncShiftRequest>
 ): Promise<boolean> {
-  if (!(await hasSupabaseSession()) || !isUuid(id)) return false;
+  if (!(await ensureSupabaseClientSession()) || !isUuid(id)) return false;
 
   const row: Record<string, unknown> = {};
   if (updates.status) row.status = updates.status;

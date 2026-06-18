@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Амният',
     changePin: 'Иваз кардани PIN-код',
+    deleteAccount: 'Нест кардани ҳисоб',
+    deleteAccountDesc: 'Нест кардани бебозгашти ҳисоб ва ҳамаи маълумоти марбут',
     biometricLogin: 'Вуруд тавассути {{label}}',
     biometricHint: 'Барои вуруди зуд аз ҳимояи дастгоҳи шумо истифода мешавад.',
   },

@@ -1,11 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
 import { User } from '../../types/user';
 import {
+  fetchInvitationByPhone,
   fetchInvitationsFromSupabase,
   mergeInvitations,
   upsertInvitationToSupabase,
   updateInvitationStatusInSupabase,
 } from '../SupabaseInvitationService';
+import { hasSupabaseSession } from '../SupabaseAuthService';
+import { normalizePhone } from '../../utils/supabaseHelpers';
 import { dataEventBus } from './dataEventBus';
 import { Invitation } from './dataTypes';
 import { safeParseJson } from '../../utils/safeJson';
@@ -116,6 +119,33 @@ export async function refreshInvitationsForLogin(): Promise<void> {
   const mergedAll = mergeInvitations(allLocal, remote);
   await SecureStore.setItemAsync('all_invitations', JSON.stringify(mergedAll));
   dataEventBus.emitChange('all_invitations');
+}
+
+/** Pending-приглашения для входа сотрудника/админа (локально + Supabase после OTP). */
+export async function getPendingInvitationsForLoginPhone(
+  phone: string,
+  role: 'employee' | 'admin'
+): Promise<Invitation[]> {
+  const cleanPhone = normalizePhone(phone);
+
+  if (await hasSupabaseSession()) {
+    await refreshInvitationsForLogin();
+    const remote = await fetchInvitationByPhone(cleanPhone);
+    if (remote && remote.status === 'pending' && remote.role === role) {
+      const allRaw = await SecureStore.getItemAsync('all_invitations');
+      const allLocal = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
+      const merged = mergeInvitations(allLocal, [{ ...remote, pvzName: remote.pvzName ?? 'ПВЗ' }]);
+      await SecureStore.setItemAsync('all_invitations', JSON.stringify(merged));
+      dataEventBus.emitChange('all_invitations');
+    }
+  }
+
+  const allRaw = await SecureStore.getItemAsync('all_invitations');
+  const all = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
+  return all.filter(
+    (inv) =>
+      normalizePhone(inv.phone) === cleanPhone && inv.status === 'pending' && inv.role === role
+  );
 }
 
 export async function refreshInvitationsCache(sessionUser: User): Promise<void> {

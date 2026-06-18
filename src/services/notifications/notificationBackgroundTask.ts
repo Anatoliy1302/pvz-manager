@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import {
   loadExpoNotificationsModule,
   supportsExpoNotificationsModule,
@@ -7,6 +8,16 @@ import notificationHistoryService from './NotificationHistoryService';
 export const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
 let backgroundTaskRegistered = false;
+let backgroundTaskSkipped = false;
+
+function isBackgroundRemoteNotificationsError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const coded = error as Error & { code?: string };
+  return (
+    coded.code === 'E_BACKGROUND_REMOTE_NOTIFICATIONS_DISABLED' ||
+    coded.message.includes('Background remote notifications have not been configured')
+  );
+}
 
 async function ensureBackgroundTaskDefined(): Promise<boolean> {
   try {
@@ -37,7 +48,9 @@ async function ensureBackgroundTaskDefined(): Promise<boolean> {
 }
 
 export async function registerBackgroundNotificationTask(): Promise<void> {
-  if (!supportsExpoNotificationsModule || backgroundTaskRegistered) return;
+  if (!supportsExpoNotificationsModule || backgroundTaskRegistered || backgroundTaskSkipped) {
+    return;
+  }
 
   const taskReady = await ensureBackgroundTaskDefined();
   if (!taskReady) return;
@@ -56,6 +69,16 @@ export async function registerBackgroundNotificationTask(): Promise<void> {
     await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
     backgroundTaskRegistered = true;
   } catch (error) {
+    if (isBackgroundRemoteNotificationsError(error)) {
+      backgroundTaskSkipped = true;
+      if (__DEV__ && Platform.OS === 'ios') {
+        console.log(
+          'iOS: фоновый обработчик push не активен — нужна пересборка dev client ' +
+            '(enableBackgroundRemoteNotifications уже в app.json). Обычные push работают.'
+        );
+      }
+      return;
+    }
     console.warn('Не удалось зарегистрировать background notification task:', error);
   }
 }

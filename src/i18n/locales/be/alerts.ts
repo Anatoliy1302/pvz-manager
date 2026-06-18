@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'У Supabase адключаны ўваход па тэлефоне. Уключыце Phone provider.',
     emailLoginDisabled: 'Уваход па email адключаны — толькі SMS.',
     otpExpired: 'Код з SMS састарэў. Запытаеце новы.',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'Няверны код з SMS.',
     rateLimit: 'Занадта шмат спроб. Пачакайце і паўтарыце.',
   },

@@ -5,6 +5,7 @@ import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -28,6 +29,7 @@ import { safeParseJson } from '../../utils/safeJson';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 interface Penalty {
   id: string;
@@ -228,6 +230,46 @@ export default function PenaltiesScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
+  const renderPenaltyItem = useCallback(
+    ({ item: penalty }: { item: Penalty }) => (
+      <View
+        style={[
+          styles.penaltyCard,
+          { backgroundColor: screen.card, borderColor: screen.border },
+          penalty.amount > 0 ? styles.fineCard : styles.bonusCard,
+        ]}
+      >
+        <View style={styles.penaltyHeader}>
+          <View style={styles.penaltyUser}>
+            <User size={16} color={penalty.amount > 0 ? colors.danger : colors.success} />
+            <Text style={[styles.penaltyName, { color: screen.text }]}>{penalty.employeeName}</Text>
+          </View>
+          <TouchableOpacity onPress={() => deletePenalty(penalty)}>
+            <Trash2 size={18} color={colors.gray} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.penaltyDetails}>
+          <View style={styles.penaltyRow}>
+            <MoneyIcon size={14} color={penalty.amount > 0 ? colors.danger : colors.success} />
+            <Text style={[styles.penaltyAmount, penalty.amount > 0 ? styles.fineAmount : styles.bonusAmount]}>
+              {penalty.amount > 0 ? `-${penalty.amount} ₽` : `+${Math.abs(penalty.amount)} ₽`}
+            </Text>
+          </View>
+          <View style={styles.penaltyRow}>
+            <Calendar size={14} color={colors.gray} />
+            <Text style={styles.penaltyDate}>{formatDate(penalty.date)}</Text>
+          </View>
+          <Text style={[styles.penaltyReason, { color: screen.text }]}>📝 {penalty.reason}</Text>
+          <Text style={[styles.penaltyCreated, { color: screen.textSecondary }]}>
+            {t('screens.finance.addedAt', { date: new Date(penalty.createdAt).toLocaleDateString() })}
+            {penalty.createdBy ? ` (${penalty.createdBy})` : ''}
+          </Text>
+        </View>
+      </View>
+    ),
+    [screen, t, deletePenalty]
+  );
+
   return (
     <ThemedSafeAreaView style={styles.container}>
       <LoadingSpinner visible={loading && penalties.length === 0} text={t('common.loading.default')} />
@@ -246,58 +288,25 @@ export default function PenaltiesScreen({ navigation }: any) {
         </View>
       </LinearGradient>
 
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      <FlatList
+        data={penalties}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPenaltyItem}
         contentContainerStyle={styles.content}
-      >
-        {!loading && penalties.length === 0 ? (
-          <EmptyState
-            icon={AlertCircle}
-            title={t('screens.finance.noRecords')}
-            description={t('screens.finance.noRecordsDesc')}
-            buttonText={t('common.actions.add')}
-            onButtonPress={() => setModalVisible(true)}
-          />
-        ) : (
-          penalties.map(penalty => (
-            <View
-              key={penalty.id}
-              style={[
-                styles.penaltyCard,
-                { backgroundColor: screen.card, borderColor: screen.border },
-                penalty.amount > 0 ? styles.fineCard : styles.bonusCard,
-              ]}
-            >
-              <View style={styles.penaltyHeader}>
-                <View style={styles.penaltyUser}>
-                  <User size={16} color={penalty.amount > 0 ? colors.danger : colors.success} />
-                  <Text style={[styles.penaltyName, { color: screen.text }]}>{penalty.employeeName}</Text>
-                </View>
-                <TouchableOpacity onPress={() => deletePenalty(penalty)}>
-                  <Trash2 size={18} color={colors.gray} />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.penaltyDetails}>
-                <View style={styles.penaltyRow}>
-                  <MoneyIcon size={14} color={penalty.amount > 0 ? colors.danger : colors.success} />
-                  <Text style={[styles.penaltyAmount, penalty.amount > 0 ? styles.fineAmount : styles.bonusAmount]}>
-                    {penalty.amount > 0 ? `-${penalty.amount} ₽` : `+${Math.abs(penalty.amount)} ₽`}
-                  </Text>
-                </View>
-                <View style={styles.penaltyRow}>
-                  <Calendar size={14} color={colors.gray} />
-                  <Text style={styles.penaltyDate}>{formatDate(penalty.date)}</Text>
-                </View>
-                <Text style={[styles.penaltyReason, { color: screen.text }]}>📝 {penalty.reason}</Text>
-                <Text style={[styles.penaltyCreated, { color: screen.textSecondary }]}>
-                  {t('screens.finance.addedAt', { date: new Date(penalty.createdAt).toLocaleDateString() })}
-                  {penalty.createdBy ? ` (${penalty.createdBy})` : ''}
-                </Text>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListEmptyComponent={
+          !loading ? (
+            <EmptyState
+              icon={AlertCircle}
+              title={t('screens.finance.noRecords')}
+              description={t('screens.finance.noRecordsDesc')}
+              buttonText={t('common.actions.add')}
+              onButtonPress={() => setModalVisible(true)}
+            />
+          ) : null
+        }
+        {...FLAT_LIST_PERF}
+      />
 
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>

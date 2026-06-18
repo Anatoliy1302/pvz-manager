@@ -1,5 +1,5 @@
 // src/screens/owner/EmployeeAddFormScreen.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
@@ -18,9 +18,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
+import PremiumGate from '../../components/common/PremiumGate';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { useErrorHandler } from '../../context/ErrorHandlerContext';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import FormFieldError from '../../components/common/FormFieldError';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../hooks/useSubscription';
+import subscriptionService, { FREE_EMPLOYEE_LIMIT } from '../../services/subscriptionService';
+import { countStaffForPvz } from '../../context/auth/employeeOps';
 import { colors } from '../../constants/colors';
 import {
   ChevronLeft,
@@ -34,14 +41,26 @@ import {
 } from 'lucide-react-native';
 import { UserRole } from '../../types/user';
 import { useAccessiblePvzs } from '../../hooks/useAccessiblePvzs';
+import analyticsService from '../../services/AnalyticsService';
+import { AnalyticsEvents } from '../../services/analytics/events';
 
 const { height } = Dimensions.get('window');
 
+type EmployeeFormField = 'name' | 'phone' | 'pvzId';
+
 export default function EmployeeAddFormScreen({ navigation, route }: any) {
   const { t } = useTranslation();
-  const { user, pvz, userPvzs, addEmployee } = useAuth();
+  const { user, pvz, userPvzs, addEmployee, subscription } = useAuth();
   const { ui } = useThemedScreen();
-  const { showError, showSuccess } = useScreenToast();
+  const { showSuccess } = useScreenToast();
+  const { handleError } = useErrorHandler();
+  const {
+    validate,
+    clearFieldError,
+    getFieldError,
+    inputContainerStyle,
+  } = useFormValidation<EmployeeFormField>();
+  const { isPro } = useSubscription();
   const { pvzId: propPvzId } = route.params || {};
 
   const [name, setName] = useState('');
@@ -57,7 +76,29 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
   );
   const canSelectRole = user?.role === 'owner';
 
+  const employeeLimit = subscription?.employeeLimit ?? FREE_EMPLOYEE_LIMIT;
+  const employeeCount = useMemo(
+    () => (selectedPvzId ? countStaffForPvz(selectedPvzId) : 0),
+    [selectedPvzId]
+  );
+  const isFreeAndOverLimit =
+    !isPro &&
+    !!selectedPvzId &&
+    !subscriptionService.canAddEmployee(
+      subscription ?? {
+        tier: 'free',
+        status: 'active',
+        trialEndsAt: null,
+        isEarlyAdopter: false,
+        earlyAdopterEndsAt: null,
+        pvzLimit: 1,
+        employeeLimit: FREE_EMPLOYEE_LIMIT,
+      },
+      employeeCount
+    );
+
   const formatPhone = (text: string) => {
+    clearFieldError('phone');
     if (text === '') {
       setPhone('');
       return;
@@ -94,29 +135,38 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
   const handleSubmit = async () => {
     Keyboard.dismiss();
 
-    if (!name.trim()) {
-      showError(t('alerts.validation.enterEmployeeName'));
-      return;
-    }
-
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (!cleanPhone || cleanPhone.length < 11) {
-      showError(t('alerts.validation.invalidPhone10'));
-      return;
-    }
+    const isValid = validate([
+      {
+        field: 'name',
+        valid: Boolean(name.trim()),
+        message: t('alerts.validation.enterEmployeeName'),
+      },
+      {
+        field: 'phone',
+        valid: Boolean(cleanPhone) && cleanPhone.length >= 11,
+        message: t('alerts.validation.invalidPhone10'),
+      },
+      {
+        field: 'pvzId',
+        valid: Boolean(selectedPvzId),
+        message: t('alerts.validation.selectEmployeePvz'),
+      },
+    ]);
 
-    if (!selectedPvzId) {
-      showError(t('alerts.validation.selectEmployeePvz'));
-      return;
-    }
+    if (!isValid) return;
 
     setLoading(true);
     try {
       await addEmployee(cleanPhone, name.trim(), role, selectedPvzId);
+      analyticsService.track(AnalyticsEvents.EMPLOYEE_INVITED, {
+        role,
+        pvzId: selectedPvzId,
+      });
       showSuccess(t('alerts.success.inviteSentDetail'));
       navigation.goBack();
-    } catch (error: any) {
-      showError(error.message || t('alerts.network.addEmployeeFailed'));
+    } catch (error: unknown) {
+      handleError(error, { fallbackKey: 'alerts.network.addEmployeeFailed' });
     } finally {
       setLoading(false);
     }
@@ -152,6 +202,7 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
                   ]}
                   onPress={() => {
                     setSelectedPvzId(p.id);
+                    clearFieldError('pvzId');
                     setShowPvzModal(false);
                   }}
                 >
@@ -178,20 +229,17 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
     </Modal>
   );
 
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <ScreenHeader title={t('screens.employees.addTitle')} onBack={() => navigation.goBack()} />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
+  const renderForm = () => (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.keyboardView}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
             <View style={[styles.infoCard, ui.card]}>
               <Text style={[styles.infoTitle, ui.title]}>{t('screens.employeeForm.infoTitle')}</Text>
               <Text style={[styles.infoText, ui.subtitle]}>
@@ -201,19 +249,28 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
 
             <View style={[styles.formCard, ui.card]}>
               <Text style={[styles.fieldLabel, ui.title]}>{t('screens.employeeForm.nameLabel')} {t('common.form.required')}</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: ui.input.backgroundColor, borderColor: ui.input.borderColor }]}>
+              <View
+                style={inputContainerStyle('name', [
+                  styles.inputWrapper,
+                  { backgroundColor: ui.input.backgroundColor, borderColor: ui.input.borderColor },
+                ])}
+              >
                 <User size={20} color={colors.gray} />
                 <TextInput
                   style={styles.input}
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={(text) => {
+                    clearFieldError('name');
+                    setName(text);
+                  }}
                   placeholder={t('screens.employeeForm.namePlaceholder')}
                   placeholderTextColor={colors.grayLight}
                 />
               </View>
+              <FormFieldError message={getFieldError('name')} />
 
               <Text style={styles.fieldLabel}>{t('screens.employeeForm.phoneLabel')} {t('common.form.required')}</Text>
-              <View style={styles.inputWrapper}>
+              <View style={inputContainerStyle('phone', styles.inputWrapper)}>
                 <Phone size={20} color={colors.gray} />
                 <TextInput
                   style={styles.input}
@@ -224,11 +281,15 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
                   placeholderTextColor={colors.grayLight}
                 />
               </View>
+              <FormFieldError message={getFieldError('phone')} />
 
               <Text style={styles.fieldLabel}>{t('screens.employeeForm.pvzLabel')} {t('common.form.required')}</Text>
               <TouchableOpacity
-                style={styles.pvzSelectorButton}
-                onPress={() => setShowPvzModal(true)}
+                style={inputContainerStyle('pvzId', styles.pvzSelectorButton)}
+                onPress={() => {
+                  clearFieldError('pvzId');
+                  setShowPvzModal(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Building2 size={18} color={colors.primary} />
@@ -237,6 +298,7 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
                 </Text>
                 <ChevronDown size={16} color={colors.primary} />
               </TouchableOpacity>
+              <FormFieldError message={getFieldError('pvzId')} />
 
               <Text style={styles.fieldLabel}>{t('screens.employeeForm.roleLabel')}</Text>
               {canSelectRole ? (
@@ -286,6 +348,25 @@ export default function EmployeeAddFormScreen({ navigation, route }: any) {
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+    );
+
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <ScreenHeader title={t('screens.employees.addTitle')} onBack={() => navigation.goBack()} />
+
+      {isFreeAndOverLimit ? (
+        <PremiumGate
+          requiredTier="pro"
+          title={t('subscription.employeeLimit.title')}
+          description={t('subscription.employeeLimit.description', {
+            limit: employeeLimit,
+            count: employeeCount,
+          })}
+          onUpgrade={() => navigation.navigate('Subscription')}
+        />
+      ) : (
+        renderForm()
+      )}
 
       {renderPvzModal()}
     </ThemedSafeAreaView>

@@ -28,9 +28,9 @@ export default function LoginRoleCard({
   return (
     <TouchableOpacity
       style={[
-        loginStyles.roleCard,
+        loginStyles.roleOption,
         !isActive && { backgroundColor: cardBackground, borderColor: cardBorder },
-        isActive && loginStyles.roleCardActive,
+        isActive && loginStyles.roleOptionActive,
       ]}
       onPress={onSelect}
       activeOpacity={0.85}

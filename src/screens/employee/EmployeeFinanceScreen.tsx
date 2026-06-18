@@ -1,11 +1,11 @@
 // src/screens/employee/EmployeeFinanceScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
   Modal,
@@ -30,6 +30,7 @@ import {
   createAdvanceRequest,
 } from '../../services/PaymentService';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { 
   ChevronLeft,  
   Calendar, 
@@ -265,28 +266,23 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <ScreenHeader
-        title={t('screens.finance.myFinance')}
-        onBack={() => navigation.goBack()}
-        right={
-          <TouchableOpacity onPress={openAdvanceModal}>
-            <Send size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
-      />
+  const financeSections = useMemo(
+    () => [
+      ...(advanceRequests.length > 0
+        ? [{ key: 'advances' as const, title: t('screens.finance.myAdvanceRequests'), data: advanceRequests }]
+        : []),
+      { key: 'payments' as const, title: t('screens.finance.paymentHistory'), data: payments },
+    ],
+    [advanceRequests, payments, t]
+  );
 
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        {/* Баланс и статистика */}
+  const financeListHeader = useMemo(
+    () => (
+      <>
         <View style={[styles.balanceCard, ui.card]}>
           <Text style={styles.balanceTitle}>{t('screens.finance.currentBalance')}</Text>
           <Text style={styles.balanceValue}>{formatCurrency(balance.balance)}</Text>
-          
+
           <View style={styles.balanceDetails}>
             <View style={styles.balanceDetail}>
               <Text style={styles.balanceDetailLabel}>{t('screens.finance.earnedTotal')}</Text>
@@ -299,7 +295,7 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.progressSection}>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${getProgressPercent()}%` }]} />
@@ -327,87 +323,116 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
             </Text>
           </View>
         )}
+      </>
+    ),
+    [ui, t, balance, hasPendingRequest, openAdvanceModal, getProgressPercent, formatCurrency]
+  );
 
-        {/* История запросов на аванс */}
-        {advanceRequests.length > 0 && (
-          <View style={[styles.requestsCard, ui.card]}>
-            <Text style={[styles.cardTitle, ui.title]}>{t('screens.finance.myAdvanceRequests')}</Text>
-            {advanceRequests.map((request) => (
-              <View key={request.id} style={styles.requestItem}>
-                <View style={styles.requestHeader}>
-                  <View style={styles.requestAmount}>
-                    <MoneyIcon size={14} color={getRequestStatusColor(request.status)} />
-                    <Text style={[styles.requestAmountText, { color: getRequestStatusColor(request.status) }]}>
-                      {request.amount.toLocaleString()} ₽
-                    </Text>
-                  </View>
-                  <View style={[styles.requestStatus, { backgroundColor: getRequestStatusColor(request.status) + '20' }]}>
-                    {getRequestStatusIcon(request.status)}
-                    <Text style={[styles.requestStatusText, { color: getRequestStatusColor(request.status) }]}>
-                      {getRequestStatusText(request.status)}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.requestPeriod}>
-                  {formatDate(request.periodStart)} — {formatDate(request.periodEnd)}
-                </Text>
-                {request.reason && (
-                  <Text style={styles.requestReason}>📝 {request.reason}</Text>
-                )}
-                <Text style={styles.requestDate}>
-                  {t('screens.finance.sentAt', { date: formatDate(request.createdAt) })}
-                </Text>
-                {request.reviewedAt && (
-                  <Text style={styles.requestReviewed}>
-                    {t('screens.finance.reviewedAt', {
-                      date: formatDate(request.reviewedAt),
-                      reviewer: request.reviewedByName ? `(${request.reviewedByName})` : '',
-                    })}
+  const renderFinanceItem = useCallback(
+    ({ item, section }: { item: AdvanceRequest | Payment; section: { key: string } }) => {
+      if (section.key === 'advances') {
+        const request = item as AdvanceRequest;
+        return (
+          <View style={styles.requestItem}>
+              <View style={styles.requestHeader}>
+                <View style={styles.requestAmount}>
+                  <MoneyIcon size={14} color={getRequestStatusColor(request.status)} />
+                  <Text style={[styles.requestAmountText, { color: getRequestStatusColor(request.status) }]}>
+                    {request.amount.toLocaleString()} ₽
                   </Text>
-                )}
+                </View>
+                <View style={[styles.requestStatus, { backgroundColor: getRequestStatusColor(request.status) + '20' }]}>
+                  {getRequestStatusIcon(request.status)}
+                  <Text style={[styles.requestStatusText, { color: getRequestStatusColor(request.status) }]}>
+                    {getRequestStatusText(request.status)}
+                  </Text>
+                </View>
               </View>
-            ))}
+              <Text style={styles.requestPeriod}>
+                {formatDate(request.periodStart)} — {formatDate(request.periodEnd)}
+              </Text>
+              {request.reason && <Text style={styles.requestReason}>📝 {request.reason}</Text>}
+              <Text style={styles.requestDate}>
+                {t('screens.finance.sentAt', { date: formatDate(request.createdAt) })}
+              </Text>
+              {request.reviewedAt && (
+                <Text style={styles.requestReviewed}>
+                  {t('screens.finance.reviewedAt', {
+                    date: formatDate(request.reviewedAt),
+                    reviewer: request.reviewedByName ? `(${request.reviewedByName})` : '',
+                  })}
+                </Text>
+              )}
+            </View>
+        );
+      }
+
+      const payment = item as Payment;
+      return (
+        <View style={styles.paymentItem}>
+            <View style={styles.paymentLeft}>
+              <View style={[styles.paymentIcon, payment.type === 'advance' ? styles.advanceIcon : styles.salaryIcon]}>
+                <Text style={styles.paymentIconText}>{payment.type === 'advance' ? '💰' : '📅'}</Text>
+              </View>
+              <View>
+                <Text style={styles.paymentType}>
+                  {payment.type === 'advance' ? t('screens.finance.advance') : t('screens.finance.salary')}
+                </Text>
+                <Text style={styles.paymentPeriod}>
+                  {formatDate(payment.periodStart)} — {formatDate(payment.periodEnd)}
+                </Text>
+                {payment.note && <Text style={styles.paymentNote}>{payment.note}</Text>}
+              </View>
+            </View>
+            <View style={styles.paymentRight}>
+              <Text style={[styles.paymentAmount, payment.type === 'advance' ? styles.advanceAmount : styles.salaryAmount]}>
+                +{payment.amount.toLocaleString()} ₽
+              </Text>
+            <Text style={styles.paymentDate}>{formatDate(payment.paidAt)}</Text>
+          </View>
+        </View>
+      );
+    },
+    [ui, t, getRequestStatusColor, getRequestStatusIcon, getRequestStatusText, formatDate]
+  );
+
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <ScreenHeader
+        title={t('screens.finance.myFinance')}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity onPress={openAdvanceModal}>
+            <Send size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        }
+      />
+
+      <SectionList
+        sections={financeSections}
+        keyExtractor={(item) => item.id}
+        renderItem={renderFinanceItem}
+        renderSectionHeader={({ section }) => (
+          <View style={[section.key === 'advances' ? styles.requestsCard : styles.paymentsCard, ui.card]}>
+            <Text style={[styles.cardTitle, ui.title]}>{section.title}</Text>
           </View>
         )}
-
-        {/* История выплат */}
-        <View style={[styles.paymentsCard, ui.card]}>
-          <Text style={styles.cardTitle}>{t('screens.finance.paymentHistory')}</Text>
-          
-          {payments.length === 0 ? (
-            <Text style={styles.emptyText}>{t('screens.finance.noPayments')}</Text>
+        renderSectionFooter={({ section }) =>
+          section.key === 'payments' && section.data.length === 0 ? (
+            <View style={[styles.paymentsCard, ui.card, styles.sectionEmptyFooter]}>
+              <Text style={styles.emptyText}>{t('screens.finance.noPayments')}</Text>
+            </View>
           ) : (
-            payments.map((payment) => (
-              <View key={payment.id} style={styles.paymentItem}>
-                <View style={styles.paymentLeft}>
-                  <View style={[styles.paymentIcon, payment.type === 'advance' ? styles.advanceIcon : styles.salaryIcon]}>
-                    <Text style={styles.paymentIconText}>
-                      {payment.type === 'advance' ? '💰' : '📅'}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.paymentType}>
-                      {payment.type === 'advance' ? t('screens.finance.advance') : t('screens.finance.salary')}
-                    </Text>
-                    <Text style={styles.paymentPeriod}>
-                      {formatDate(payment.periodStart)} — {formatDate(payment.periodEnd)}
-                    </Text>
-                    {payment.note && (
-                      <Text style={styles.paymentNote}>{payment.note}</Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.paymentRight}>
-                  <Text style={[styles.paymentAmount, payment.type === 'advance' ? styles.advanceAmount : styles.salaryAmount]}>
-                    +{payment.amount.toLocaleString()} ₽
-                  </Text>
-                  <Text style={styles.paymentDate}>{formatDate(payment.paidAt)}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+            <View style={styles.sectionSpacer} />
+          )
+        }
+        ListHeaderComponent={financeListHeader}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        stickySectionHeadersEnabled={false}
+        {...FLAT_LIST_PERF}
+      />
 
       {/* Модальное окно запроса аванса */}
       <Modal visible={showRequestModal} transparent animationType="slide" onRequestClose={() => setShowRequestModal(false)}>
@@ -585,6 +610,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 16 },
+  sectionSpacer: { height: 8 },
+  sectionEmptyFooter: { marginTop: -8, paddingTop: 0 },
   
   emptyText: { textAlign: 'center', fontSize: 14, color: '#999999', paddingVertical: 20 },
   

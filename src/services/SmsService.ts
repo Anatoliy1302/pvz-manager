@@ -14,7 +14,9 @@ class SmsService {
   
   // Отправка SMS (заглушка - в реальном приложении здесь был бы API)
   async sendSms(phone: string, code: string): Promise<boolean> {
-    console.log(`📱 SMS на ${phone}: Ваш код подтверждения: ${code}`);
+    if (__DEV__) {
+      console.log(`📱 SMS на ${phone}: Ваш код подтверждения: ${code}`);
+    }
     
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const sanitizedKey = this.sanitizeKey(`sms_code_${cleanPhone}`);

@@ -10,6 +10,13 @@ import { safeParseJson } from '../../utils/safeJson';
 import { dataEventBus } from './dataEventBus';
 import { getPvzs } from './pvzDataService';
 
+export type GetShiftsOptions = {
+  /** Pull from Supabase and merge (default: false — local cache only). */
+  refresh?: boolean;
+};
+
+let refreshInFlight: Promise<Shift[]> | null = null;
+
 async function readLocalShifts(): Promise<Shift[]> {
   const stored = await SecureStore.getItemAsync('shifts');
   return safeParseJson<Shift[]>(stored ?? '[]', []);
@@ -56,47 +63,58 @@ function mergeShiftsLocalRemote(local: Shift[], remote: Shift[]): Shift[] {
   return Array.from(byKey.values());
 }
 
-export async function getShifts(): Promise<Shift[]> {
-  const local = await readLocalShifts();
-  const remote = await fetchShiftsFromSupabase();
+/** Read shifts from local SecureStore only (no network). */
+export async function getShiftsLocal(): Promise<Shift[]> {
+  return normalizeShiftPvzIds(await readLocalShifts());
+}
 
-  if (remote === null) {
-    return normalizeShiftPvzIds(local);
+/**
+ * Returns cached shifts instantly. Pass `{ refresh: true }` to pull from Supabase.
+ */
+export async function getShifts(options?: GetShiftsOptions): Promise<Shift[]> {
+  if (options?.refresh) {
+    return refreshShiftsCache();
   }
-
-  const merged = remote.length === 0 ? local : mergeShiftsLocalRemote(local, remote);
-  const normalized = await normalizeShiftPvzIds(merged);
-  await writeLocalShifts(normalized);
-  return normalized;
+  return getShiftsLocal();
 }
 
 export async function refreshShiftsCache(): Promise<Shift[]> {
-  const local = await readLocalShifts();
-  const remote = await fetchShiftsFromSupabase();
-
-  if (!remote) {
-    return local;
+  if (refreshInFlight) {
+    return refreshInFlight;
   }
 
-  const merged = mergeShiftsLocalRemote(local, remote);
-  const normalized = await normalizeShiftPvzIds(merged);
-  await writeLocalShifts(normalized);
+  refreshInFlight = (async () => {
+    const local = await readLocalShifts();
+    const pvzIds = (await getPvzs()).map((p) => p.id);
+    const remote = await fetchShiftsFromSupabase(pvzIds.length > 0 ? pvzIds : undefined);
 
-  const pvzs = await getPvzs();
-  const { syncScheduleFromShifts } = await import('./scheduleDataService');
-  for (const pvz of pvzs) {
-    await syncScheduleFromShifts(pvz.id);
+    if (!remote) {
+      return normalizeShiftPvzIds(local);
+    }
+
+    const merged = remote.length === 0 ? local : mergeShiftsLocalRemote(local, remote);
+    const normalized = await normalizeShiftPvzIds(merged);
+    await writeLocalShifts(normalized);
+
+    const { syncScheduleFromShifts } = await import('./scheduleDataService');
+    await Promise.all(pvzIds.map((pvzId) => syncScheduleFromShifts(pvzId)));
+
+    return normalized;
+  })();
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
-
-  return normalized;
 }
 
 export async function getShiftsByDate(date: string, pvzId?: string): Promise<Shift[]> {
-  const shifts = await getShifts();
+  const shifts = await getShiftsLocal();
   let filtered = shifts.filter((s) => s.date === date);
 
   if (pvzId) {
-    filtered = filtered.filter((s) => (s as any).pvzId === pvzId);
+    filtered = filtered.filter((s) => (s as { pvzId?: string }).pvzId === pvzId);
   }
 
   return filtered;
@@ -107,7 +125,7 @@ export async function getShiftsByEmployee(
   startDate?: string,
   endDate?: string
 ): Promise<Shift[]> {
-  const shifts = await getShifts();
+  const shifts = await getShiftsLocal();
   let filtered = shifts.filter((s) => s.employeeId === employeeId);
 
   if (startDate) {
@@ -156,9 +174,7 @@ export async function updateShift(id: string, updates: Partial<Shift>): Promise<
 }
 
 export async function saveShifts(shifts: Shift[]): Promise<void> {
-  for (const shift of shifts) {
-    await upsertShiftToSupabase(shift);
-  }
+  await Promise.all(shifts.map((shift) => upsertShiftToSupabase(shift)));
   await writeLocalShifts(shifts);
 }
 
@@ -169,41 +185,41 @@ export async function deleteShift(id: string): Promise<void> {
   await writeLocalShifts(filtered);
 }
 
-export async function getShiftsHistory(employeeId?: string): Promise<any[]> {
+export async function getShiftsHistory(employeeId?: string): Promise<unknown[]> {
   const stored = await SecureStore.getItemAsync('shifts_history');
   const history = safeParseJson<unknown[]>(stored ?? '[]', []);
 
   if (employeeId) {
-    return history.filter((s: any) => s.employeeId === employeeId);
+    return history.filter((s: { employeeId?: string }) => s.employeeId === employeeId);
   }
 
   return history;
 }
 
-export async function addShiftHistory(record: any): Promise<void> {
+export async function addShiftHistory(record: unknown): Promise<void> {
   const history = await getShiftsHistory();
   history.push(record);
   await SecureStore.setItemAsync('shifts_history', JSON.stringify(history));
   dataEventBus.notify('shifts_history');
 }
 
-export async function updateShiftHistory(id: string, updates: any): Promise<void> {
+export async function updateShiftHistory(id: string, updates: Record<string, unknown>): Promise<void> {
   const history = await getShiftsHistory();
-  const index = history.findIndex((s: any) => s.id === id);
+  const index = history.findIndex((s: { id?: string }) => s.id === id);
 
   if (index !== -1) {
-    history[index] = { ...history[index], ...updates };
+    history[index] = { ...(history[index] as object), ...updates };
     await SecureStore.setItemAsync('shifts_history', JSON.stringify(history));
     dataEventBus.notify('shifts_history');
   }
 }
 
-export async function getActiveShift(): Promise<any | null> {
+export async function getActiveShift(): Promise<unknown | null> {
   const stored = await SecureStore.getItemAsync('active_shift');
   return stored ? safeParseJson<Shift | null>(stored, null) : null;
 }
 
-export async function setActiveShift(shift: any | null): Promise<void> {
+export async function setActiveShift(shift: unknown | null): Promise<void> {
   if (shift) {
     await SecureStore.setItemAsync('active_shift', JSON.stringify(shift));
   } else {

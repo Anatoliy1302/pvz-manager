@@ -8,7 +8,7 @@ export default {
     sectionSubtitle: 'Для входа в приложение',
     owner: {
       title: 'Владелец ПВЗ',
-      description: 'Финансы, сотрудники, расписание и настройки пункта',
+      description: 'Регистрация по email. Финансы, сотрудники и настройки',
     },
     admin: {
       title: 'Администратор',
@@ -16,13 +16,36 @@ export default {
     },
     employee: {
       title: 'Сотрудник',
-      description: 'Смены, расписание, статистика и личные выплаты',
+      description: 'Вход по номеру телефона и SMS-коду из приглашения',
     },
   },
   phone: {
     title: 'Номер телефона',
-    subtitle: 'Введите номер для входа в приложение',
+    subtitle: 'Введите номер, указанный в приглашении от владельца',
     placeholder: '+7 (___) ___-__-__',
+  },
+  email: {
+    title: 'Email владельца',
+    subtitle: 'Введите email для регистрации или входа',
+    placeholder: 'name@example.com',
+  },
+  emailOtp: {
+    title: 'Код из письма',
+    subtitle: 'Введите {{length}}-значный код, отправленный на {{email}}',
+    resend: 'Отправить код повторно',
+    checkInbox: 'Код отправлен на почту. Проверьте входящие и «Спам».',
+    sendUncertain: 'Запрос отправлен. Если письмо не пришло — запросите код повторно после таймера.',
+  },
+  otpDelivery: {
+    sending: 'Отправляем код…',
+    sentEmail: 'Письмо отправлено на {{contact}}',
+    sentSms: 'SMS отправлено на {{contact}}',
+    eta: 'Обычно приходит за 1–2 минуты',
+    spamHint: 'Проверьте папку «Спам», отправитель: noreply@pvzpersonal.ru',
+    useLatest: 'Введите код из последнего письма',
+    uncertain: 'Запрос отправлен. Если код не пришёл — нажмите «Отправить повторно» после таймера.',
+    rateLimited: 'Слишком много запросов. Подождите {{minutes}} мин.',
+    resendAfter: 'Повторная отправка через {{seconds}} с',
   },
   sms: {
     title: 'Код из SMS',
@@ -30,6 +53,9 @@ export default {
     subtitleStub: 'Введите {{length}}-значный код (заглушка для тестов) на {{phone}}',
     resendTimer: 'Отправить код повторно ({{seconds}}с)',
     resend: 'Отправить код повторно',
+    checkPhone: 'Код отправлен. Дождитесь SMS (до 2 минут) и введите последний полученный код.',
+    sendUncertain: 'Ответ сервера задержался. Если SMS не придёт за 2 минуты — запросите код снова.',
+    demoHint: 'Демо-режим: SMS не отправляется. Используйте код {{code}}.',
     placeholder: 'Код из SMS',
   },
   pin: {
@@ -43,7 +69,9 @@ export default {
     forgot: 'Забыли PIN?',
     forgotTitle: 'Сброс PIN',
     forgotMessage: 'PIN будет удалён. Для входа потребуется повторная SMS-верификация.',
+    forgotMessageEmail: 'PIN будет удалён. Для входа потребуется повторная верификация по email.',
     forgotConfirm: 'Сбросить',
+    otpSkipped: 'Установите новый PIN.',
     forgotRequiresOtp: 'Для сброса PIN включите вход по SMS (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true).',
     locked: 'Слишком много попыток. Повторите через {{seconds}} сек.',
     expoGoHint: 'В Expo Go Face ID приложения недоступен. Используйте PIN или соберите standalone-приложение.',
@@ -68,7 +96,7 @@ export default {
   quickLogin: {
     title: 'С возвращением!',
     submit: 'Войти',
-    switchAccount: 'Войти другим номером',
+    switchAccount: 'Войти другим аккаунтом',
   },
   biometric: {
     enableTitle: 'Включить {{label}}?',
@@ -80,6 +108,7 @@ export default {
     confirmLogin: 'Подтвердите вход в приложение',
   },
   sessionExpired: 'Сессия истекла. Введите код из SMS для входа.',
+  sessionExpiredEmail: 'Сессия истекла. Введите код из письма для входа.',
   confirmationTitle: 'Подтверждение',
   devCodeStub: 'Код подтверждения (заглушка)',
   devCodeMessage: 'Ваш код: {{code}}',

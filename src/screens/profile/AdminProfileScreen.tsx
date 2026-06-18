@@ -15,9 +15,10 @@ import ProfileHeader from '../../components/common/ProfileHeader';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
-import { getAppVersion } from '../../constants/legal';
+import { getAppVersion, openLegalDocument, type LegalDocument } from '../../constants/legal';
 import {
   LogOut,
+  Trash2,
   Info,
   FileText,
   LifeBuoy,
@@ -37,7 +38,8 @@ import type { LucideIcon } from 'lucide-react-native';
 interface MenuItem {
   title: string;
   icon: LucideIcon;
-  screen: string;
+  screen?: string;
+  legalDocument?: LegalDocument;
   description: string;
 }
 
@@ -133,8 +135,20 @@ export default function AdminProfileScreen({ navigation }: any) {
       {
         title: t('screens.profile.privacy'),
         icon: FileText,
-        screen: 'Privacy',
+        legalDocument: 'privacy',
         description: t('screens.profile.privacyDesc'),
+      },
+      {
+        title: t('screens.profile.terms'),
+        icon: FileText,
+        legalDocument: 'terms',
+        description: t('screens.profile.termsDesc'),
+      },
+      {
+        title: t('screens.profile.consent'),
+        icon: FileText,
+        legalDocument: 'consent',
+        description: t('screens.profile.consentDesc'),
       },
     ],
     [t]
@@ -155,9 +169,17 @@ export default function AdminProfileScreen({ navigation }: any) {
 
   const renderMenuItem = (item: MenuItem, index: number) => (
     <TouchableOpacity
-      key={item.screen + item.title}
+      key={(item.screen ?? item.legalDocument ?? item.title) + item.title}
       style={[styles.menuItem, index === 0 && styles.menuItemFirst]}
-      onPress={() => navigation.navigate(item.screen)}
+      onPress={() => {
+        if (item.legalDocument) {
+          openLegalDocument(item.legalDocument);
+          return;
+        }
+        if (item.screen) {
+          navigation.navigate(item.screen);
+        }
+      }}
       activeOpacity={0.7}
     >
       <View style={styles.menuIcon}>
@@ -233,6 +255,16 @@ export default function AdminProfileScreen({ navigation }: any) {
           <Text style={styles.sectionTitle}>{t('screens.profile.about')}</Text>
           {aboutItems.map(renderMenuItem)}
         </View>
+
+        <TouchableOpacity
+          style={styles.deleteAccountLink}
+          onPress={() => navigation.navigate('DeleteAccount')}
+          activeOpacity={0.7}
+          testID="profile-delete-account-link"
+        >
+          <Trash2 size={20} color={staticColors.danger} />
+          <Text style={styles.deleteAccountText}>{t('screens.deleteAccount.profileLink')}</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <LogOut size={20} color={staticColors.danger} />
@@ -329,6 +361,21 @@ const createStyles = (
     menuContent: { flex: 1 },
     menuTitle: { fontSize: 16, fontWeight: '500', color: screen.text, marginBottom: 2 },
     menuDescription: { fontSize: 12, color: screen.textSecondary },
+    deleteAccountLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      marginHorizontal: 16,
+      marginTop: 20,
+      paddingVertical: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#FFCDD2',
+      backgroundColor: '#FFF5F5',
+      minHeight: 48,
+    },
+    deleteAccountText: { fontSize: 15, fontWeight: '600', color: staticColors.danger },
     logoutButton: {
       flexDirection: 'row',
       alignItems: 'center',

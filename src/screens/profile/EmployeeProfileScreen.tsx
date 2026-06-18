@@ -15,9 +15,10 @@ import ProfileHeader from '../../components/common/ProfileHeader';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
-import { getAppVersion } from '../../constants/legal';
+import { getAppVersion, openLegalDocument } from '../../constants/legal';
 import {
   LogOut,
+  Trash2,
   ChevronRight,
   ChevronLeft,
   Info,
@@ -172,7 +173,7 @@ export default function EmployeeProfileScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('Privacy')}
+            onPress={() => openLegalDocument('privacy')}
             activeOpacity={0.7}
           >
             <View style={styles.menuIcon}>
@@ -184,7 +185,47 @@ export default function EmployeeProfileScreen({ navigation }: any) {
             </View>
             <ChevronRight size={18} color={staticColors.grayLight} />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => openLegalDocument('terms')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIcon}>
+              <FileText size={20} color={colors.primary} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>{t('screens.profile.terms')}</Text>
+              <Text style={styles.menuDescription}>{t('screens.profile.termsDesc')}</Text>
+            </View>
+            <ChevronRight size={18} color={staticColors.grayLight} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => openLegalDocument('consent')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuIcon}>
+              <FileText size={20} color={colors.primary} />
+            </View>
+            <View style={styles.menuContent}>
+              <Text style={styles.menuTitle}>{t('screens.profile.consent')}</Text>
+              <Text style={styles.menuDescription}>{t('screens.profile.consentDesc')}</Text>
+            </View>
+            <ChevronRight size={18} color={staticColors.grayLight} />
+          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={styles.deleteAccountLink}
+          onPress={() => navigation.navigate('DeleteAccount')}
+          activeOpacity={0.7}
+          testID="profile-delete-account-link"
+        >
+          <Trash2 size={20} color={staticColors.danger} />
+          <Text style={styles.deleteAccountText}>{t('screens.deleteAccount.profileLink')}</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <LogOut size={20} color={staticColors.danger} />
@@ -279,6 +320,21 @@ const createStyles = (
     menuTitle: { fontSize: 16, fontWeight: '500', color: screen.text, marginBottom: 2 },
     menuDescription: { fontSize: 12, color: screen.textSecondary },
 
+    deleteAccountLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      marginHorizontal: 16,
+      marginTop: 20,
+      paddingVertical: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#FFCDD2',
+      backgroundColor: '#FFF5F5',
+      minHeight: 48,
+    },
+    deleteAccountText: { fontSize: 15, fontWeight: '600', color: staticColors.danger },
     logoutButton: {
       flexDirection: 'row',
       alignItems: 'center',

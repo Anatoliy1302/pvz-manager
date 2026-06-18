@@ -1,101 +1,144 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import {
+  decryptAuthPayload,
+  encryptAuthPayload,
+  isEncryptedAuthPayload,
+} from './authStorageCrypto';
 
 const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
 
-/** Префикс ключей Supabase Auth в AsyncStorage (до миграции). */
 const SUPABASE_AUTH_KEY_PREFIX = 'sb-';
+const ASYNC_OVERFLOW_SUFFIX = '__async_overflow';
+
+function isSupabaseAuthStorageKey(key: string): boolean {
+  return key.startsWith(SUPABASE_AUTH_KEY_PREFIX) || key.includes('supabase.auth');
+}
+
+function isAsyncOverflowKey(key: string): boolean {
+  return key.endsWith(ASYNC_OVERFLOW_SUFFIX);
+}
+
+async function clearAsyncOverflow(key: string): Promise<void> {
+  await AsyncStorage.removeItem(key);
+  await AsyncStorage.removeItem(`${key}${ASYNC_OVERFLOW_SUFFIX}`);
+}
+
+/** Удалить устаревшую копию сессии из Keychain (JWT >2048 байт там не хранится). */
+async function purgeLegacySecureStoreAuthKey(key: string): Promise<void> {
+  if (Platform.OS === 'web') return;
+  await SecureStore.deleteItemAsync(key, SECURE_OPTIONS).catch(() => undefined);
+}
+
+async function readStoredValue(key: string): Promise<string | null> {
+  const stored = await AsyncStorage.getItem(key);
+  if (!stored) return null;
+
+  if (Platform.OS === 'web' || !isEncryptedAuthPayload(stored)) {
+    return stored;
+  }
+
+  const decrypted = await decryptAuthPayload(stored);
+  if (!decrypted) {
+    if (__DEV__) {
+      console.warn('[AuthStorage] Не удалось расшифровать сессию');
+    }
+    return null;
+  }
+  return decrypted;
+}
+
+async function writeStoredValue(key: string, value: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.setItem(key, value);
+    return;
+  }
+
+  const encrypted = await encryptAuthPayload(value);
+  await AsyncStorage.setItem(key, encrypted);
+}
 
 /**
- * Адаптер хранилища для Supabase Auth.
- * На native — только SecureStore (без fallback на AsyncStorage).
- * На web — AsyncStorage.
+ * Хранилище Supabase Auth.
+ * JWT-сессия шифруется AES-256-GCM; ключ шифрования — в SecureStore, payload — в AsyncStorage.
  */
 export const secureStorageAdapter = {
   getItem: async (key: string): Promise<string | null> => {
-    if (Platform.OS === 'web') {
-      return AsyncStorage.getItem(key);
+    if (isAsyncOverflowKey(key)) {
+      return null;
     }
 
     try {
-      const value = await SecureStore.getItemAsync(key, SECURE_OPTIONS);
-      if (value !== null) {
-        return value;
-      }
-
-      // Одноразовая миграция сессии из AsyncStorage → SecureStore
-      const legacy = await AsyncStorage.getItem(key);
-      if (legacy !== null) {
-        await SecureStore.setItemAsync(key, legacy, SECURE_OPTIONS);
-        await AsyncStorage.removeItem(key);
-        console.info(`[AuthStorage] Мигрирован ключ ${key} из AsyncStorage в SecureStore`);
-        return legacy;
-      }
-
-      return null;
+      return await readStoredValue(key);
     } catch (error) {
-      console.error(`[AuthStorage] Ошибка чтения ключа ${key}:`, error);
+      console.error(`[AuthStorage] Ошибка чтения ${key}:`, error);
       return null;
     }
   },
 
   setItem: async (key: string, value: string): Promise<void> => {
-    if (Platform.OS === 'web') {
-      await AsyncStorage.setItem(key, value);
-      return;
-    }
-
     try {
-      await SecureStore.setItemAsync(key, value, SECURE_OPTIONS);
-      // Удаляем устаревшую копию из AsyncStorage, если была
-      await AsyncStorage.removeItem(key).catch(() => undefined);
+      await writeStoredValue(key, value);
+      await purgeLegacySecureStoreAuthKey(key);
+      await clearAsyncOverflow(key);
     } catch (error) {
-      console.error(`[AuthStorage] Ошибка записи ключа ${key}:`, error);
-      throw new Error('Не удалось сохранить данные сессии в защищённом хранилище');
+      console.error(`[AuthStorage] Ошибка записи ${key}:`, error);
+      throw new Error('Не удалось сохранить данные сессии');
     }
   },
 
   removeItem: async (key: string): Promise<void> => {
-    if (Platform.OS === 'web') {
-      await AsyncStorage.removeItem(key);
-      return;
-    }
-
-    try {
-      await SecureStore.deleteItemAsync(key, SECURE_OPTIONS);
-    } catch (error) {
-      console.error(`[AuthStorage] Ошибка удаления ключа ${key}:`, error);
-    }
-
-    await AsyncStorage.removeItem(key).catch(() => undefined);
+    await AsyncStorage.removeItem(key);
+    await clearAsyncOverflow(key);
+    await purgeLegacySecureStoreAuthKey(key);
   },
 };
 
-/** Миграция всех ключей Supabase Auth из AsyncStorage в SecureStore при старте. */
+/** Миграция: шифрование plaintext-сессий и очистка legacy-ключей. */
 export async function migrateSupabaseAuthFromAsyncStorage(): Promise<void> {
   if (Platform.OS === 'web') return;
 
   try {
     const allKeys = await AsyncStorage.getAllKeys();
     const authKeys = allKeys.filter(
-      (k) => k.startsWith(SUPABASE_AUTH_KEY_PREFIX) || k.includes('supabase.auth')
+      (k) => !isAsyncOverflowKey(k) && isSupabaseAuthStorageKey(k)
     );
 
     for (const key of authKeys) {
-      const legacy = await AsyncStorage.getItem(key);
-      if (legacy === null) continue;
+      await purgeLegacySecureStoreAuthKey(key);
 
-      const existing = await SecureStore.getItemAsync(key, SECURE_OPTIONS);
-      if (existing === null) {
-        await SecureStore.setItemAsync(key, legacy, SECURE_OPTIONS);
-        console.info(`[AuthStorage] Мигрирован ${key} → SecureStore`);
+      const marker = await AsyncStorage.getItem(`${key}${ASYNC_OVERFLOW_SUFFIX}`);
+      if (marker === '1') {
+        await AsyncStorage.removeItem(`${key}${ASYNC_OVERFLOW_SUFFIX}`);
       }
-      await AsyncStorage.removeItem(key);
+
+      const raw = await AsyncStorage.getItem(key);
+      if (raw && !isEncryptedAuthPayload(raw)) {
+        await writeStoredValue(key, raw);
+      }
     }
   } catch (error) {
-    console.error('[AuthStorage] Ошибка миграции Supabase-сессии:', error);
+    console.error('[AuthStorage] Ошибка миграции:', error);
+  }
+}
+
+/** Удаляет зашифрованную Supabase Auth-сессию из AsyncStorage / SecureStore. */
+export async function clearSupabaseAuthStorage(): Promise<void> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    for (const key of allKeys) {
+      if (isAsyncOverflowKey(key)) {
+        await AsyncStorage.removeItem(key);
+        continue;
+      }
+      if (isSupabaseAuthStorageKey(key)) {
+        await secureStorageAdapter.removeItem(key);
+      }
+    }
+  } catch (error) {
+    console.error('[AuthStorage] Ошибка очистки auth storage:', error);
   }
 }

@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { User, Shift, Pvz } from '../types/user';
 import { resolvePvzId } from '../utils/supabaseHelpers';
 import DataService from './DataService';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 import { ensurePvzSynced } from './SupabasePvzService';
 import { upsertShiftToSupabase } from './SupabaseShiftService';
 import {
@@ -68,7 +68,7 @@ async function runStep(label: string, fn: () => Promise<string | null | void>): 
 export async function syncSupabaseOnLogin(sessionUser: User): Promise<SyncResult> {
   const errors: string[] = [];
 
-  if (!(await hasSupabaseSession())) {
+  if (!(await ensureSupabaseClientSession())) {
     return { success: true, errors: [] };
   }
 
@@ -102,12 +102,14 @@ export async function syncSupabaseOnLogin(sessionUser: User): Promise<SyncResult
 async function syncPvzRecords(sessionUser: User): Promise<void> {
   if (sessionUser.role === 'owner') {
     const pvzs = await DataService.getPvzsByOwner(sessionUser.id);
-    for (const p of pvzs) {
-      const resolvedId = await ensurePvzSynced(p);
-      if (resolvedId !== p.id) {
-        await DataService.savePvz({ ...p, id: resolvedId });
-      }
-    }
+    await Promise.all(
+      pvzs.map(async (p) => {
+        const resolvedId = await ensurePvzSynced(p);
+        if (resolvedId !== p.id) {
+          await DataService.savePvz({ ...p, id: resolvedId });
+        }
+      })
+    );
     return;
   }
 
@@ -133,9 +135,7 @@ async function syncShiftsUp(): Promise<void> {
   if (!localShifts) return;
 
   const shifts = safeParseJson<Shift[]>(localShifts, []);
-  for (const shift of shifts) {
-    await upsertShiftToSupabase(shift);
-  }
+  await Promise.all(shifts.map((shift) => upsertShiftToSupabase(shift)));
 }
 
 async function syncProfiles(sessionUser: User): Promise<string | null> {
@@ -155,19 +155,28 @@ async function syncProfiles(sessionUser: User): Promise<string | null> {
 }
 
 async function refreshCaches(sessionUser: User): Promise<void> {
-  await DataService.getShifts();
-  await DataService.getAllShiftRequests();
+  const tasks: Promise<unknown>[] = [
+    DataService.refreshShiftsCache(),
+    DataService.refreshShiftRequestsCache(),
+  ];
   if (sessionUser.role === 'owner' || sessionUser.role === 'admin') {
-    await DataService.getInvitations(sessionUser.id);
+    tasks.push(DataService.getInvitations(sessionUser.id));
   }
+  await Promise.all(tasks);
 }
 
 async function syncInvitations(sessionUser: User): Promise<void> {
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
   let allInvitations = safeParseJson<SyncInvitation[]>(allInvitationsRaw ?? '[]', []);
 
-  for (const invitation of allInvitations) {
-    const synced = await upsertInvitationToSupabase(invitation);
+  const upsertResults = await Promise.all(
+    allInvitations.map(async (invitation) => {
+      const synced = await upsertInvitationToSupabase(invitation);
+      return { invitation, synced };
+    })
+  );
+
+  for (const { invitation, synced } of upsertResults) {
     if (synced && synced.id !== invitation.id) {
       allInvitations = allInvitations.map((inv) =>
         inv.id === invitation.id ? { ...inv, id: synced.id, pvzId: synced.pvzId } : inv
@@ -200,8 +209,14 @@ async function syncShiftRequests(): Promise<void> {
   const stored = await SecureStore.getItemAsync('all_shift_requests');
   let local = safeParseJson<ShiftRequest[]>(stored ?? '[]', []);
 
-  for (const request of local) {
-    const synced = await upsertShiftRequestToSupabase(request);
+  const upsertResults = await Promise.all(
+    local.map(async (request) => {
+      const synced = await upsertShiftRequestToSupabase(request);
+      return { request, synced };
+    })
+  );
+
+  for (const { request, synced } of upsertResults) {
     if (synced && synced.id !== request.id) {
       local = local.map((r) =>
         r.id === request.id ? { ...r, id: synced.id, pvzId: synced.pvzId } : r
@@ -226,26 +241,27 @@ async function syncPayments(): Promise<void> {
     throw new Error('Не удалось загрузить выплаты из облака');
   }
 
-  const pvzIds = new Set<string>();
   const pvzs = await DataService.getPvzs();
-  pvzs.forEach((p) => pvzIds.add(p.id));
 
-  for (const pvzId of pvzIds) {
-    const resolvedPvzId = await resolvePvzId(pvzId);
-    const key = `payments_${pvzId}`;
-    const stored = await StorageService.getItem(key);
-    const local = safeParseJson<Payment[]>(stored ?? '[]', []);
+  await Promise.all(
+    pvzs.map(async (pvz) => {
+      const pvzId = pvz.id;
+      const resolvedPvzId = await resolvePvzId(pvzId);
+      const key = `payments_${pvzId}`;
+      const stored = await StorageService.getItem(key);
+      const local = safeParseJson<Payment[]>(stored ?? '[]', []);
 
-    for (const payment of local) {
-      await upsertPaymentToSupabase({ ...payment, pvzId });
-    }
+      await Promise.all(
+        local.map((payment) => upsertPaymentToSupabase({ ...payment, pvzId }))
+      );
 
-    const remoteForPvz = remote.filter((p) => p.pvzId === resolvedPvzId || p.pvzId === pvzId);
-    if (remoteForPvz.length === 0 && local.length === 0) continue;
+      const remoteForPvz = remote.filter((p) => p.pvzId === resolvedPvzId || p.pvzId === pvzId);
+      if (remoteForPvz.length === 0 && local.length === 0) return;
 
-    const merged = mergePayments(local, remoteForPvz.map((p) => ({ ...p, pvzId })));
-    await StorageService.setItem(key, JSON.stringify(merged));
-  }
+      const merged = mergePayments(local, remoteForPvz.map((p) => ({ ...p, pvzId })));
+      await StorageService.setItem(key, JSON.stringify(merged));
+    })
+  );
 }
 
 async function syncPenalties(): Promise<void> {
@@ -259,66 +275,77 @@ async function syncPenalties(): Promise<void> {
     .filter((u) => u.role === 'employee' && u.status === 'active')
     .map((u) => u.id);
 
-  for (const employeeId of employeeIds) {
-    const key = `penalties_${employeeId}`;
-    const stored = await StorageService.getItem(key);
-    const local = safeParseJson<SyncPenalty[]>(stored ?? '[]', []);
-    const employee = users.find((u) => u.id === employeeId);
-    const pvzId = employee?.pvzId;
+  await Promise.all(
+    employeeIds.map(async (employeeId) => {
+      const key = `penalties_${employeeId}`;
+      const stored = await StorageService.getItem(key);
+      const local = safeParseJson<SyncPenalty[]>(stored ?? '[]', []);
+      const employee = users.find((u) => u.id === employeeId);
+      const pvzId = employee?.pvzId;
 
-    for (const penalty of local) {
-      await upsertPenaltyToSupabase({ ...penalty, pvzId: penalty.pvzId || pvzId });
-    }
+      await Promise.all(
+        local.map((penalty) =>
+          upsertPenaltyToSupabase({ ...penalty, pvzId: penalty.pvzId || pvzId })
+        )
+      );
 
-    const remoteForEmployee = remote.filter((p) => p.employeeId === employeeId);
-    if (remoteForEmployee.length === 0 && local.length === 0) continue;
+      const remoteForEmployee = remote.filter((p) => p.employeeId === employeeId);
+      if (remoteForEmployee.length === 0 && local.length === 0) return;
 
-    const merged = mergePenalties(
-      local,
-      remoteForEmployee.map((p) => ({
-        ...p,
-        employeeName: employee?.name || p.employeeName,
-        pvzId: p.pvzId || pvzId,
-      }))
-    );
-    await StorageService.setItem(key, JSON.stringify(merged));
-  }
+      const merged = mergePenalties(
+        local,
+        remoteForEmployee.map((p) => ({
+          ...p,
+          employeeName: employee?.name || p.employeeName,
+          pvzId: p.pvzId || pvzId,
+        }))
+      );
+      await StorageService.setItem(key, JSON.stringify(merged));
+    })
+  );
 }
 
 async function syncAdvanceRequests(): Promise<void> {
   const pvzs = await DataService.getPvzs();
-
-  for (const pvz of pvzs) {
-    const key = `advance_requests_${pvz.id}`;
-    const stored = await StorageService.getItem(key);
-    let local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
-
-    for (const request of local) {
-      const synced = await upsertAdvanceRequestToSupabase({ ...request, pvzId: pvz.id });
-      if (synced && synced.id !== request.id) {
-        local = local.map((item) =>
-          item.id === request.id ? { ...item, id: synced.id, pvzId: synced.pvzId } : item
-        );
-      }
-    }
-
-    const remote = await fetchAdvanceRequestsFromSupabase();
-    if (!remote) {
-      throw new Error('Не удалось загрузить авансы из облака');
-    }
-
-    const resolvedPvzId = await resolvePvzId(pvz.id);
-    const remoteForPvz = remote.filter(
-      (request) => request.pvzId === resolvedPvzId || request.pvzId === pvz.id
-    );
-    if (remoteForPvz.length === 0 && local.length === 0) continue;
-
-    const merged = mergeAdvanceRequests(
-      local,
-      remoteForPvz.map((request) => ({ ...request, pvzId: pvz.id }))
-    );
-    await StorageService.setItem(key, JSON.stringify(merged));
+  const remote = await fetchAdvanceRequestsFromSupabase();
+  if (!remote) {
+    throw new Error('Не удалось загрузить авансы из облака');
   }
+
+  await Promise.all(
+    pvzs.map(async (pvz) => {
+      const key = `advance_requests_${pvz.id}`;
+      const stored = await StorageService.getItem(key);
+      let local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
+
+      const upsertResults = await Promise.all(
+        local.map(async (request) => {
+          const synced = await upsertAdvanceRequestToSupabase({ ...request, pvzId: pvz.id });
+          return { request, synced };
+        })
+      );
+
+      for (const { request, synced } of upsertResults) {
+        if (synced && synced.id !== request.id) {
+          local = local.map((item) =>
+            item.id === request.id ? { ...item, id: synced.id, pvzId: synced.pvzId } : item
+          );
+        }
+      }
+
+      const resolvedPvzId = await resolvePvzId(pvz.id);
+      const remoteForPvz = remote.filter(
+        (request) => request.pvzId === resolvedPvzId || request.pvzId === pvz.id
+      );
+      if (remoteForPvz.length === 0 && local.length === 0) return;
+
+      const merged = mergeAdvanceRequests(
+        local,
+        remoteForPvz.map((request) => ({ ...request, pvzId: pvz.id }))
+      );
+      await StorageService.setItem(key, JSON.stringify(merged));
+    })
+  );
 }
 
 async function syncSalarySettings(sessionUser: User): Promise<void> {
@@ -334,9 +361,7 @@ async function syncSalarySettings(sessionUser: User): Promise<void> {
       ? await DataService.getPvzsByOwner(sessionUser.id)
       : await DataService.getPvzs();
 
-  for (const pvz of pvzs) {
-    await syncPvzSalarySettings(pvz.id);
-  }
+  await Promise.all(pvzs.map((pvz) => syncPvzSalarySettings(pvz.id)));
 }
 
 async function syncNotifications(): Promise<void> {

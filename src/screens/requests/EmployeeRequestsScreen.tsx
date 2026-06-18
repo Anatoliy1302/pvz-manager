@@ -5,7 +5,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Modal,
   TextInput,
@@ -37,6 +37,7 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { formatDate, toDateKey } from '../../utils/dateHelpers';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { generateSecureId } from '../../utils/generateSecureId';
 import {
   getShiftPresetsForPvz,
@@ -309,6 +310,75 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
 
   const pendingCount = requests.filter((r) => r.status === 'pending').length;
 
+  const listHeader = (
+    <>
+      <View style={styles.statsRow}>
+        <View style={[styles.statCard, ui.card]}>
+          <Text style={styles.statValue}>{pendingCount}</Text>
+          <Text style={[styles.statLabel, ui.subtitle]}>{t('common.filters.pending')}</Text>
+        </View>
+        <View style={[styles.statCard, ui.card]}>
+          <Text style={[styles.statValue, { color: colors.success }]}>
+            {requests.filter((r) => r.status === 'approved').length}
+          </Text>
+          <Text style={[styles.statLabel, ui.subtitle]}>{t('common.status.approved')}</Text>
+        </View>
+        <View style={[styles.statCard, ui.card]}>
+          <Text style={[styles.statValue, { color: colors.danger }]}>
+            {requests.filter((r) => r.status === 'rejected').length}
+          </Text>
+          <Text style={[styles.statLabel, ui.subtitle]}>{t('common.status.rejected')}</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.createButton} onPress={openNewRequest}>
+        <LinearGradient
+          colors={[colors.primary, colors.primaryDark]}
+          style={styles.createButtonGradient}
+        >
+          <CalendarIcon size={20} color="#FFFFFF" />
+          <Text style={styles.createButtonText}>{t('screens.requests.newRequest')}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+
+      <Text style={[styles.sectionTitle, ui.sectionTitle]}>{t('screens.requests.myRequests')}</Text>
+    </>
+  );
+
+  const renderRequestItem = useCallback(
+    ({ item: request }: { item: (typeof requests)[number] }) => (
+      <View style={[styles.requestCard, ui.card]}>
+        <View style={styles.requestHeader}>
+          <View style={styles.requestStatus}>
+            {getStatusIcon(request.status)}
+            <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
+              {getStatusText(request.status)}
+            </Text>
+          </View>
+          <Text style={[styles.requestDate, ui.title]}>{formatDate(request.date, 'dayMonth')}</Text>
+        </View>
+
+        <View style={styles.requestTime}>
+          <Clock size={14} color={colors.gray} />
+          <Text style={[styles.requestTimeText, ui.title]}>
+            {request.startTime} — {request.endTime}
+          </Text>
+        </View>
+
+        {request.reason ? (
+          <Text style={[styles.requestReason, ui.subtitle]} numberOfLines={2}>
+            {request.reason}
+          </Text>
+        ) : null}
+
+        <Text style={[styles.requestCreated, ui.subtitle]}>
+          {t('screens.requests.submittedAt', { date: formatCreatedAt(request.createdAt) })}
+        </Text>
+      </View>
+    ),
+    [ui, t, getStatusIcon, getStatusColor, getStatusText, formatCreatedAt]
+  );
+
   return (
     <PermissionGate permission="canRequestShifts" navigation={navigation}>
       <ThemedSafeAreaView>
@@ -325,83 +395,23 @@ export default function EmployeeRequestsScreen({ navigation }: any) {
           </TouchableOpacity>
         </LinearGradient>
 
-        <ScrollView
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, ui.card]}>
-              <Text style={styles.statValue}>{pendingCount}</Text>
-              <Text style={[styles.statLabel, ui.subtitle]}>{t('common.filters.pending')}</Text>
-            </View>
-            <View style={[styles.statCard, ui.card]}>
-              <Text style={[styles.statValue, { color: colors.success }]}>
-                {requests.filter((r) => r.status === 'approved').length}
-              </Text>
-              <Text style={[styles.statLabel, ui.subtitle]}>{t('common.status.approved')}</Text>
-            </View>
-            <View style={[styles.statCard, ui.card]}>
-              <Text style={[styles.statValue, { color: colors.danger }]}>
-                {requests.filter((r) => r.status === 'rejected').length}
-              </Text>
-              <Text style={[styles.statLabel, ui.subtitle]}>{t('common.status.rejected')}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.createButton} onPress={openNewRequest}>
-            <LinearGradient
-              colors={[colors.primary, colors.primaryDark]}
-              style={styles.createButtonGradient}
-            >
-              <CalendarIcon size={20} color="#FFFFFF" />
-              <Text style={styles.createButtonText}>{t('screens.requests.newRequest')}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <Text style={[styles.sectionTitle, ui.sectionTitle]}>{t('screens.requests.myRequests')}</Text>
-
-          {requests.length === 0 ? (
+        <FlatList
+          data={requests}
+          keyExtractor={(item) => item.id}
+          renderItem={renderRequestItem}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Send size={48} color={colors.grayLighter} />
               <Text style={[styles.emptyText, ui.subtitle]}>{t('screens.requests.empty')}</Text>
-              <Text style={[styles.emptySubtext, ui.subtitle]}>
-                {t('screens.requests.emptyHint')}
-              </Text>
+              <Text style={[styles.emptySubtext, ui.subtitle]}>{t('screens.requests.emptyHint')}</Text>
             </View>
-          ) : (
-            requests.map((request) => (
-              <View key={request.id} style={[styles.requestCard, ui.card]}>
-                <View style={styles.requestHeader}>
-                  <View style={styles.requestStatus}>
-                    {getStatusIcon(request.status)}
-                    <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
-                      {getStatusText(request.status)}
-                    </Text>
-                  </View>
-                  <Text style={[styles.requestDate, ui.title]}>{formatDate(request.date, 'dayMonth')}</Text>
-                </View>
-
-                <View style={styles.requestTime}>
-                  <Clock size={14} color={colors.gray} />
-                  <Text style={[styles.requestTimeText, ui.title]}>
-                    {request.startTime} — {request.endTime}
-                  </Text>
-                </View>
-
-                {request.reason ? (
-                  <Text style={[styles.requestReason, ui.subtitle]} numberOfLines={2}>
-                    {request.reason}
-                  </Text>
-                ) : null}
-
-                <Text style={[styles.requestCreated, ui.subtitle]}>
-                  {t('screens.requests.submittedAt', { date: formatCreatedAt(request.createdAt) })}
-                </Text>
-              </View>
-            ))
-          )}
-        </ScrollView>
+          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          {...FLAT_LIST_PERF}
+        />
 
         <UnifiedCalendar
           visible={showCalendar}

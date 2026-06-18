@@ -77,6 +77,17 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
   const saveTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const pendingValues = useRef<{ [key: string]: number }>({});
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      Object.values(saveTimeouts.current).forEach(clearTimeout);
+      saveTimeouts.current = {};
+      pendingValues.current = {};
+    };
+  }, []);
 
   useEffect(() => {
     if (userPvzs && userPvzs.length > 0 && !selectedPvzId) {
@@ -293,7 +304,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
       }));
       
       setTimeout(() => {
-        setSavingEmployeeId(null);
+        if (mountedRef.current) {
+          setSavingEmployeeId(null);
+        }
       }, 500);
     } catch (error) {
       console.error('Ошибка сохранения:', error);

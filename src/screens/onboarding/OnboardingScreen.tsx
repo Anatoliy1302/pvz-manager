@@ -9,7 +9,7 @@ import {
   View,
   ViewToken,
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as SecureStore from 'expo-secure-store';
 import { ChevronRight, LogIn } from 'lucide-react-native';
@@ -20,6 +20,7 @@ import { ONBOARDING_SLIDES, type OnboardingSlide } from './onboardingSlides';
 import { useOnboardingStyles } from './useOnboardingStyles';
 import OnboardingSlideContent from './components/OnboardingSlideContent';
 import OnboardingPagination from './components/OnboardingPagination';
+import GdprConsentBanner from '../../components/legal/GdprConsentBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -114,6 +115,7 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
             flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
           }, 100);
         }}
+        {...FLAT_LIST_PERF}
       />
 
       <View style={styles.footer}>
@@ -149,7 +151,7 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
         </TouchableOpacity>
 
         {isLastSlide ? (
-          <Text style={styles.privacyNote}>{t('onboarding.privacyConsent')}</Text>
+          <GdprConsentBanner style={styles.privacyNote} />
         ) : null}
       </View>
     </ThemedSafeAreaView>

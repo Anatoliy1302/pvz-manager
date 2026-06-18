@@ -1,0 +1,32 @@
+---
+description: Email domain, SMTP (NotiSend), Supabase Auth — pvzpersonal.ru
+alwaysApply: true
+---
+
+# Email: pvzpersonal.ru + NotiSend
+
+## Production mail
+
+| Role | Address |
+|------|---------|
+| Отправитель (Auth, системные) | `noreply@pvzpersonal.ru` |
+| Поддержка (UI, mailto) | `support@pvzpersonal.ru` |
+| Домен | `pvzpersonal.ru` |
+| SMTP | **NotiSend** (Россия), настроен в Supabase Dashboard |
+
+Все письма Supabase Auth (OTP, подтверждение, сброс) идут через SMTP Supabase → NotiSend → `noreply@pvzpersonal.ru`.
+
+## Код
+
+- **Не** передавать кастомный `from` в Supabase Auth — SMTP settings в Dashboard задают отправителя.
+- **Не** хардкодить `@gmail.com`, `@mail.ru`, `@pvz.ru`, `@pvz.owner`, `@temp.pvz`.
+- Константа поддержки: `SUPPORT_EMAIL` → `support@pvzpersonal.ru` (`src/constants/legal.ts`).
+- Локальные placeholder-email (не отправляются): `@users.pvzpersonal.ru`.
+- NotiSend API (вне Supabase Auth): ключ только в env/secrets (`NOTISEND_API_KEY`), **никогда** в репозиторий.
+
+## Supabase Email OTP
+
+- Длина OTP в Dashboard должна совпадать с `getOtpCodeLength()` в приложении (сейчас **6**).
+- Шаблоны **Magic Link** и **Confirm signup** — только `{{ .Token }}`, **без** `{{ .ConfirmationURL }}`.
+- **Confirm Email** в Dashboard = выключено (`mailer_autoconfirm: true`). Иначе при первой регистрации уходит письмо «Confirm signup» со ссылкой, а не код.
+- Шаблоны: `supabase/templates/magic-link-otp.html`, `confirmation-otp.html`. Применить: `node supabase/setup/apply-email-otp-template.mjs`.

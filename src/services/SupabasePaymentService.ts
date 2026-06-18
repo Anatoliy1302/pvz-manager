@@ -1,10 +1,21 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
+import { supabaseRestGetAll } from '../../lib/supabaseRest';
 import { Payment, PaymentType } from '../types/payment';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
 import { safeParseJson } from '../utils/safeJson';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { PAYMENT_COLUMNS } from './supabase/selectColumns';
+import {
+  getAuthAccessToken,
+  ensureSupabaseClientSession,
+  warmSupabaseClientSession,
+} from './SupabaseAuthService';
 
 const PAYMENT_META_PREFIX = '__meta__:';
+const PAYMENTS_CACHE_TTL_MS = 45_000;
+
+let paymentsCache: { at: number; data: Payment[] } | null = null;
+let paymentsFetchInFlight: Promise<Payment[] | null> | null = null;
 
 function encodePaymentNote(type: PaymentType, note?: string): string {
   return `${PAYMENT_META_PREFIX}${JSON.stringify({ type, note: note || '' })}`;
@@ -69,24 +80,70 @@ async function paymentToRow(payment: Payment): Promise<Record<string, unknown> |
   return row;
 }
 
-export async function fetchPaymentsFromSupabase(): Promise<Payment[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+function cachePayments(data: Payment[]): Payment[] {
+  paymentsCache = { at: Date.now(), data };
+  return data;
+}
 
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .order('created_at', { ascending: false });
+async function fetchPaymentsViaRest(accessToken: string): Promise<Payment[] | null> {
+  const rows = await supabaseRestGetAll<Record<string, unknown>>(
+    'payments',
+    `select=${PAYMENT_COLUMNS}&order=created_at.desc`,
+    accessToken
+  );
+  if (rows === null) return null;
+  return rows.map((row) => rowToPayment(row));
+}
 
-  if (error) {
-    console.warn('fetchPaymentsFromSupabase:', error.message);
+async function fetchPaymentsRemote(): Promise<Payment[] | null> {
+  const accessToken = await getAuthAccessToken();
+  if (!accessToken) return null;
+
+  const viaRest = await fetchPaymentsViaRest(accessToken);
+  if (viaRest) {
+    warmSupabaseClientSession();
+    return viaRest;
+  }
+
+  if (!(await ensureSupabaseClientSession())) return null;
+
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase.from('payments').select(PAYMENT_COLUMNS).order('created_at', { ascending: false })
+  );
+
+  if (!data) {
+    console.warn('fetchPaymentsFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToPayment(row as Record<string, unknown>));
+  return data.map((row) => rowToPayment(row));
+}
+
+export function invalidatePaymentsCache(): void {
+  paymentsCache = null;
+}
+
+export async function fetchPaymentsFromSupabase(): Promise<Payment[] | null> {
+  const now = Date.now();
+  if (paymentsCache && now - paymentsCache.at < PAYMENTS_CACHE_TTL_MS) {
+    return paymentsCache.data;
+  }
+
+  if (paymentsFetchInFlight) {
+    return paymentsFetchInFlight;
+  }
+
+  paymentsFetchInFlight = fetchPaymentsRemote()
+    .then((data) => (data ? cachePayments(data) : null))
+    .finally(() => {
+      paymentsFetchInFlight = null;
+    });
+
+  return paymentsFetchInFlight;
 }
 
 export async function upsertPaymentToSupabase(payment: Payment): Promise<Payment | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await paymentToRow(payment);
   if (!row) return null;
@@ -94,24 +151,26 @@ export async function upsertPaymentToSupabase(payment: Payment): Promise<Payment
   const { data, error } = await supabase
     .from('payments')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(PAYMENT_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('payments')
       .insert(row)
-      .select('*')
+      .select(PAYMENT_COLUMNS)
       .single();
 
     if (insertError) {
       console.warn('upsertPaymentToSupabase:', insertError.message);
       return null;
     }
+    invalidatePaymentsCache();
     const synced = rowToPayment(inserted as Record<string, unknown>);
     return { ...payment, ...synced, employeeName: payment.employeeName };
   }
 
+  invalidatePaymentsCache();
   const synced = rowToPayment(data as Record<string, unknown>);
   return { ...payment, ...synced, employeeName: payment.employeeName };
 }

@@ -1,11 +1,11 @@
 // src/screens/owner/PVZManagementScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -15,12 +15,13 @@ import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
-import { useFocusEffect } from '@react-navigation/native';
+import { usePvzListQuery, useEmployeesQuery } from '../../hooks/queries';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { Pvz } from '../../types/user';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
+import { userWorksAtPvz } from '../../utils/pvzUserHelpers';
 import {
   Building2,
   Plus,
@@ -32,6 +33,7 @@ import {
   Users,
   Check,
 } from 'lucide-react-native';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 type PvzWithCount = Pvz & { employeesCount: number };
 
@@ -41,38 +43,53 @@ export default function PVZManagementScreen({ navigation }: any) {
   const { ui, screen } = useThemedScreen();
   const styles = createStyles(screen);
   const { showError, showSuccess } = useScreenToast();
-  const [pvzs, setPvzs] = useState<PvzWithCount[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [totalEmployees, setTotalEmployees] = useState(0);
 
-  const loadPvzs = async () => {
-    if (!user?.id) return;
-    try {
-      const myPvzs = await DataService.getPvzsByOwner(user.id);
-      const users = await DataService.getUsers();
+  const pvzScope = user?.id ? { kind: 'owner' as const, ownerId: user.id } : null;
+  const {
+    data: pvzList = [],
+    isLoading,
+    refetch: refetchPvzs,
+  } = usePvzListQuery(pvzScope, { enabled: Boolean(user?.id) });
+  const { data: allEmployees = [], refetch: refetchEmployees } = useEmployeesQuery(undefined, {
+    enabled: Boolean(user?.id),
+  });
 
-      const pvzsWithCount = myPvzs.map((item) => ({
+  const pvzs = useMemo<PvzWithCount[]>(
+    () =>
+      pvzList.map((item) => ({
         ...item,
-        employeesCount: users.filter(
-          (u) => u.pvzId === item.id && u.role !== 'owner' && u.status === 'active'
+        employeesCount: allEmployees.filter(
+          (u) => userWorksAtPvz(u, item.id) && u.role !== 'owner' && u.status === 'active'
         ).length,
-      }));
+      })),
+    [pvzList, allEmployees]
+  );
 
-      setPvzs(pvzsWithCount);
-      setTotalEmployees(
-        pvzsWithCount.reduce((sum, p) => sum + (p.employeesCount || 0), 0)
-      );
+  const totalEmployees = useMemo(
+    () => pvzs.reduce((sum, p) => sum + (p.employeesCount || 0), 0),
+    [pvzs]
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchPvzs(), refetchEmployees(), refreshUserData()]);
     } catch (error) {
       console.error('Ошибка загрузки ПВЗ:', error);
       showError(t('alerts.network.loadPvzFailed'));
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, [refetchPvzs, refetchEmployees, refreshUserData, showError, t]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadPvzs();
-    }, [user?.id])
-  );
+  const formatWorkingHours = (item: Pvz) => {
+    if (item.workStart && item.workEnd) {
+      return `${item.workStart} — ${item.workEnd}`;
+    }
+    if (item.workingHours) return item.workingHours;
+    return t('common.notSpecifiedAddress');
+  };
 
   const deletePvz = (id: string, name: string, employeesCount: number = 0) => {
     if (employeesCount > 0) {
@@ -89,7 +106,7 @@ export default function PVZManagementScreen({ navigation }: any) {
           try {
             await DataService.deletePvz(id);
             await refreshUserData();
-            await loadPvzs();
+            await Promise.all([refetchPvzs(), refetchEmployees()]);
             showSuccess(t('alerts.success.pvzDeleted'));
           } catch (error) {
             console.error('Ошибка удаления:', error);
@@ -98,21 +115,6 @@ export default function PVZManagementScreen({ navigation }: any) {
         },
       },
     ]);
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadPvzs();
-    await refreshUserData();
-    setRefreshing(false);
-  };
-
-  const formatWorkingHours = (item: Pvz) => {
-    if (item.workStart && item.workEnd) {
-      return `${item.workStart} — ${item.workEnd}`;
-    }
-    if (item.workingHours) return item.workingHours;
-    return t('common.notSpecifiedAddress');
   };
 
   const formatPhone = (phone: string) => {
@@ -129,6 +131,92 @@ export default function PVZManagementScreen({ navigation }: any) {
     navigation.navigate('PVZForm', { pvz: item });
   };
 
+  const handleAddPvz = () => {
+    navigation.navigate('PVZForm');
+  };
+
+  const renderPvzItem = useCallback(
+    ({ item }: { item: PvzWithCount }) => {
+      const isActive = activePvz?.id === item.id;
+      return (
+        <TouchableOpacity
+          style={[styles.pvzCard, ui.card, isActive && styles.pvzCardActive]}
+          onPress={() => openEdit(item)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.pvzHeader}>
+            <View style={styles.pvzTitleRow}>
+              <Text style={[styles.pvzName, ui.title]} numberOfLines={1}>
+                {item.name}
+              </Text>
+              {isActive && (
+                <View style={styles.activeBadge}>
+                  <Check size={12} color={colors.primary} />
+                  <Text style={styles.activeBadgeText}>{t('screens.owner.currentBadge')}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.pvzActions}>
+              {!isActive && pvzs.length > 1 && (
+                <TouchableOpacity
+                  onPress={() => handleSelectPvz(item.id)}
+                  style={styles.selectButton}
+                >
+                  <Text style={styles.selectButtonText}>{t('screens.owner.selectBtn')}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => openEdit(item)}
+                style={styles.actionButton}
+                accessibilityLabel={t('common.actions.edit')}
+              >
+                <Edit2 size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => deletePvz(item.id, item.name, item.employeesCount || 0)}
+                style={styles.actionButton}
+                accessibilityLabel={t('common.actions.delete')}
+              >
+                <Trash2 size={18} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.pvzInfo}>
+            <MapPin size={14} color={screen.textSecondary} />
+            <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]} numberOfLines={2}>
+              {item.address || t('common.pvz.noAddress')}
+            </Text>
+          </View>
+
+          <View style={styles.pvzInfo}>
+            <Clock size={14} color={screen.textSecondary} />
+            <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]}>
+              {formatWorkingHours(item)}
+            </Text>
+          </View>
+
+          <View style={styles.pvzInfo}>
+            <Phone size={14} color={screen.textSecondary} />
+            <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]}>
+              {formatPhone(item.phone)}
+            </Text>
+          </View>
+
+          <View style={[styles.pvzFooter, { borderTopColor: screen.border }]}>
+            <View style={[styles.pvzEmployeesBadge, { backgroundColor: ui.input.backgroundColor }]}>
+              <Users size={12} color={colors.primary} />
+              <Text style={styles.pvzEmployeesText}>
+                {t('screens.owner.employeesCount', { count: item.employeesCount || 0 })}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [activePvz?.id, ui, screen, t, pvzs.length, openEdit, handleSelectPvz, deletePvz, formatWorkingHours, formatPhone]
+  );
+
   return (
     <ThemedSafeAreaView style={styles.container}>
       <ScreenHeader
@@ -136,7 +224,7 @@ export default function PVZManagementScreen({ navigation }: any) {
         onBack={() => navigation.goBack()}
         right={
           <TouchableOpacity
-            onPress={() => navigation.navigate('PVZForm')}
+            onPress={handleAddPvz}
             accessibilityLabel={t('screens.owner.addPvzLabel')}
           >
             <Plus size={24} color="#FFFFFF" />
@@ -158,105 +246,24 @@ export default function PVZManagementScreen({ navigation }: any) {
         </View>
       </View>
 
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      <FlatList
+        data={pvzs}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPvzItem}
+        refreshControl={<RefreshControl refreshing={refreshing || isLoading} onRefresh={handleRefresh} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-      >
-        {pvzs.length === 0 ? (
+        ListEmptyComponent={
           <EmptyState
             icon={Building2}
             title={t('screens.owner.emptyPvzTitle')}
             description={t('screens.owner.emptyPvzDesc')}
             buttonText={t('screens.owner.addPvz')}
-            onButtonPress={() => navigation.navigate('PVZForm')}
+            onButtonPress={handleAddPvz}
           />
-        ) : (
-          pvzs.map((item) => {
-            const isActive = activePvz?.id === item.id;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.pvzCard,
-                  ui.card,
-                  isActive && styles.pvzCardActive,
-                ]}
-                onPress={() => openEdit(item)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.pvzHeader}>
-                  <View style={styles.pvzTitleRow}>
-                    <Text style={[styles.pvzName, ui.title]} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    {isActive && (
-                      <View style={styles.activeBadge}>
-                        <Check size={12} color={colors.primary} />
-                        <Text style={styles.activeBadgeText}>{t('screens.owner.currentBadge')}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.pvzActions}>
-                    {!isActive && pvzs.length > 1 && (
-                      <TouchableOpacity
-                        onPress={() => handleSelectPvz(item.id)}
-                        style={styles.selectButton}
-                      >
-                        <Text style={styles.selectButtonText}>{t('screens.owner.selectBtn')}</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      onPress={() => openEdit(item)}
-                      style={styles.actionButton}
-                      accessibilityLabel={t('common.actions.edit')}
-                    >
-                      <Edit2 size={18} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deletePvz(item.id, item.name, item.employeesCount || 0)}
-                      style={styles.actionButton}
-                      accessibilityLabel={t('common.actions.delete')}
-                    >
-                      <Trash2 size={18} color={colors.danger} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.pvzInfo}>
-                  <MapPin size={14} color={screen.textSecondary} />
-                  <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]} numberOfLines={2}>
-                    {item.address || t('common.pvz.noAddress')}
-                  </Text>
-                </View>
-
-                <View style={styles.pvzInfo}>
-                  <Clock size={14} color={screen.textSecondary} />
-                  <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]}>
-                    {formatWorkingHours(item)}
-                  </Text>
-                </View>
-
-                <View style={styles.pvzInfo}>
-                  <Phone size={14} color={screen.textSecondary} />
-                  <Text style={[styles.pvzInfoText, { color: screen.textSecondary }]}>
-                    {formatPhone(item.phone)}
-                  </Text>
-                </View>
-
-                <View style={[styles.pvzFooter, { borderTopColor: screen.border }]}>
-                  <View style={[styles.pvzEmployeesBadge, { backgroundColor: ui.input.backgroundColor }]}>
-                    <Users size={12} color={colors.primary} />
-                    <Text style={styles.pvzEmployeesText}>
-                      {t('screens.owner.employeesCount', { count: item.employeesCount || 0 })}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </ScrollView>
+        }
+        {...FLAT_LIST_PERF}
+      />
     </ThemedSafeAreaView>
   );
 }

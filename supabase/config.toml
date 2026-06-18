@@ -1,11 +1,63 @@
+# ──────────────────────────────────────────────
+# Email OTP для владельца
+# ──────────────────────────────────────────────
+[auth.email]
+enable_confirmations = false
+otp_length = 6
+otp_expiry = 3600
+
+[auth.email.template.magic_link]
+subject = "Код для входа в PVZ Personal"
+content_path = "./supabase/templates/magic-link-otp.html"
+
+[auth.email.template.confirmation]
+subject = "Код для входа в PVZ Personal"
+content_path = "./supabase/templates/confirmation-otp.html"
+
+# ──────────────────────────────────────────────
+# Edge Functions
+# ──────────────────────────────────────────────
+[functions.send-auth-email]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-auth-email/deno.json"
+
+[functions.send-sms]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-sms/deno.json"
 
 [functions.support-notification]
 enabled = true
 verify_jwt = false
 import_map = "./functions/support-notification/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/support-notification/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/support-notification/*.html" ]
+
+[functions.create-payment]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-payment/deno.json"
+
+[functions.payment-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/payment-webhook/deno.json"
+
+[functions.process-subscription-renewals]
+enabled = true
+verify_jwt = false
+import_map = "./functions/process-subscription-renewals/deno.json"
+
+[functions.delete-account]
+enabled = true
+verify_jwt = false
+import_map = "./functions/delete-account/deno.json"
+
+[functions.cancel-subscription]
+enabled = true
+verify_jwt = true
+import_map = "./functions/cancel-subscription/deno.json"
+
+[functions.enterprise-api]
+enabled = true
+verify_jwt = false
+import_map = "./functions/enterprise-api/deno.json"

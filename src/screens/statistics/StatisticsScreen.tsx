@@ -1,11 +1,11 @@
 // src/screens/statistics/StatisticsScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
@@ -34,6 +34,7 @@ import {
   MinusCircle,
   PlusCircle,
 } from 'lucide-react-native';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 const STATUS_COLORS: Record<ShiftDisplayStatus, string> = {
   completed: colors.success,
@@ -112,6 +113,164 @@ export default function StatisticsScreen({ navigation }: any) {
   const hasCompletedData = stats.completedDays.length > 0;
   const hasAnyData = hasCompletedData || stats.plannedShifts.length > 0;
 
+  const statsSections = useMemo(
+    () => [
+      ...(hasCompletedData
+        ? [{ key: 'completed' as const, title: t('screens.statistics.completedShifts'), data: stats.completedDays }]
+        : []),
+      ...(stats.plannedShifts.length > 0
+        ? [{ key: 'planned' as const, title: t('screens.statistics.plannedShifts'), data: stats.plannedShifts }]
+        : []),
+    ],
+    [hasCompletedData, stats.completedDays, stats.plannedShifts, t]
+  );
+
+  const statsListHeader = useMemo(
+    () => (
+      <>
+        <View style={styles.monthSelector}>
+          <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+            <Text style={styles.monthArrowText}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.monthText, { color: screen.text }]}>{formatMonth()}</Text>
+          <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
+            <Text style={styles.monthArrowText}>→</Text>
+          </TouchableOpacity>
+        </View>
+
+        {pvz?.name && (
+          <Text style={[styles.pvzHint, { color: screen.textSecondary }]}>{t('common.pvz.label')} {pvz.name}</Text>
+        )}
+
+        <View style={styles.mainCard}>
+          <Text style={styles.mainCardLabel}>{t('screens.statistics.monthTotal')}</Text>
+          <Text style={styles.mainCardValue}>{stats.totalEarned.toLocaleString()} ₽</Text>
+          <Text style={styles.mainCardHint}>{t('screens.statistics.includingPenalties')}</Text>
+        </View>
+
+        {(stats.shiftsEarned > 0 || stats.totalFines > 0 || stats.totalBonuses > 0) && (
+          <View style={[styles.breakdownCard, ui.card]}>
+            <Text style={[styles.breakdownTitle, ui.sectionTitle]}>{t('screens.statistics.breakdown')}</Text>
+            <View style={styles.breakdownRow}>
+              <View style={styles.breakdownLeft}>
+                <Briefcase size={16} color={colors.primary} />
+                <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.forShifts')}</Text>
+              </View>
+              <Text style={[styles.breakdownValue, { color: screen.text }]}>+{stats.shiftsEarned.toLocaleString()} ₽</Text>
+            </View>
+            {stats.totalFines > 0 && (
+              <View style={styles.breakdownRow}>
+                <View style={styles.breakdownLeft}>
+                  <MinusCircle size={16} color={colors.danger} />
+                  <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.penalties')}</Text>
+                </View>
+                <Text style={[styles.breakdownValue, styles.breakdownNegative]}>
+                  −{stats.totalFines.toLocaleString()} ₽
+                </Text>
+              </View>
+            )}
+            {stats.totalBonuses > 0 && (
+              <View style={styles.breakdownRow}>
+                <View style={styles.breakdownLeft}>
+                  <PlusCircle size={16} color={colors.success} />
+                  <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.bonuses')}</Text>
+                </View>
+                <Text style={[styles.breakdownValue, styles.breakdownPositive]}>
+                  +{stats.totalBonuses.toLocaleString()} ₽
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        <View style={[styles.simpleStats, ui.card]}>
+          <View style={styles.simpleStatItem}>
+            <Clock size={22} color={colors.primary} />
+            <Text style={[styles.simpleStatValue, { color: screen.text }]}>{formatHours(stats.totalHours)}</Text>
+            <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.hours')}</Text>
+          </View>
+          <View style={[styles.simpleDivider, { backgroundColor: screen.border }]} />
+          <View style={styles.simpleStatItem}>
+            <Briefcase size={22} color={colors.primary} />
+            <Text style={[styles.simpleStatValue, { color: screen.text }]}>{stats.totalShifts}</Text>
+            <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.shifts')}</Text>
+          </View>
+          <View style={[styles.simpleDivider, { backgroundColor: screen.border }]} />
+          <View style={styles.simpleStatItem}>
+            <Calendar size={22} color={colors.primary} />
+            <Text style={[styles.simpleStatValue, { color: screen.text }]}>{stats.daysWorked}</Text>
+            <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.days')}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.statsNote, { color: screen.textSecondary }]}>{t('screens.statistics.completedOnlyNote')}</Text>
+
+        <View style={[styles.avgCard, ui.card]}>
+          <Text style={[styles.avgLabel, { color: screen.textSecondary }]}>{t('screens.statistics.avgShift')}</Text>
+          <Text style={[styles.avgValue, { color: screen.text }]}>{formatHours(stats.avgHoursPerShift)}</Text>
+        </View>
+
+        {stats.bestDayDate !== '—' && stats.bestDayEarned > 0 && (
+          <View style={[styles.bestDayCard, ui.card]}>
+            <View style={styles.bestDayIcon}>
+              <Award size={28} color="#FFD700" />
+            </View>
+            <View style={styles.bestDayInfo}>
+              <Text style={[styles.bestDayLabel, { color: screen.textSecondary }]}>{t('screens.statistics.bestDay')}</Text>
+              <Text style={[styles.bestDayDate, { color: screen.text }]}>{stats.bestDayDate}</Text>
+            </View>
+            <Text style={styles.bestDayAmount}>+{stats.bestDayEarned.toLocaleString()} ₽</Text>
+          </View>
+        )}
+      </>
+    ),
+    [stats, screen, ui, pvz?.name, t, formatMonth, changeMonth]
+  );
+
+  const renderStatsItem = useCallback(
+    ({ item, section }: { item: any; section: { key: string } }) => {
+      if (section.key === 'completed') {
+        const day = item;
+        return (
+          <View style={[styles.shiftItem, { borderBottomColor: screen.border }]}>
+            <View style={styles.shiftLeft}>
+              <Text style={[styles.shiftDate, { color: screen.text }]}>
+                {new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+              </Text>
+              <Text style={[styles.shiftHours, { color: screen.textSecondary }]}>
+                {formatHours(day.hours)}
+                {day.shiftCount > 1 ? t('screens.statistics.shiftCountMultiple', { count: day.shiftCount }) : ''}
+              </Text>
+            </View>
+            <Text style={styles.shiftEarnings}>+{day.earnings.toLocaleString()} ₽</Text>
+          </View>
+        );
+      }
+
+      const shift = item;
+      return (
+        <View style={[styles.shiftItem, { borderBottomColor: screen.border }]}>
+          <View style={styles.shiftLeft}>
+            <Text style={[styles.shiftDate, { color: screen.text }]}>
+              {new Date(shift.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+            </Text>
+            <Text style={[styles.shiftHours, { color: screen.textSecondary }]}>
+              {shift.startTime && shift.endTime
+                ? `${shift.startTime}–${shift.endTime}`
+                : formatHours(shift.hours)}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLORS[shift.status as ShiftDisplayStatus]}20` }]}>
+            <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[shift.status as ShiftDisplayStatus] }]}>
+              {getShiftStatusLabel(shift.status)}
+            </Text>
+          </View>
+        </View>
+      );
+    },
+    [screen, t]
+  );
+
   return (
     <PermissionGate
       permission="canViewStats"
@@ -121,171 +280,32 @@ export default function StatisticsScreen({ navigation }: any) {
       <ThemedSafeAreaView>
         <ScreenHeader title={t('screens.statistics.title')} onBack={() => navigation.goBack()} />
 
-        <ScrollView
+        <SectionList
+          sections={statsSections}
+          keyExtractor={(item, index) => ('date' in item ? item.date : item.id) || String(index)}
+          renderItem={renderStatsItem}
+          renderSectionHeader={({ section }) => (
+            <View style={[section.key === 'completed' ? styles.shiftsList : styles.plannedList, ui.card]}>
+              <Text style={[styles.shiftsListTitle, ui.sectionTitle]}>{section.title}</Text>
+            </View>
+          )}
+          ListHeaderComponent={statsListHeader}
+          ListEmptyComponent={
+            !hasAnyData ? (
+              <View style={styles.emptyContainer}>
+                <Zap size={48} color={colors.grayLighter} />
+                <Text style={[styles.emptyText, { color: screen.textSecondary }]}>{t('screens.statistics.empty')}</Text>
+                <Text style={[styles.emptySubtext, { color: screen.textSecondary }]}>
+                  {t('screens.statistics.emptyHint')}
+                </Text>
+              </View>
+            ) : null
+          }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.monthSelector}>
-            <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
-              <Text style={styles.monthArrowText}>←</Text>
-            </TouchableOpacity>
-            <Text style={[styles.monthText, { color: screen.text }]}>{formatMonth()}</Text>
-            <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
-              <Text style={styles.monthArrowText}>→</Text>
-            </TouchableOpacity>
-          </View>
-
-          {pvz?.name && (
-            <Text style={[styles.pvzHint, { color: screen.textSecondary }]}>{t('common.pvz.label')} {pvz.name}</Text>
-          )}
-
-          <View style={styles.mainCard}>
-            <Text style={styles.mainCardLabel}>{t('screens.statistics.monthTotal')}</Text>
-            <Text style={styles.mainCardValue}>{stats.totalEarned.toLocaleString()} ₽</Text>
-            <Text style={styles.mainCardHint}>{t('screens.statistics.includingPenalties')}</Text>
-          </View>
-
-          {(stats.shiftsEarned > 0 || stats.totalFines > 0 || stats.totalBonuses > 0) && (
-            <View style={[styles.breakdownCard, ui.card]}>
-              <Text style={[styles.breakdownTitle, ui.sectionTitle]}>{t('screens.statistics.breakdown')}</Text>
-              <View style={styles.breakdownRow}>
-                <View style={styles.breakdownLeft}>
-                  <Briefcase size={16} color={colors.primary} />
-                  <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.forShifts')}</Text>
-                </View>
-                <Text style={[styles.breakdownValue, { color: screen.text }]}>+{stats.shiftsEarned.toLocaleString()} ₽</Text>
-              </View>
-              {stats.totalFines > 0 && (
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <MinusCircle size={16} color={colors.danger} />
-                    <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.penalties')}</Text>
-                  </View>
-                  <Text style={[styles.breakdownValue, styles.breakdownNegative]}>
-                    −{stats.totalFines.toLocaleString()} ₽
-                  </Text>
-                </View>
-              )}
-              {stats.totalBonuses > 0 && (
-                <View style={styles.breakdownRow}>
-                  <View style={styles.breakdownLeft}>
-                    <PlusCircle size={16} color={colors.success} />
-                    <Text style={[styles.breakdownLabel, { color: screen.textSecondary }]}>{t('screens.statistics.bonuses')}</Text>
-                  </View>
-                  <Text style={[styles.breakdownValue, styles.breakdownPositive]}>
-                    +{stats.totalBonuses.toLocaleString()} ₽
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={[styles.simpleStats, ui.card]}>
-            <View style={styles.simpleStatItem}>
-              <Clock size={22} color={colors.primary} />
-              <Text style={[styles.simpleStatValue, { color: screen.text }]}>{formatHours(stats.totalHours)}</Text>
-              <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.hours')}</Text>
-            </View>
-            <View style={[styles.simpleDivider, { backgroundColor: screen.border }]} />
-            <View style={styles.simpleStatItem}>
-              <Briefcase size={22} color={colors.primary} />
-              <Text style={[styles.simpleStatValue, { color: screen.text }]}>{stats.totalShifts}</Text>
-              <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.shifts')}</Text>
-            </View>
-            <View style={[styles.simpleDivider, { backgroundColor: screen.border }]} />
-            <View style={styles.simpleStatItem}>
-              <Calendar size={22} color={colors.primary} />
-              <Text style={[styles.simpleStatValue, { color: screen.text }]}>{stats.daysWorked}</Text>
-              <Text style={[styles.simpleStatLabel, { color: screen.textSecondary }]}>{t('common.stats.days')}</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.statsNote, { color: screen.textSecondary }]}>{t('screens.statistics.completedOnlyNote')}</Text>
-
-          <View style={[styles.avgCard, ui.card]}>
-            <Text style={[styles.avgLabel, { color: screen.textSecondary }]}>{t('screens.statistics.avgShift')}</Text>
-            <Text style={[styles.avgValue, { color: screen.text }]}>{formatHours(stats.avgHoursPerShift)}</Text>
-          </View>
-
-          {stats.bestDayDate !== '—' && stats.bestDayEarned > 0 && (
-            <View style={[styles.bestDayCard, ui.card]}>
-              <View style={styles.bestDayIcon}>
-                <Award size={28} color="#FFD700" />
-              </View>
-              <View style={styles.bestDayInfo}>
-                <Text style={[styles.bestDayLabel, { color: screen.textSecondary }]}>{t('screens.statistics.bestDay')}</Text>
-                <Text style={[styles.bestDayDate, { color: screen.text }]}>{stats.bestDayDate}</Text>
-              </View>
-              <Text style={styles.bestDayAmount}>+{stats.bestDayEarned.toLocaleString()} ₽</Text>
-            </View>
-          )}
-
-          {hasCompletedData && (
-            <View style={[styles.shiftsList, ui.card]}>
-              <Text style={[styles.shiftsListTitle, ui.sectionTitle]}>{t('screens.statistics.completedShifts')}</Text>
-              {stats.completedDays.map((day) => (
-                <View key={day.date} style={[styles.shiftItem, { borderBottomColor: screen.border }]}>
-                  <View style={styles.shiftLeft}>
-                    <Text style={[styles.shiftDate, { color: screen.text }]}>
-                      {new Date(day.date).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
-                    </Text>
-                    <Text style={[styles.shiftHours, { color: screen.textSecondary }]}>
-                      {formatHours(day.hours)}
-                      {day.shiftCount > 1 ? t('screens.statistics.shiftCountMultiple', { count: day.shiftCount }) : ''}
-                    </Text>
-                  </View>
-                  <Text style={styles.shiftEarnings}>+{day.earnings.toLocaleString()} ₽</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {stats.plannedShifts.length > 0 && (
-            <View style={[styles.plannedList, ui.card]}>
-              <Text style={[styles.shiftsListTitle, ui.sectionTitle]}>{t('screens.statistics.plannedShifts')}</Text>
-              {stats.plannedShifts.map((shift) => (
-                <View key={shift.id} style={[styles.shiftItem, { borderBottomColor: screen.border }]}>
-                  <View style={styles.shiftLeft}>
-                    <Text style={[styles.shiftDate, { color: screen.text }]}>
-                      {new Date(shift.date).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
-                    </Text>
-                    <Text style={[styles.shiftHours, { color: screen.textSecondary }]}>
-                      {shift.startTime && shift.endTime
-                        ? `${shift.startTime}–${shift.endTime}`
-                        : formatHours(shift.hours)}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: `${STATUS_COLORS[shift.status]}20` },
-                    ]}
-                  >
-                    <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[shift.status] }]}>
-                      {getShiftStatusLabel(shift.status)}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {!hasAnyData && (
-            <View style={styles.emptyContainer}>
-              <Zap size={48} color={colors.grayLighter} />
-              <Text style={[styles.emptyText, { color: screen.textSecondary }]}>{t('screens.statistics.empty')}</Text>
-              <Text style={[styles.emptySubtext, { color: screen.textSecondary }]}>
-                {t('screens.statistics.emptyHint')}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+          stickySectionHeadersEnabled={false}
+          {...FLAT_LIST_PERF}
+        />
       </ThemedSafeAreaView>
     </PermissionGate>
   );

@@ -15,7 +15,7 @@ import StorageService from '../../services/StorageService';
 import DataService from '../../services/DataService';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
-import EmptyState from '../../components/common/EmptyState';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { syncShiftStatusesInStorage } from '../../services/PaymentService';
@@ -325,6 +325,7 @@ export default function ShiftHistoryScreen({ navigation }: any) {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
+          {...FLAT_LIST_PERF}
         />
       )}
     </ThemedSafeAreaView>

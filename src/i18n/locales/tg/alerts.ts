@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'Вуруд тавассути телефон дар Supabase хомӯш аст. Phone provider-ро дар Dashboard фаъол кунед.',
     emailLoginDisabled: 'Вуруд тавассути email хомӯш аст — барнома танҳо SMS истифода мебарад.',
     otpExpired: 'Коди SMS мӯҳлаташ гузашт. Нав дархост кунед.',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'Коди SMS-и нодуруст.',
     rateLimit: 'Кӯшишҳои аз ҳад зиёд. Интизор шавед ва такрор кунед.',
   },

@@ -1,12 +1,15 @@
 import * as SecureStore from 'expo-secure-store';
 import { User, UserRole, Pvz, EmployeePermissions, defaultPermissions } from '../../types/user';
 import DataService from '../../services/DataService';
+import { ensurePvzSynced } from '../../services/SupabasePvzService';
+import { hasSupabaseSession } from '../../services/SupabaseAuthService';
 import {
   upsertInvitationToSupabase,
   updateInvitationStatusInSupabase,
   type SyncInvitation,
 } from '../../services/SupabaseInvitationService';
 import { normalizePermissions } from '../../utils/permissionHelpers';
+import { userWorksAtPvz } from '../../utils/pvzUserHelpers';
 import { checkHasPermission } from './authPermissions';
 import {
   userMemory,
@@ -73,31 +76,40 @@ export async function addEmployeeInvitation(
     throw new Error('Не выбран ПВЗ для назначения сотрудника');
   }
 
+  let resolvedPvzId = targetPvzId;
+  if (await hasSupabaseSession()) {
+    const pvzForSync = await DataService.getPvzById(targetPvzId);
+    if (pvzForSync) {
+      resolvedPvzId = await ensurePvzSynced(pvzForSync);
+    }
+  }
+
   const currentEmployeesCount = users.filter(
-    (u) => u.pvzId === targetPvzId && u.status === 'active'
+    (u) =>
+      u.role !== 'owner' && u.status === 'active' && userWorksAtPvz(u, resolvedPvzId)
   ).length;
-  const pendingCount = pending.filter((u) => u.pvzId === targetPvzId).length;
+  const pendingCount = pending.filter((u) => u.pvzId === resolvedPvzId).length;
 
   if (currentEmployeesCount + pendingCount >= MAX_EMPLOYEES_PER_PVZ) {
     throw new Error(`Достигнут лимит сотрудников для этого ПВЗ (максимум ${MAX_EMPLOYEES_PER_PVZ})`);
   }
 
-  const pvzItem = await DataService.getPvzById(targetPvzId);
+  const pvzItem = await DataService.getPvzById(resolvedPvzId);
   const inviteRole = role === 'owner' ? 'employee' : role;
 
   const newPendingUser: User = {
     id: generateSecureId('pending'),
     name: name.trim(),
-    email: `${cleanPhone}@temp.pvz`,
+    email: `${cleanPhone}@users.pvzpersonal.ru`,
     phone: cleanPhone,
     role: inviteRole as UserRole,
     status: 'pending',
-    pvzId: targetPvzId,
+    pvzId: resolvedPvzId,
     createdAt: new Date().toISOString(),
     invitedBy: currentUser?.id,
     permissions: inviteRole === 'employee' ? { ...defaultPermissions } : undefined,
     permissionLevel: inviteRole === 'admin' ? 'full' : undefined,
-    pvzIds: inviteRole === 'admin' ? [targetPvzId] : undefined,
+    pvzIds: inviteRole === 'admin' ? [resolvedPvzId] : undefined,
     passwordHash: '',
   };
 
@@ -111,7 +123,7 @@ export async function addEmployeeInvitation(
     phone: cleanPhone,
     name: name.trim(),
     role: inviteRole as 'employee' | 'admin',
-    pvzId: targetPvzId,
+    pvzId: resolvedPvzId,
     pvzName: pvzItem?.name || 'ПВЗ',
     status: 'pending' as const,
     createdAt: new Date().toISOString(),
@@ -127,6 +139,13 @@ export async function addEmployeeInvitation(
   await SecureStore.setItemAsync(`invitations_${currentUser?.id}`, JSON.stringify(invitations));
 
   const syncedInvitation = await upsertInvitationToSupabase(newInvitation);
+  if (await hasSupabaseSession()) {
+    if (!syncedInvitation) {
+      throw new Error(
+        'Не удалось сохранить приглашение в облаке. Проверьте интернет и повторите — без этого сотрудник не сможет войти с другого телефона.'
+      );
+    }
+  }
   if (syncedInvitation && syncedInvitation.id !== newInvitation.id) {
     const invIndex = allInvitations.findIndex((inv) => inv.id === newInvitation.id);
     if (invIndex !== -1) {
@@ -149,7 +168,6 @@ export async function addEmployeeInvitation(
   }
 
   DataService.emitChange(`invitations_${currentUser?.id}`);
-  console.log(`✅ Приглашение создано для ${cleanPhone}`);
 }
 
 export async function revokeEmployeeInvitation(invitationId: string, ownerId: string) {
@@ -298,7 +316,6 @@ export async function confirmPendingEmployeeAccount(
 
   DataService.emitChange('pvz_users');
   DataService.emitChange('pending_employees');
-  console.log(`✅ Сотрудник ${activeUser.name} подтверждён`);
 }
 
 export async function updateEmployeePvzAssignment(employeeId: string, newPvzId: string) {
@@ -327,7 +344,18 @@ export function getActiveEmployees(currentUser: User | null, currentPvz: Pvz | n
 }
 
 export function getActiveEmployeesByPvz(pvzId: string) {
-  return userMemory.getUsers().filter((u) => u.pvzId === pvzId && u.status === 'active');
+  return userMemory
+    .getUsers()
+    .filter(
+      (u) => u.role !== 'owner' && u.status === 'active' && userWorksAtPvz(u, pvzId)
+    );
+}
+
+/** Активные + ожидающие сотрудники/админы на конкретном ПВЗ (для лимита free). */
+export function countStaffForPvz(pvzId: string): number {
+  const active = getActiveEmployeesByPvz(pvzId).length;
+  const pending = userMemory.getPendingEmployees().filter((u) => u.pvzId === pvzId).length;
+  return active + pending;
 }
 
 export function getPendingEmployeeList() {

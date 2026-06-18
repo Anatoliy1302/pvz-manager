@@ -15,7 +15,20 @@ export function useLoginStyles() {
         keyboardView: { flex: 1 },
         scrollContent: { flexGrow: 1, padding: 20, justifyContent: 'center' },
         scrollContentRole: { justifyContent: 'flex-start', paddingTop: 8, paddingBottom: 32 },
+        legalNote: {
+          fontSize: 12,
+          color: themed.screen.textSecondary,
+          textAlign: 'center',
+          lineHeight: 18,
+          marginTop: 24,
+          paddingHorizontal: 4,
+        },
         stepContainer: { flex: 1, justifyContent: 'center', paddingTop: 40 },
+        quickLoginStepContainer: {
+          width: '100%',
+          paddingTop: 24,
+          paddingBottom: 8,
+        },
         roleStepContainer: { width: '100%', paddingBottom: 8 },
 
         title: {
@@ -75,7 +88,7 @@ export function useLoginStyles() {
           marginBottom: 20,
         },
 
-        roleCard: {
+        roleOption: {
           borderRadius: 18,
           padding: 16,
           flexDirection: 'row',
@@ -87,7 +100,7 @@ export function useLoginStyles() {
           shadowRadius: 8,
           elevation: 2,
         },
-        roleCardActive: {
+        roleOptionActive: {
           backgroundColor: palette.primary,
           borderColor: palette.primary,
           shadowColor: palette.primary,
@@ -136,17 +149,19 @@ export function useLoginStyles() {
         },
         phoneInput: { flex: 1, fontSize: 18 },
 
-        smsInputContainer: { alignItems: 'center', marginBottom: 24 },
+        smsInputContainer: { alignItems: 'center', marginBottom: 24, width: '100%' },
         smsInput: {
           borderRadius: 16,
-          paddingHorizontal: 20,
+          paddingHorizontal: 16,
           paddingVertical: 14,
-          fontSize: 32,
+          fontSize: 28,
           fontWeight: 'bold',
           textAlign: 'center',
-          letterSpacing: 12,
+          letterSpacing: 8,
           borderWidth: 1,
-          width: 200,
+          width: '100%',
+          maxWidth: 300,
+          minWidth: 260,
         },
 
         pinContainer: {
@@ -231,6 +246,35 @@ export function useLoginStyles() {
         resendButton: { alignItems: 'center', marginTop: 16 },
         resendText: { fontSize: 14, color: palette.primary, fontWeight: '500' },
         resendTextDisabled: { color: palette.grayLight },
+        otpErrorText: {
+          fontSize: 14,
+          color: palette.danger,
+          textAlign: 'center',
+          marginTop: 8,
+          marginBottom: 4,
+        },
+        otpDeliveryCard: {
+          width: '100%',
+          borderRadius: 12,
+          borderWidth: 1,
+          padding: 14,
+          marginBottom: 20,
+          gap: 6,
+        },
+        otpDeliveryTitle: {
+          fontSize: 14,
+          fontWeight: '600',
+          lineHeight: 20,
+        },
+        otpDeliveryHint: {
+          fontSize: 13,
+          lineHeight: 18,
+        },
+        otpDeliveryTimer: {
+          fontSize: 12,
+          marginTop: 4,
+          fontWeight: '500',
+        },
 
         quickLoginAvatar: {
           width: 72,
@@ -250,7 +294,7 @@ export function useLoginStyles() {
           marginBottom: 28,
           marginTop: -20,
         },
-        switchAccountButton: { alignItems: 'center', marginTop: 20, paddingVertical: 8 },
+        switchAccountButton: { alignItems: 'center', marginTop: 24, paddingVertical: 12, marginBottom: 8 },
         switchAccountText: { fontSize: 14, color: palette.primary, fontWeight: '500' },
         languageBar: {
           flexDirection: 'row',

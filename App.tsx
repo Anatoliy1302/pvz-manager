@@ -10,16 +10,34 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/components/common/ErrorBoundary';
+import PaymentReturnHandler from './src/components/common/PaymentReturnHandler';
+import OfflineBanner from './src/components/common/OfflineBanner';
 import { ToastProvider } from './src/components/common/Toast';
+import { ErrorHandlerProvider } from './src/context/ErrorHandlerContext';
+import { QueryProvider } from './src/providers/QueryProvider';
+import { PAYMENT_DEEP_LINK_SCHEME } from './src/constants/paymentDeepLink';
 import SyncStatusBanner from './src/components/common/SyncStatusBanner';
 import notificationService from './src/services/NotificationService';
+import analyticsService from './src/services/AnalyticsService';
+import { AnalyticsEvents } from './src/services/analytics/events';
 import { runFullMigration } from './src/utils/migrationHelpers';
 import * as SecureStore from 'expo-secure-store';
 
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications (remote notifications) functionality',
   '`expo-notifications` functionality is not fully supported in Expo Go',
+  'Value being stored in SecureStore is larger than 2048 bytes',
 ]);
+
+const linking = {
+  prefixes: [`${PAYMENT_DEEP_LINK_SCHEME}://`],
+  config: {
+    screens: {
+      Subscription: 'payment/success',
+      DeleteAccount: 'account/delete',
+    },
+  },
+};
 
 function RootNavigation() {
   const { theme, colors } = useTheme();
@@ -42,8 +60,21 @@ function RootNavigation() {
   return (
     <>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <OfflineBanner />
       <SyncStatusBanner />
-      <NavigationContainer ref={navigationRef} theme={navigationTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={navigationTheme}
+        linking={linking}
+        onStateChange={() => {
+          if (!navigationRef.isReady()) return;
+          const route = navigationRef.getCurrentRoute();
+          const screenName = route?.name;
+          if (!screenName) return;
+          analyticsService.setCurrentScreen(screenName);
+          analyticsService.track(AnalyticsEvents.SCREEN_VIEW, { screen: screenName });
+        }}
+      >
         <AppNavigator />
       </NavigationContainer>
     </>
@@ -54,6 +85,7 @@ export default function App() {
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       void notificationService.initialize();
+      analyticsService.track(AnalyticsEvents.APP_OPEN);
 
       const runMigrations = async () => {
         try {
@@ -78,17 +110,22 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <LanguageProvider>
-          <ThemeProvider>
-            <ToastProvider>
-              <AuthProvider>
-                <RootNavigation />
-              </AuthProvider>
-            </ToastProvider>
-          </ThemeProvider>
-        </LanguageProvider>
+        <QueryProvider>
+          <LanguageProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <ErrorHandlerProvider>
+                  <AuthProvider>
+                    <PaymentReturnHandler />
+                    <RootNavigation />
+                  </AuthProvider>
+                </ErrorHandlerProvider>
+              </ToastProvider>
+            </ThemeProvider>
+          </LanguageProvider>
+        </QueryProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
-"// test comment" 
+

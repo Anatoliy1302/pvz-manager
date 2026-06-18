@@ -44,6 +44,7 @@ class DataService {
   getEmployeePvzs = userDataService.getEmployeePvzs;
 
   getShifts = shiftDataService.getShifts;
+  getShiftsLocal = shiftDataService.getShiftsLocal;
   refreshShiftsCache = shiftDataService.refreshShiftsCache;
   getShiftsByDate = shiftDataService.getShiftsByDate;
   getShiftsByEmployee = shiftDataService.getShiftsByEmployee;
@@ -84,6 +85,7 @@ class DataService {
   deleteInvitation = invitationDataService.deleteInvitation;
   resendInvitation = invitationDataService.resendInvitation;
   refreshInvitationsForLogin = invitationDataService.refreshInvitationsForLogin;
+  getPendingInvitationsForLoginPhone = invitationDataService.getPendingInvitationsForLoginPhone;
   refreshInvitationsCache = invitationDataService.refreshInvitationsCache;
 
   getCorrections = employeeExtrasDataService.getCorrections;

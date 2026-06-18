@@ -1,7 +1,9 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { AdvanceRequest } from '../types/payment';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { ADVANCE_REQUEST_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 
 function rowToAdvanceRequest(row: Record<string, unknown>): AdvanceRequest {
   return {
@@ -50,25 +52,27 @@ async function advanceRequestToRow(
 }
 
 export async function fetchAdvanceRequestsFromSupabase(): Promise<AdvanceRequest[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
-  const { data, error } = await supabase
-    .from('advance_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase
+      .from('advance_requests')
+      .select(ADVANCE_REQUEST_COLUMNS)
+      .order('created_at', { ascending: false })
+  );
 
-  if (error) {
-    console.warn('fetchAdvanceRequestsFromSupabase:', error.message);
+  if (!data) {
+    console.warn('fetchAdvanceRequestsFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToAdvanceRequest(row as Record<string, unknown>));
+  return data.map((row) => rowToAdvanceRequest(row));
 }
 
 export async function upsertAdvanceRequestToSupabase(
   request: AdvanceRequest
 ): Promise<AdvanceRequest | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await advanceRequestToRow(request);
   if (!row) return null;
@@ -76,14 +80,14 @@ export async function upsertAdvanceRequestToSupabase(
   const { data, error } = await supabase
     .from('advance_requests')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(ADVANCE_REQUEST_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('advance_requests')
       .insert(row)
-      .select('*')
+      .select(ADVANCE_REQUEST_COLUMNS)
       .single();
 
     if (insertError) {
@@ -102,7 +106,7 @@ export async function updateAdvanceRequestInSupabase(
   id: string,
   updates: Partial<AdvanceRequest>
 ): Promise<boolean> {
-  if (!(await hasSupabaseSession()) || !isUuid(id)) return false;
+  if (!(await ensureSupabaseClientSession()) || !isUuid(id)) return false;
 
   const row: Record<string, unknown> = {};
   if (updates.status) row.status = updates.status;

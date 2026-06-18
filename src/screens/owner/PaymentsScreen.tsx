@@ -1,10 +1,11 @@
 // src/screens/owner/PaymentsScreen.tsx
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -12,19 +13,21 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
-import { useFocusEffect } from '@react-navigation/native';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 import StorageService from '../../services/StorageService';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { Payment, PaymentType } from '../../types/payment';
-import { addPayment, calculateEmployeeAccruals, getEmployeeBalance } from '../../services/PaymentService';
+import { addPayment, loadPvzPayrollBundle } from '../../services/PaymentService';
 import { isShiftCountableForAccruals } from '../../utils/shiftStatusHelper';
 import { getMonthRange, toDateKey } from '../../utils/dateHelpers';
 import { Shift } from '../../types/user';
 import exportService from '../../services/ExportService';
+import { markScreenLoadStart, markScreenLoadEnd } from '../../utils/perfMonitor';
 import {
   ChevronLeft,
   Users,
@@ -42,6 +45,7 @@ import {
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import EmptyState from '../../components/common/EmptyState';
+import { PayrollSkeleton } from '../../components/common/Skeleton';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
@@ -66,11 +70,11 @@ interface SummaryData {
 
 export default function PaymentsScreen({ navigation }: any) {
   const { t } = useTranslation();
-  const { user, pvz } = useAuth();
+  const { user, pvz, subscription } = useAuth();
   const { screen, ui, theme } = useThemedScreen();
   const { showError, showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, markLoaded] = useScopedInitialLoading(pvz?.id);
   const [employees, setEmployees] = useState<EmployeeWithPeriodData[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -198,12 +202,16 @@ export default function PaymentsScreen({ navigation }: any) {
     closeDatePicker();
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!pvz?.id) return;
+    markScreenLoadStart('PaymentsScreen');
     try {
       const users = await DataService.getUsers();
-      const pvzEmployees = users.filter((u: any) => u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id);
-      
+      const pvzEmployees = users.filter(
+        (u: { role: string; status: string; pvzId?: string }) =>
+          u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id
+      );
+
       const paymentsRaw = await StorageService.getItem(`payments_${pvz.id}`);
       const allPayments = safeParseJson<Payment[]>(paymentsRaw ?? '[]', []);
       const periodPayments = allPayments.filter((p: Payment & { date?: string }) => {
@@ -212,8 +220,12 @@ export default function PaymentsScreen({ navigation }: any) {
       });
       setPayments(periodPayments);
 
-      const shiftsRaw = await StorageService.getItem('shifts');
-      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
+      const payroll = await loadPvzPayrollBundle(
+        pvz.id,
+        pvzEmployees.map((e) => e.id),
+        filterPeriod.start,
+        filterPeriod.end
+      );
 
       const employeesWithData: EmployeeWithPeriodData[] = [];
       let totalEarned = 0;
@@ -222,24 +234,20 @@ export default function PaymentsScreen({ navigation }: any) {
       const unpaidList: { name: string; amount: number }[] = [];
 
       for (const emp of pvzEmployees) {
-        const accruals = await calculateEmployeeAccruals(emp.id, pvz.id, {
-          periodStart: filterPeriod.start,
-          periodEnd: filterPeriod.end,
-        });
-        const balanceData = await getEmployeeBalance(emp.id);
-        const balance = balanceData?.balance ?? 0;
+        const row = payroll.get(emp.id);
+        const accruals = row?.periodAccruals ?? {
+          netEarned: 0,
+          totalPaid: 0,
+          shiftsEarned: 0,
+          totalFines: 0,
+          totalBonuses: 0,
+          balance: 0,
+        };
+        const balance = row?.lifetimeBalance ?? 0;
 
         if (balance > 0) {
-          unpaidList.push({ name: emp.name, amount: Math.round(balance) });
+          unpaidList.push({ name: emp.name, amount: balance });
         }
-
-        const shiftsCount = allShifts.filter((s: any) =>
-          s.employeeId === emp.id &&
-          s.pvzId === pvz.id &&
-          s.date >= filterPeriod.start &&
-          s.date <= filterPeriod.end &&
-          isShiftCountableForAccruals(s)
-        ).length;
 
         employeesWithData.push({
           id: emp.id,
@@ -249,7 +257,7 @@ export default function PaymentsScreen({ navigation }: any) {
           periodEarned: accruals.netEarned,
           periodPaid: accruals.totalPaid,
           balance,
-          shiftsCount,
+          shiftsCount: row?.shiftsCount ?? 0,
         });
 
         totalEarned += accruals.netEarned;
@@ -259,33 +267,30 @@ export default function PaymentsScreen({ navigation }: any) {
 
       unpaidList.sort((a, b) => b.amount - a.amount);
       setUnpaidEmployees(unpaidList);
-      
+
       employeesWithData.sort((a, b) => b.balance - a.balance);
       setEmployees(employeesWithData);
       setSummary({ totalEarned, totalPaid, totalBalance });
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     } finally {
-      setLoading(false);
+      markLoaded();
+      markScreenLoadEnd('PaymentsScreen');
     }
-  };
+  }, [pvz?.id, filterPeriod.start, filterPeriod.end, markLoaded]);
 
-  useFocusEffect(useCallback(() => {
-    setLoading(true);
-    loadData();
-    const unsubBalance = DataService.subscribe('employee_balance', loadData);
-    const unsubPayments = pvz?.id
-      ? DataService.subscribe(`payments_${pvz.id}`, loadData)
-      : () => {};
-    const unsubPenalties = pvz?.id
-      ? DataService.subscribe(`penalties_${pvz.id}`, loadData)
-      : () => {};
-    return () => {
-      unsubBalance();
-      unsubPayments();
-      unsubPenalties();
-    };
-  }, [pvz?.id, filterPeriod]));
+  useScreenRefresh(loadData, [loadData], {
+    subscribeKeys: [
+      'employee_balance',
+      ...(pvz?.id ? [`payments_${pvz.id}`, `penalties_${pvz.id}`] : []),
+    ],
+  });
+
+  useEffect(() => {
+    if (filterPeriod.start && !loading) {
+      void loadData();
+    }
+  }, [filterPeriod.start, filterPeriod.end]);
 
   const openPaymentModal = (employee: EmployeeWithPeriodData) => {
     setSelectedEmployee(employee);
@@ -342,6 +347,9 @@ export default function PaymentsScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    if (pvz?.id) {
+      await DataService.refreshShiftsCache();
+    }
     await loadData();
     setRefreshing(false);
   };
@@ -363,35 +371,64 @@ export default function PaymentsScreen({ navigation }: any) {
         pvzName: pvz.name,
         periodStart: filterPeriod.start,
         periodEnd: filterPeriod.end,
-      });
+      }, subscription ?? undefined);
     } finally {
       setExporting(false);
     }
   };
 
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <LoadingSpinner visible={loading && employees.length === 0} text={t('common.loading.default')} />
-      <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('screens.finance.payments')}</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.filterHeaderButton}
-            onPress={handleExport}
-            disabled={exporting}
-          >
-            <Download size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterHeaderButton} onPress={openFilterModal}>
-            <Filter size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+  const renderEmployeeItem = useCallback(
+    ({ item: emp }: { item: EmployeeWithPeriodData }) => (
+      <TouchableOpacity
+        style={[styles.employeeCard, { backgroundColor: screen.card }]}
+        onPress={() => openPaymentModal(emp)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.employeeCardHeader}>
+          <View style={styles.employeeAvatar}>
+            <User size={18} color={colors.primary} />
+          </View>
+          <View style={styles.employeeInfo}>
+            <Text style={[styles.employeeName, { color: screen.text }]}>{emp.name}</Text>
+            <Text style={[styles.employeeShifts, { color: screen.textSecondary }]}>
+              {t('screens.finance.shiftsAndEarned', {
+                count: emp.shiftsCount,
+                amount: formatCurrency(emp.periodEarned),
+              })}
+            </Text>
+          </View>
+          <ChevronRight size={18} color={colors.grayLight} />
         </View>
-      </LinearGradient>
+        <View style={[styles.employeeBalanceRow, { borderTopColor: screen.border }]}>
+          <View style={styles.balanceItem}>
+            <Text style={[styles.balanceLabel, ui.subtitle]}>{t('screens.finance.paidTotal')}</Text>
+            <Text style={styles.balancePaid}>{formatCurrency(emp.periodPaid)}</Text>
+          </View>
+          <View style={styles.balanceItem}>
+            <Text style={[styles.balanceLabel, ui.subtitle]}>{t('screens.finance.toPay')}</Text>
+            <Text
+              style={[
+                styles.balanceAmount,
+                emp.balance > 0 ? { color: colors.primary } : { color: colors.success },
+              ]}
+            >
+              {emp.balance > 0 ? formatCurrency(emp.balance) : '0 ₽'}
+            </Text>
+          </View>
+        </View>
+        {emp.balance > 0 && (
+          <View style={styles.payNowRow}>
+            <Text style={styles.payNowText}>{t('screens.finance.tapToPay')}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    ),
+    [screen, ui, t, openPaymentModal]
+  );
 
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
+  const listHeader = useMemo(
+    () => (
+      <>
         <View style={[styles.periodNavCard, ui.card]}>
           <TouchableOpacity style={styles.periodNavButton} onPress={() => shiftMonth(-1)}>
             <ChevronLeft size={22} color={colors.primary} />
@@ -427,51 +464,55 @@ export default function PaymentsScreen({ navigation }: any) {
             <Text style={styles.exportCardTitle}>
               {exporting ? t('common.loading.exporting') : t('screens.finance.exportForAccountant')}
             </Text>
-            <Text style={[styles.exportCardHint, ui.subtitle]}>
-              {t('screens.finance.exportDesc')}
-            </Text>
+            <Text style={[styles.exportCardHint, ui.subtitle]}>{t('screens.finance.exportDesc')}</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Сводка */}
         <View style={[styles.summaryCard, ui.card]}>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <TrendingUp size={16} color={colors.success} />
               <Text style={[styles.summaryLabel, ui.subtitle]}>{t('screens.finance.accrued')}</Text>
-              <Text style={[styles.summaryValue, { color: colors.success }]}>{formatCurrency(summary.totalEarned)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>
+                {formatCurrency(summary.totalEarned)}
+              </Text>
             </View>
             <View style={[styles.summaryDivider, { backgroundColor: screen.border }]} />
             <View style={styles.summaryItem}>
               <TrendingDown size={16} color={colors.danger} />
               <Text style={[styles.summaryLabel, ui.subtitle]}>{t('screens.finance.paidTotal')}</Text>
-              <Text style={[styles.summaryValue, { color: colors.danger }]}>{formatCurrency(summary.totalPaid)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.danger }]}>
+                {formatCurrency(summary.totalPaid)}
+              </Text>
             </View>
             <View style={[styles.summaryDivider, { backgroundColor: screen.border }]} />
             <View style={styles.summaryItem}>
               <MoneyIcon size={16} color={colors.primary} />
               <Text style={[styles.summaryLabel, ui.subtitle]}>{t('screens.finance.toPay')}</Text>
-              <Text style={[styles.summaryValue, { color: colors.primary }]}>{formatCurrency(summary.totalBalance)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.primary }]}>
+                {formatCurrency(summary.totalBalance)}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Невыплаченные начисления по сотрудникам */}
         {unpaidEmployees.length > 0 && (
           <View style={[styles.unpaidSection, ui.card]}>
             <View style={[styles.unpaidHeader, { borderBottomColor: screen.border }]}>
               <MoneyIcon size={18} color={colors.danger} />
-              <Text style={[styles.unpaidTitle, { color: screen.text }]}>{t('screens.finance.accruedNotPaid')}</Text>
+              <Text style={[styles.unpaidTitle, { color: screen.text }]}>
+                {t('screens.finance.accruedNotPaid')}
+              </Text>
               <Text style={styles.unpaidTotal}>
                 {unpaidEmployees.reduce((sum, e) => sum + e.amount, 0).toLocaleString()} ₽
               </Text>
             </View>
             {unpaidEmployees.map((emp, i) => (
               <TouchableOpacity
-                key={i}
+                key={`unpaid-${i}`}
                 style={[styles.unpaidRow, { borderBottomColor: screen.border }]}
                 onPress={() => {
-                  const employee = employees.find(e => e.name === emp.name);
+                  const employee = employees.find((e) => e.name === emp.name);
                   if (employee) openPaymentModal(employee);
                 }}
               >
@@ -482,12 +523,45 @@ export default function PaymentsScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Список сотрудников */}
-        <View style={styles.employeeSection}>
-          <Text style={[styles.sectionTitle, { color: screen.text }]}>
-            {t('screens.finance.employeesSection', { count: employees.length })}
-          </Text>
-          {!loading && employees.length === 0 ? (
+        <Text style={[styles.sectionTitle, { color: screen.text, marginHorizontal: 16, marginTop: 8 }]}>
+          {t('screens.finance.employeesSection', { count: employees.length })}
+        </Text>
+      </>
+    ),
+    [ui, screen, filterPeriod, exporting, summary, unpaidEmployees, employees, t, openFilterModal, handleExport, openPaymentModal]
+  );
+
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <LoadingSpinner visible={exporting} text={t('common.loading.exporting')} />
+      <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <ChevronLeft size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{t('screens.finance.payments')}</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.filterHeaderButton}
+            onPress={handleExport}
+            disabled={exporting}
+          >
+            <Download size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterHeaderButton} onPress={openFilterModal}>
+            <Filter size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      {loading ? (
+        <PayrollSkeleton />
+      ) : (
+        <FlatList
+          data={employees}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEmployeeItem}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={
             <EmptyState
               icon={Users}
               title={t('screens.finance.noEmployeesPeriod')}
@@ -495,51 +569,13 @@ export default function PaymentsScreen({ navigation }: any) {
               buttonText={t('common.period.change')}
               onButtonPress={openFilterModal}
             />
-          ) : (
-            employees.map((emp) => (
-              <TouchableOpacity
-                key={emp.id}
-                style={[styles.employeeCard, { backgroundColor: screen.card }]}
-                onPress={() => openPaymentModal(emp)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.employeeCardHeader}>
-                  <View style={styles.employeeAvatar}><User size={18} color={colors.primary} /></View>
-                  <View style={styles.employeeInfo}>
-                    <Text style={[styles.employeeName, { color: screen.text }]}>{emp.name}</Text>
-                    <Text style={[styles.employeeShifts, { color: screen.textSecondary }]}>
-                      {t('screens.finance.shiftsAndEarned', {
-                        count: emp.shiftsCount,
-                        amount: formatCurrency(emp.periodEarned),
-                      })}
-                    </Text>
-                  </View>
-                  <ChevronRight size={18} color={colors.grayLight} />
-                </View>
-                <View style={[styles.employeeBalanceRow, { borderTopColor: screen.border }]}>
-                  <View style={styles.balanceItem}>
-                    <Text style={[styles.balanceLabel, ui.subtitle]}>{t('screens.finance.paidTotal')}</Text>
-                    <Text style={styles.balancePaid}>{formatCurrency(emp.periodPaid)}</Text>
-                  </View>
-                  <View style={styles.balanceItem}>
-                    <Text style={[styles.balanceLabel, ui.subtitle]}>{t('screens.finance.toPay')}</Text>
-                    <Text style={[styles.balanceAmount, emp.balance > 0 ? { color: colors.primary } : { color: colors.success }]}>
-                      {emp.balance > 0 ? formatCurrency(emp.balance) : '0 ₽'}
-                    </Text>
-                  </View>
-                </View>
-                {emp.balance > 0 && (
-                  <View style={styles.payNowRow}>
-                    <Text style={styles.payNowText}>{t('screens.finance.tapToPay')}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
+          }
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+          {...FLAT_LIST_PERF}
+        />
+      )}
 
       {/* Модальное окно фильтра */}
       <Modal
@@ -717,6 +753,7 @@ export default function PaymentsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  listContent: { paddingBottom: 30 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 20, paddingBottom: 16, paddingHorizontal: 20 },
   backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },

@@ -4,7 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -25,6 +25,7 @@ import PermissionGate from '../../components/common/PermissionGate';
 import { formatDate } from '../../utils/dateHelpers';
 import { getDateLocale } from '../../i18n';
 import type { SwapRequest } from '../../services/data/swapRequestDataService';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { Check, X, Repeat, User, Calendar, Building2 } from 'lucide-react-native';
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
@@ -220,6 +221,72 @@ export default function SwapRequestsScreen({ navigation }: any) {
     ? t('screens.swaps.headerSubtitle', { pvz: pvz.name, count: pendingCount })
     : undefined;
 
+  const renderRequestItem = useCallback(
+    ({ item: request }: { item: SwapRequest }) => (
+      <View style={[styles.requestCard, ui.card]}>
+        <View style={styles.requestHeader}>
+          <View style={styles.requestHeaderLeft}>
+            <User size={16} color={colors.primary} />
+            <Text style={[styles.employeeName, ui.title]}>
+              {request.fromEmployeeName} ↔ {request.toEmployeeName}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, getStatusStyle(request.status)]}>
+            <Text style={styles.statusBadgeText}>{getStatusLabel(request.status)}</Text>
+          </View>
+        </View>
+
+        {showPvzOnCard && pvz?.name ? (
+          <View style={styles.detailRow}>
+            <Building2 size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>{pvz.name}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.requestDetails}>
+          <View style={styles.detailRow}>
+            <Calendar size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>
+              {request.fromEmployeeName}: {formatDate(request.fromDate, 'dayMonth')}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Repeat size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>
+              {request.toEmployeeName}: {formatDate(request.toDate, 'dayMonth')}
+            </Text>
+          </View>
+          {request.reason ? (
+            <Text style={styles.reasonText}>«{request.reason}»</Text>
+          ) : null}
+          <Text style={styles.createdAt}>
+            {t('screens.swaps.submittedAt', { date: formatCreatedAt(request.createdAt) })}
+          </Text>
+        </View>
+
+        {request.status === 'pending' && canModerate && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => approveRequest(request)}
+            >
+              <Check size={18} color={staticColors.success} />
+              <Text style={styles.approveText}>{t('common.actions.approve')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => rejectRequest(request)}
+            >
+              <X size={18} color={staticColors.danger} />
+              <Text style={styles.rejectText}>{t('common.actions.reject')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    ),
+    [ui, screen, colors, t, showPvzOnCard, pvz, canModerate, approveRequest, rejectRequest, getStatusStyle, getStatusLabel, formatCreatedAt]
+  );
+
   return (
     <PermissionGate
       anyOf={['canManageSchedule', 'canManageShifts']}
@@ -262,7 +329,11 @@ export default function SwapRequestsScreen({ navigation }: any) {
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
-          <ScrollView
+          <FlatList
+            data={filteredRequests}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRequestItem}
+            contentContainerStyle={styles.content}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -271,77 +342,11 @@ export default function SwapRequestsScreen({ navigation }: any) {
                 colors={[colors.primary]}
               />
             }
-            contentContainerStyle={styles.content}
-          >
-            {filteredRequests.length === 0 ? (
+            ListEmptyComponent={
               <EmptyState icon={Repeat} title={t('screens.swaps.emptyRequestsTitle')} description={emptyDescription} />
-            ) : (
-              filteredRequests.map((request) => (
-                <View key={request.id} style={[styles.requestCard, ui.card]}>
-                  <View style={styles.requestHeader}>
-                    <View style={styles.requestHeaderLeft}>
-                      <User size={16} color={colors.primary} />
-                      <Text style={[styles.employeeName, ui.title]}>
-                        {request.fromEmployeeName} ↔ {request.toEmployeeName}
-                      </Text>
-                    </View>
-                    <View style={[styles.statusBadge, getStatusStyle(request.status)]}>
-                      <Text style={styles.statusBadgeText}>
-                        {getStatusLabel(request.status)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {showPvzOnCard && pvz?.name ? (
-                    <View style={styles.detailRow}>
-                      <Building2 size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>{pvz.name}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.requestDetails}>
-                    <View style={styles.detailRow}>
-                      <Calendar size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>
-                        {request.fromEmployeeName}: {formatDate(request.fromDate, 'dayMonth')}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Repeat size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>
-                        {request.toEmployeeName}: {formatDate(request.toDate, 'dayMonth')}
-                      </Text>
-                    </View>
-                    {request.reason ? (
-                      <Text style={styles.reasonText}>«{request.reason}»</Text>
-                    ) : null}
-                    <Text style={styles.createdAt}>
-                      {t('screens.swaps.submittedAt', { date: formatCreatedAt(request.createdAt) })}
-                    </Text>
-                  </View>
-
-                  {request.status === 'pending' && canModerate && (
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.approveButton}
-                        onPress={() => approveRequest(request)}
-                      >
-                        <Check size={18} color={staticColors.success} />
-                        <Text style={styles.approveText}>{t('common.actions.approve')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.rejectButton}
-                        onPress={() => rejectRequest(request)}
-                      >
-                        <X size={18} color={staticColors.danger} />
-                        <Text style={styles.rejectText}>{t('common.actions.reject')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))
-            )}
-          </ScrollView>
+            }
+            {...FLAT_LIST_PERF}
+          />
         )}
       </ThemedSafeAreaView>
     </PermissionGate>

@@ -4,7 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -25,6 +25,7 @@ import { Check, X, Clock, User, Calendar, Building2 } from 'lucide-react-native'
 import PermissionGate from '../../components/common/PermissionGate';
 import { formatDate } from '../../utils/dateHelpers';
 import { getDateLocale } from '../../i18n';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { User as UserType } from '../../types/user';
 
 interface ShiftRequest {
@@ -246,6 +247,68 @@ export default function ShiftRequestsScreen({ navigation }: any) {
     ? t('screens.requests.headerSubtitle', { pvz: pvz.name, count: pendingCount })
     : undefined;
 
+  const renderRequestItem = useCallback(
+    ({ item: request }: { item: ShiftRequest }) => (
+      <View style={[styles.requestCard, ui.card]}>
+        <View style={styles.requestHeader}>
+          <View style={styles.requestHeaderLeft}>
+            <User size={16} color={colors.primary} />
+            <Text style={[styles.employeeName, ui.title]}>{request.employeeName}</Text>
+          </View>
+          <View style={[styles.statusBadge, getStatusStyle(request.status)]}>
+            <Text style={styles.statusBadgeText}>{getStatusLabel(request.status)}</Text>
+          </View>
+        </View>
+
+        {showPvzOnCard && (request.pvzName || pvz?.name) ? (
+          <View style={styles.detailRow}>
+            <Building2 size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>{request.pvzName || pvz?.name}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.requestDetails}>
+          <View style={styles.detailRow}>
+            <Calendar size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>{formatDate(request.date, 'long')}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Clock size={14} color={screen.textSecondary} />
+            <Text style={styles.detailText}>
+              {request.startTime} — {request.endTime}
+            </Text>
+          </View>
+          {request.reason ? (
+            <Text style={styles.reasonText}>«{request.reason}»</Text>
+          ) : null}
+          <Text style={styles.createdAt}>
+            {t('screens.requests.submittedAt', { date: formatCreatedAt(request.createdAt) })}
+          </Text>
+        </View>
+
+        {request.status === 'pending' && canApprove && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => approveRequest(request)}
+            >
+              <Check size={18} color={staticColors.success} />
+              <Text style={styles.approveText}>{t('common.actions.approve')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => rejectRequest(request)}
+            >
+              <X size={18} color={staticColors.danger} />
+              <Text style={styles.rejectText}>{t('common.actions.reject')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    ),
+    [ui, screen, colors, t, showPvzOnCard, pvz, canApprove, approveRequest, rejectRequest, getStatusStyle, getStatusLabel, formatCreatedAt]
+  );
+
   return (
     <PermissionGate permission="canViewRequests" navigation={navigation}>
       <ThemedSafeAreaView style={styles.container}>
@@ -285,7 +348,11 @@ export default function ShiftRequestsScreen({ navigation }: any) {
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
-          <ScrollView
+          <FlatList
+            data={filteredRequests}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRequestItem}
+            contentContainerStyle={styles.content}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -294,75 +361,15 @@ export default function ShiftRequestsScreen({ navigation }: any) {
                 colors={[colors.primary]}
               />
             }
-            contentContainerStyle={styles.content}
-          >
-            {filteredRequests.length === 0 ? (
+            ListEmptyComponent={
               <EmptyState
                 icon={Clock}
                 title={t('screens.requests.emptyTitle')}
                 description={emptyDescription}
               />
-            ) : (
-              filteredRequests.map((request) => (
-                <View key={request.id} style={[styles.requestCard, ui.card]}>
-                  <View style={styles.requestHeader}>
-                    <View style={styles.requestHeaderLeft}>
-                      <User size={16} color={colors.primary} />
-                      <Text style={[styles.employeeName, ui.title]}>{request.employeeName}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, getStatusStyle(request.status)]}>
-                      <Text style={styles.statusBadgeText}>{getStatusLabel(request.status)}</Text>
-                    </View>
-                  </View>
-
-                  {showPvzOnCard && (request.pvzName || pvz?.name) ? (
-                    <View style={styles.detailRow}>
-                      <Building2 size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>{request.pvzName || pvz?.name}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.requestDetails}>
-                    <View style={styles.detailRow}>
-                      <Calendar size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>{formatDate(request.date, 'long')}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Clock size={14} color={screen.textSecondary} />
-                      <Text style={styles.detailText}>
-                        {request.startTime} — {request.endTime}
-                      </Text>
-                    </View>
-                    {request.reason ? (
-                      <Text style={styles.reasonText}>«{request.reason}»</Text>
-                    ) : null}
-                    <Text style={styles.createdAt}>
-                      {t('screens.requests.submittedAt', { date: formatCreatedAt(request.createdAt) })}
-                    </Text>
-                  </View>
-
-                  {request.status === 'pending' && canApprove && (
-                    <View style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.approveButton}
-                        onPress={() => approveRequest(request)}
-                      >
-                        <Check size={18} color={staticColors.success} />
-                        <Text style={styles.approveText}>{t('common.actions.approve')}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.rejectButton}
-                        onPress={() => rejectRequest(request)}
-                      >
-                        <X size={18} color={staticColors.danger} />
-                        <Text style={styles.rejectText}>{t('common.actions.reject')}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              ))
-            )}
-          </ScrollView>
+            }
+            {...FLAT_LIST_PERF}
+          />
         )}
       </ThemedSafeAreaView>
     </PermissionGate>

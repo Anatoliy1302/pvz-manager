@@ -4,7 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -38,6 +38,7 @@ import {
   Calculator,
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 export default function SalaryFormulasScreen({ navigation }: any) {
   const { t } = useTranslation();
@@ -141,6 +142,72 @@ export default function SalaryFormulasScreen({ navigation }: any) {
     return count;
   };
 
+  const listHeader = (
+    <View style={[styles.infoCard, ui.card]}>
+      <Text style={[styles.infoText, ui.subtitle]}>{t('screens.formulas.info')}</Text>
+    </View>
+  );
+
+  const renderFormulaItem = useCallback(
+    ({ item: formula }: { item: SalaryFormula }) => (
+      <View style={[styles.formulaCard, ui.card, formula.isActive && styles.activeCard]}>
+        <View style={styles.formulaHeader}>
+          <View style={styles.formulaTitleRow}>
+            <Text style={[styles.formulaName, ui.title]}>{formula.name}</Text>
+            {formula.isActive && (
+              <View style={styles.defaultBadge}>
+                <Text style={styles.defaultBadgeText}>{t('screens.formulas.defaultBadge')}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.formulaActions}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('FormulaEditor', { formula })}
+              style={styles.actionButton}
+            >
+              <Edit2 size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(formula)} style={styles.actionButton}>
+              <Trash2 size={18} color={colors.danger} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={styles.formulaType}>{getPayTypeText(formula.payType)}</Text>
+        <Text style={[styles.formulaRates, ui.subtitle]}>{getRateText(formula)}</Text>
+
+        <View style={styles.formulaStats}>
+          <View style={styles.statItem}>
+            <Package size={14} color={colors.primary} />
+            <Text style={[styles.statText, ui.subtitle]}>
+              {t('screens.formulas.bonuses', { count: getBonusCount(formula) })}
+            </Text>
+          </View>
+          <View style={styles.statItem}>
+            <AlertCircle size={14} color={colors.danger} />
+            <Text style={[styles.statText, ui.subtitle]}>
+              {t('screens.formulas.penalties', { count: getPenaltyCount(formula) })}
+            </Text>
+          </View>
+        </View>
+
+        {formula.description && (
+          <Text style={[styles.formulaDescription, ui.subtitle]}>{formula.description}</Text>
+        )}
+
+        {!formula.isActive && (
+          <TouchableOpacity
+            style={[styles.setDefaultButton, { borderTopColor: screen.border }]}
+            onPress={() => handleSetDefault(formula)}
+          >
+            <Text style={styles.setDefaultText}>{t('screens.formulas.setDefault')}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ),
+    [ui, screen, t, navigation, handleDelete, handleSetDefault, getPayTypeText, getRateText, getBonusCount, getPenaltyCount]
+  );
+
   return (
     <ThemedSafeAreaView style={styles.container}>
       <ScreenHeader
@@ -153,17 +220,12 @@ export default function SalaryFormulasScreen({ navigation }: any) {
         }
       />
 
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={styles.content}
-      >
-        <View style={[styles.infoCard, ui.card]}>
-          <Text style={[styles.infoText, ui.subtitle]}>
-            {t('screens.formulas.info')}
-          </Text>
-        </View>
-
-        {formulas.length === 0 ? (
+      <FlatList
+        data={formulas}
+        keyExtractor={(item) => item.id}
+        renderItem={renderFormulaItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
           <EmptyState
             icon={Calculator}
             title={t('screens.formulas.emptyTitle')}
@@ -171,64 +233,11 @@ export default function SalaryFormulasScreen({ navigation }: any) {
             buttonText={t('common.actions.create')}
             onButtonPress={() => navigation.navigate('FormulaEditor', { formula: null })}
           />
-        ) : (
-          formulas.map((formula) => (
-            <View key={formula.id} style={[styles.formulaCard, ui.card, formula.isActive && styles.activeCard]}>
-              <View style={styles.formulaHeader}>
-                <View style={styles.formulaTitleRow}>
-                  <Text style={[styles.formulaName, ui.title]}>{formula.name}</Text>
-                  {formula.isActive && (
-                    <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>{t('screens.formulas.defaultBadge')}</Text>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.formulaActions}>
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('FormulaEditor', { formula })}
-                    style={styles.actionButton}
-                  >
-                    <Edit2 size={18} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => handleDelete(formula)}
-                    style={styles.actionButton}
-                  >
-                    <Trash2 size={18} color={colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <Text style={styles.formulaType}>{getPayTypeText(formula.payType)}</Text>
-              <Text style={[styles.formulaRates, ui.subtitle]}>{getRateText(formula)}</Text>
-              
-              <View style={styles.formulaStats}>
-                <View style={styles.statItem}>
-                  <Package size={14} color={colors.primary} />
-                  <Text style={[styles.statText, ui.subtitle]}>{t('screens.formulas.bonuses', { count: getBonusCount(formula) })}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <AlertCircle size={14} color={colors.danger} />
-                  <Text style={[styles.statText, ui.subtitle]}>{t('screens.formulas.penalties', { count: getPenaltyCount(formula) })}</Text>
-                </View>
-              </View>
-
-              {formula.description && (
-                <Text style={[styles.formulaDescription, ui.subtitle]}>{formula.description}</Text>
-              )}
-
-              {!formula.isActive && (
-                <TouchableOpacity 
-                  style={[styles.setDefaultButton, { borderTopColor: screen.border }]}
-                  onPress={() => handleSetDefault(formula)}
-                >
-                  <Text style={styles.setDefaultText}>{t('screens.formulas.setDefault')}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.content}
+        {...FLAT_LIST_PERF}
+      />
     </ThemedSafeAreaView>
   );
 }

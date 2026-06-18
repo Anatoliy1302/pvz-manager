@@ -6,6 +6,7 @@ import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -14,13 +15,14 @@ import {
 } from 'react-native';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
+import PremiumGate from '../../components/common/PremiumGate';
 import EmptyState from '../../components/common/EmptyState';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { User } from '../../types/user';
-import { calculateEmployeeAccruals } from '../../services/PaymentService';
+import { calculatePvzSalaryOverview } from '../../services/PaymentService';
 import DataService from '../../services/DataService';
 import { formatHours, toDateKey } from '../../utils/dateHelpers';
 import {
@@ -35,6 +37,7 @@ import {
   Info,
   Search,
 } from 'lucide-react-native';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 interface ShiftDetail {
   id: string;
@@ -94,7 +97,7 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
 
     try {
       const users = await DataService.getUsers();
-      const shifts = await DataService.getShifts();
+      const shifts = await DataService.getShiftsLocal();
 
       const filteredShifts = shifts.filter((s) => s.pvzId === pvzId);
       const filteredUsers = users.filter(
@@ -170,18 +173,13 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
         }
       });
 
-      await Promise.all(
-        filteredUsers.map(async (u) => {
-          const accruals = await calculateEmployeeAccruals(u.id, pvzId, {
-            periodStart: startStr,
-            periodEnd: endStr,
-          });
-          const stats = employeeStatsMap[u.id];
-          if (!stats) return;
-          stats.totalEarned = accruals.netEarned;
-          stats.totalPending = Math.max(0, accruals.netEarned - stats.totalPaid);
-        })
-      );
+      const overview = await calculatePvzSalaryOverview(pvzId, startStr, endStr);
+      for (const row of overview) {
+        const stats = employeeStatsMap[row.employeeId];
+        if (!stats) continue;
+        stats.totalEarned = row.accruals.netEarned;
+        stats.totalPending = Math.max(0, row.accruals.netEarned - stats.totalPaid);
+      }
 
       const sorted = Object.values(employeeStatsMap).sort((a, b) => b.totalHours - a.totalHours);
       setTopEmployees(sorted);
@@ -291,15 +289,9 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
     setShowDetailsModal(true);
   };
 
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <ScreenHeader title={t('screens.owner.analytics')} onBack={() => navigation.goBack()} />
-
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
+  const analyticsListHeader = useMemo(
+    () => (
+      <>
         {userPvzs.length > 1 && (
           <ScrollView
             horizontal
@@ -454,64 +446,95 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
               {hideInactive ? t('screens.analytics.showAll') : t('screens.analytics.hideInactive')}
             </Text>
           </TouchableOpacity>
+        </View>
+      </>
+    ),
+    [userPvzs, selectedPvzId, selectedPvzName, summary, searchQuery, hideInactive, ui, screen, theme, t, formatMonth, changeMonth]
+  );
 
-          {filteredEmployees.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title={t('screens.analytics.noData')}
-              description={
-                searchQuery
-                  ? t('screens.analytics.notFoundDesc', { query: searchQuery.trim() })
-                  : t('screens.analytics.noShiftsMonth')
-              }
-            />
-          ) : (
-            filteredEmployees.map((employee, index) => (
-              <TouchableOpacity
-                key={employee.id}
-                style={[styles.topItem, { borderBottomColor: screen.border }]}
-                onPress={() => openEmployeeDetails(employee)}
-              >
-                <View style={styles.topItemLeft}>
-                  <View style={[styles.topMedal, { backgroundColor: getMedalColor(index) }]}>
-                    <Text style={styles.topMedalText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.topItemInfo}>
-                    <Text style={[styles.topName, { color: screen.text }]}>{employee.name}</Text>
-                    <Text style={[styles.topRole, { color: screen.textSecondary }]}>
-                      {employee.role === 'admin'
-                        ? t('common.roles.adminShort')
-                        : t('common.roles.employeeShort')}
-                      {employee.totalShifts === 0 ? t('screens.analytics.noShiftsSuffix') : ''}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.topItemRight}>
-                  <Text style={styles.topHours}>{formatHours(employee.totalHours)}</Text>
-                  <Text style={styles.topEarned}>
-                    {employee.totalEarned.toLocaleString(getDateLocale())} {t('common.money.currency')}
-                  </Text>
-                  {employee.totalPending > 0 && (
-                    <Text style={styles.topPending}>
-                      {t('screens.analytics.toPay', {
-                        amount: employee.totalPending.toLocaleString(getDateLocale()),
-                      })}
-                    </Text>
-                  )}
-                </View>
-                <ChevronRight size={16} color={screen.textSecondary} />
-              </TouchableOpacity>
-            ))
+  const analyticsListFooter = useMemo(
+    () => (
+      <View style={[styles.infoCard, ui.card]}>
+        <Info size={18} color={colors.primary} />
+        <Text style={[styles.infoText, { color: screen.textSecondary }]}>
+          {t('screens.analytics.footerNote')}
+        </Text>
+      </View>
+    ),
+    [ui, screen, t]
+  );
+
+  const renderEmployeeItem = useCallback(
+    ({ item: employee, index }: { item: EmployeeStats; index: number }) => (
+      <TouchableOpacity
+        style={[styles.topItem, styles.topItemInList, { borderBottomColor: screen.border }]}
+        onPress={() => openEmployeeDetails(employee)}
+      >
+        <View style={styles.topItemLeft}>
+          <View style={[styles.topMedal, { backgroundColor: getMedalColor(index) }]}>
+            <Text style={styles.topMedalText}>{index + 1}</Text>
+          </View>
+          <View style={styles.topItemInfo}>
+            <Text style={[styles.topName, { color: screen.text }]}>{employee.name}</Text>
+            <Text style={[styles.topRole, { color: screen.textSecondary }]}>
+              {employee.role === 'admin'
+                ? t('common.roles.adminShort')
+                : t('common.roles.employeeShort')}
+              {employee.totalShifts === 0 ? t('screens.analytics.noShiftsSuffix') : ''}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.topItemRight}>
+          <Text style={styles.topHours}>{formatHours(employee.totalHours)}</Text>
+          <Text style={styles.topEarned}>
+            {employee.totalEarned.toLocaleString(getDateLocale())} {t('common.money.currency')}
+          </Text>
+          {employee.totalPending > 0 && (
+            <Text style={styles.topPending}>
+              {t('screens.analytics.toPay', {
+                amount: employee.totalPending.toLocaleString(getDateLocale()),
+              })}
+            </Text>
           )}
         </View>
+        <ChevronRight size={16} color={screen.textSecondary} />
+      </TouchableOpacity>
+    ),
+    [screen, t, openEmployeeDetails, getMedalColor]
+  );
 
-        <View style={[styles.infoCard, ui.card]}>
-          <Info size={18} color={colors.primary} />
-          <Text style={[styles.infoText, { color: screen.textSecondary }]}>
-            {t('screens.analytics.footerNote')}
-          </Text>
-        </View>
-      </ScrollView>
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <ScreenHeader title={t('screens.owner.analytics')} onBack={() => navigation.goBack()} />
+
+      <PremiumGate
+        requiredTier="pro"
+        feature="analytics"
+        onUpgrade={() => navigation.navigate('Subscription')}
+      >
+      <FlatList
+        data={filteredEmployees}
+        keyExtractor={(item) => item.id}
+        renderItem={renderEmployeeItem}
+        ListHeaderComponent={analyticsListHeader}
+        ListFooterComponent={analyticsListFooter}
+        ListEmptyComponent={
+          <EmptyState
+            icon={Users}
+            title={t('screens.analytics.noData')}
+            description={
+              searchQuery
+                ? t('screens.analytics.notFoundDesc', { query: searchQuery.trim() })
+                : t('screens.analytics.noShiftsMonth')
+            }
+          />
+        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        {...FLAT_LIST_PERF}
+      />
+      </PremiumGate>
 
       <Modal
         visible={showDetailsModal && selectedEmployee !== null}
@@ -768,6 +791,7 @@ const createStyles = (screen: ReturnType<typeof useThemedScreen>['screen']) =>
       borderBottomWidth: 1,
       gap: 8,
     },
+    topItemInList: { marginHorizontal: 16, paddingHorizontal: 16 },
     topItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
     topItemInfo: { flex: 1 },
     topMedal: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },

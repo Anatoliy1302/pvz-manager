@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { cleanPhone } from './phoneHelpers';
+import { toSecureStoreKeySuffix } from './loginIdentifier';
 import { safeParseJson } from './safeJson';
 
 const MAX_ATTEMPTS = 5;
@@ -10,46 +10,46 @@ interface PinAttemptRecord {
   lockedUntil: number | null;
 }
 
-function attemptKey(phone: string): string {
-  return `pin_attempts_${cleanPhone(phone)}`;
+function attemptKey(loginKey: string): string {
+  return `pin_attempts_${toSecureStoreKeySuffix(loginKey)}`;
 }
 
-async function readRecord(phone: string): Promise<PinAttemptRecord> {
-  const raw = await SecureStore.getItemAsync(attemptKey(phone));
+async function readRecord(loginKey: string): Promise<PinAttemptRecord> {
+  const raw = await SecureStore.getItemAsync(attemptKey(loginKey));
   if (!raw) return { failures: 0, lockedUntil: null };
   return safeParseJson<PinAttemptRecord>(raw, { failures: 0, lockedUntil: null });
 }
 
-async function writeRecord(phone: string, record: PinAttemptRecord): Promise<void> {
-  await SecureStore.setItemAsync(attemptKey(phone), JSON.stringify(record));
+async function writeRecord(loginKey: string, record: PinAttemptRecord): Promise<void> {
+  await SecureStore.setItemAsync(attemptKey(loginKey), JSON.stringify(record));
 }
 
 export type PinLockStatus =
   | { locked: false }
   | { locked: true; retryAfterMs: number };
 
-export async function getPinLockStatus(phone: string): Promise<PinLockStatus> {
-  const record = await readRecord(phone);
+export async function getPinLockStatus(loginKey: string): Promise<PinLockStatus> {
+  const record = await readRecord(loginKey);
   if (record.lockedUntil && Date.now() < record.lockedUntil) {
     return { locked: true, retryAfterMs: record.lockedUntil - Date.now() };
   }
   return { locked: false };
 }
 
-export async function recordPinFailure(phone: string): Promise<PinLockStatus> {
-  const record = await readRecord(phone);
+export async function recordPinFailure(loginKey: string): Promise<PinLockStatus> {
+  const record = await readRecord(loginKey);
   const failures = record.failures + 1;
 
   if (failures >= MAX_ATTEMPTS) {
     const lockedUntil = Date.now() + LOCKOUT_MS;
-    await writeRecord(phone, { failures: 0, lockedUntil });
+    await writeRecord(loginKey, { failures: 0, lockedUntil });
     return { locked: true, retryAfterMs: LOCKOUT_MS };
   }
 
-  await writeRecord(phone, { failures, lockedUntil: null });
+  await writeRecord(loginKey, { failures, lockedUntil: null });
   return { locked: false };
 }
 
-export async function resetPinAttempts(phone: string): Promise<void> {
-  await SecureStore.deleteItemAsync(attemptKey(phone));
+export async function resetPinAttempts(loginKey: string): Promise<void> {
+  await SecureStore.deleteItemAsync(attemptKey(loginKey));
 }

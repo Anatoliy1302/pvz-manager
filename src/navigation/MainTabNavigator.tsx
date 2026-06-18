@@ -1,5 +1,5 @@
 // src/navigation/MainTabNavigator.tsx
-import React from 'react';
+import React, { useMemo, memo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import { useChatOptional } from '../context/ChatContext';
@@ -34,9 +34,26 @@ import EmployeeProfileScreen from '../screens/profile/EmployeeProfileScreen';
 import EmployeeChatScreen from '../screens/chat/ChatScreen';
 import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 
+import StatisticsScreen from '../screens/statistics/StatisticsScreen';
+import { ChatProvider } from '../context/ChatContext';
+
 const Tab = createBottomTabNavigator();
 
-const TabIcon = ({ Icon, focused, label, themeColors, badgeCount = 0 }: any) => {
+interface TabIconProps {
+  Icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  focused: boolean;
+  label: string;
+  themeColors: ReturnType<typeof useTheme>['colors'];
+  badgeCount?: number;
+}
+
+const TabIcon = memo(function TabIcon({
+  Icon,
+  focused,
+  label,
+  themeColors,
+  badgeCount = 0,
+}: TabIconProps) {
   return (
     <View style={{ alignItems: 'center', justifyContent: 'center', width: 70 }}>
       <View style={{ position: 'relative' }}>
@@ -122,9 +139,9 @@ const TabIcon = ({ Icon, focused, label, themeColors, badgeCount = 0 }: any) => 
       </Text>
     </View>
   );
-};
+});
 
-export default function MainTabNavigator() {
+function MainTabNavigatorInner() {
   const { t } = useTranslation();
   const { user, hasPermission } = useAuth();
   const { colors, theme } = useTheme();
@@ -132,26 +149,31 @@ export default function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const chatUnreadCount = useChatOptional()?.totalUnreadCount ?? 0;
 
-  const screenOptions = {
-    headerShown: false,
-    sceneStyle: { backgroundColor: colors.background },
-    tabBarStyle: {
-      backgroundColor: colors.card,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      height: Platform.OS === 'ios' ? 85 : 70 + Math.max(insets.bottom, 10),
-      paddingBottom: Platform.OS === 'ios' ? 25 : 15 + (insets.bottom > 0 ? insets.bottom - 10 : 0),
-      paddingTop: 8,
-      shadowColor: theme === 'dark' ? '#000' : '#000',
-      shadowOffset: { width: 0, height: -3 },
-      shadowOpacity: theme === 'dark' ? 0.3 : 0.08,
-      shadowRadius: 12,
-      elevation: 10,
-    },
-    tabBarShowLabel: false,
-    tabBarActiveTintColor: colors.primary,
-    tabBarInactiveTintColor: staticColors.grayLight,
-  };
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      lazy: true,
+      freezeOnBlur: true,
+      sceneStyle: { backgroundColor: colors.background },
+      tabBarStyle: {
+        backgroundColor: colors.card,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        height: Platform.OS === 'ios' ? 85 : 70 + Math.max(insets.bottom, 10),
+        paddingBottom: Platform.OS === 'ios' ? 25 : 15 + (insets.bottom > 0 ? insets.bottom - 10 : 0),
+        paddingTop: 8,
+        shadowColor: theme === 'dark' ? '#000' : '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: theme === 'dark' ? 0.3 : 0.08,
+        shadowRadius: 12,
+        elevation: 10,
+      },
+      tabBarShowLabel: false,
+      tabBarActiveTintColor: colors.primary,
+      tabBarInactiveTintColor: staticColors.grayLight,
+    }),
+    [colors, theme, insets.bottom]
+  );
 
   // ========== ВЛАДЕЛЕЦ (owner) ==========
   if (role === 'owner') {
@@ -254,5 +276,13 @@ export default function MainTabNavigator() {
         options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={User} focused={focused} label="Профиль" themeColors={colors} /> }} 
       />
     </Tab.Navigator>
+  );
+}
+
+export default function MainTabNavigator() {
+  return (
+    <ChatProvider>
+      <MainTabNavigatorInner />
+    </ChatProvider>
   );
 }

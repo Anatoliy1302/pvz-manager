@@ -8,7 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "false"
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "true",
+        "EXPO_PUBLIC_USE_SUPABASE_EMAIL_OTP": "true"
       },
       "ios": {
         "simulator": true
@@ -20,7 +22,10 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "true"
+        "EXPO_PUBLIC_APP_ENV": "staging",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "true",
+        "EXPO_PUBLIC_USE_SUPABASE_EMAIL_OTP": "true"
       },
       "android": {
         "buildType": "apk"
@@ -29,7 +34,10 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "true"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP": "true",
+        "EXPO_PUBLIC_USE_SUPABASE_EMAIL_OTP": "true"
       },
       "android": {
         "buildType": "app-bundle"

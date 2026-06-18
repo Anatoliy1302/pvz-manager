@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Бяспека',
     changePin: 'Змяніць PIN-код',
+    deleteAccount: 'Выдаліць акаўнт',
+    deleteAccountDesc: 'Беззваротнае выдаленне акаўнта і ўсіх звязаных дадзеных',
     biometricLogin: 'Уваход праз {{label}}',
     biometricHint: 'Для хуткага ўваходу выкарыстоўваецца абарона вашай прылады.',
   },

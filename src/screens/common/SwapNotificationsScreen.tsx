@@ -1,10 +1,10 @@
 // src/screens/common/SwapNotificationsScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -22,6 +22,7 @@ import { CheckCircle, XCircle, RefreshCw, Clock } from 'lucide-react-native';
 import PermissionGate from '../../components/common/PermissionGate';
 import type { SwapRequest } from '../../services/data/swapRequestDataService';
 import { formatDate } from '../../utils/dateHelpers';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 export default function SwapNotificationsScreen({ navigation }: any) {
   const { t } = useTranslation();
@@ -129,24 +130,25 @@ export default function SwapNotificationsScreen({ navigation }: any) {
     }
   };
 
-  const renderSwapCard = (request: SwapRequest, showCancel: boolean) => {
-    const isInitiator = request.fromEmployeeId === user?.id;
+  const renderSwapCard = useCallback(
+    (request: SwapRequest, showCancel: boolean) => {
+      const isInitiator = request.fromEmployeeId === user?.id;
 
-    return (
-      <View key={request.id} style={[styles.requestCard, ui.card]}>
-        <View style={styles.requestHeader}>
-          <Text style={[styles.employeeName, { color: screen.text }]}>
-            {isInitiator
-              ? t('screens.swaps.colleague', { name: request.toEmployeeName })
-              : t('screens.swaps.from', { name: request.fromEmployeeName })}
-          </Text>
-          <View style={[styles.statusBadge, getStatusBadgeStyle(request.status)]}>
-            {getStatusIcon(request.status)}
-            <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
-              {getStatusText(request.status)}
+      return (
+        <View style={[styles.requestCard, ui.card]}>
+          <View style={styles.requestHeader}>
+            <Text style={[styles.employeeName, { color: screen.text }]}>
+              {isInitiator
+                ? t('screens.swaps.colleague', { name: request.toEmployeeName })
+                : t('screens.swaps.from', { name: request.fromEmployeeName })}
             </Text>
+            <View style={[styles.statusBadge, getStatusBadgeStyle(request.status)]}>
+              {getStatusIcon(request.status)}
+              <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
+                {getStatusText(request.status)}
+              </Text>
+            </View>
           </View>
-        </View>
 
         <View style={styles.swapDetails}>
           <Text style={[styles.swapLabel, { color: screen.textSecondary }]}>
@@ -188,32 +190,40 @@ export default function SwapNotificationsScreen({ navigation }: any) {
         ) : null}
       </View>
     );
-  };
+  },
+  [ui, screen, t, user?.id, cancelRequest, getStatusBadgeStyle, getStatusIcon, getStatusColor, getStatusText]
+  );
+
+  const sections = useMemo(
+    () => [
+      ...(pendingRequests.length > 0
+        ? [{ key: 'pending', title: t('screens.swaps.pending'), data: pendingRequests, showCancel: true as const }]
+        : []),
+      ...(historyRequests.length > 0
+        ? [{ key: 'history', title: t('screens.swaps.history'), data: historyRequests, showCancel: false as const }]
+        : []),
+    ],
+    [pendingRequests, historyRequests, t]
+  );
 
   return (
     <PermissionGate permission="canSwapShifts" navigation={navigation}>
       <ThemedSafeAreaView style={styles.container}>
         <ScreenHeader title={t('screens.swaps.myTitle')} onBack={() => navigation.goBack()} />
 
-        <ScrollView
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, section }) => renderSwapCard(item, section.showCancel)}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, ui.sectionTitle]}>{section.title}</Text>
+            </View>
+          )}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
-        >
-          {pendingRequests.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, ui.sectionTitle]}>{t('screens.swaps.pending')}</Text>
-              {pendingRequests.map((request) => renderSwapCard(request, true))}
-            </View>
-          )}
-
-          {historyRequests.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, ui.sectionTitle]}>{t('screens.swaps.history')}</Text>
-              {historyRequests.map((request) => renderSwapCard(request, false))}
-            </View>
-          )}
-
-          {pendingRequests.length === 0 && historyRequests.length === 0 && (
+          contentContainerStyle={sections.length === 0 ? styles.emptyContent : undefined}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <RefreshCw size={48} color={colors.grayLighter} />
               <Text style={[styles.emptyText, { color: screen.textSecondary }]}>
@@ -223,8 +233,10 @@ export default function SwapNotificationsScreen({ navigation }: any) {
                 {t('screens.swaps.emptyHint')}
               </Text>
             </View>
-          )}
-        </ScrollView>
+          }
+          stickySectionHeadersEnabled={false}
+          {...FLAT_LIST_PERF}
+        />
       </ThemedSafeAreaView>
     </PermissionGate>
   );
@@ -232,6 +244,7 @@ export default function SwapNotificationsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  emptyContent: { flexGrow: 1 },
   section: { marginTop: 16, paddingHorizontal: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
   requestCard: { borderRadius: 16, padding: 16, marginBottom: 12 },

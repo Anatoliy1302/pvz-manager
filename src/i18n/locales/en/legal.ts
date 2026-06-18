@@ -2,6 +2,7 @@ export default {
   privacy: {
     title: 'Privacy policy',
     updated: 'Updated: {{date}}',
+    openOnWeb: 'Open the current version on the website',
     emailSubject: 'PVZ Staff — personal data',
     sections: {
       general: {
@@ -76,5 +77,15 @@ export default {
         p1: 'For personal data questions, contact the operator {{operator}}:',
       },
     },
+  },
+  links: {
+    privacy: 'Privacy Policy',
+    terms: 'Terms of Use',
+    consent: 'Consent to personal data processing',
+  },
+  consentNote: {
+    prefix: 'By continuing, you agree to the',
+    separator: ', ',
+    lastSeparator: ', and ',
   },
 } as const;

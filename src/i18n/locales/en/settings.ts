@@ -22,6 +22,8 @@ export default {
   security: {
     section: 'Security',
     changePin: 'Change PIN',
+    deleteAccount: 'Delete account',
+    deleteAccountDesc: 'Permanently delete your account and all associated data',
     biometricLogin: 'Sign in with {{label}}',
     biometricHint: 'Your device security is used for quick sign-in.',
   },

@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 import DataService from './DataService';
+import subscriptionService, { Subscription } from './subscriptionService';
 import {
   calculateEmployeeAccruals,
   getPaymentsByPeriod,
@@ -41,7 +42,24 @@ interface PayrollRow {
 }
 
 class ExportService {
-  async exportAccountantReport(options: AccountantExportOptions): Promise<void> {
+  /**
+   * Проверяет, активна ли подписка для экспорта.
+   * Выбрасывает ошибку, если подписка не активна.
+   */
+  hasActiveSubscription(subscription?: Subscription): boolean {
+    if (!subscription) return false;
+    return subscriptionService.isActive(subscription);
+  }
+
+  async exportAccountantReport(
+    options: AccountantExportOptions,
+    subscription?: Subscription,
+  ): Promise<void> {
+    if (subscription && !this.hasActiveSubscription(subscription)) {
+      Alert.alert(t('common.error.title'), t('subscription.exportNotAvailable'));
+      return;
+    }
+
     try {
       await syncShiftStatusesInStorage();
 
@@ -98,7 +116,16 @@ class ExportService {
     }
   }
 
-  async exportEmployees(pvzId: string, pvzName: string): Promise<void> {
+  async exportEmployees(
+    pvzId: string,
+    pvzName: string,
+    subscription?: Subscription,
+  ): Promise<void> {
+    if (subscription && !this.hasActiveSubscription(subscription)) {
+      Alert.alert(t('common.error.title'), t('subscription.exportNotAvailable'));
+      return;
+    }
+
     try {
       const employees = await this.getActiveEmployees(pvzId);
       const headers = ['Имя', 'Телефон', 'Роль', 'Дата создания'];
@@ -119,8 +146,14 @@ class ExportService {
     pvzId: string,
     pvzName: string,
     periodStart: string,
-    periodEnd: string
+    periodEnd: string,
+    subscription?: Subscription,
   ): Promise<void> {
+    if (subscription && !this.hasActiveSubscription(subscription)) {
+      Alert.alert(t('common.error.title'), t('subscription.exportNotAvailable'));
+      return;
+    }
+
     try {
       await syncShiftStatusesInStorage();
       const shifts = await this.getPeriodShifts(pvzId, periodStart, periodEnd);
@@ -154,8 +187,14 @@ class ExportService {
     pvzId: string,
     pvzName: string,
     periodStart: string,
-    periodEnd: string
+    periodEnd: string,
+    subscription?: Subscription,
   ): Promise<void> {
+    if (subscription && !this.hasActiveSubscription(subscription)) {
+      Alert.alert(t('common.error.title'), t('subscription.exportNotAvailable'));
+      return;
+    }
+
     try {
       const payments = await getPaymentsByPeriod(pvzId, periodStart, periodEnd);
       await this.shareCsv(

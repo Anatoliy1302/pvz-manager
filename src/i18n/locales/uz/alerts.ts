@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'Supabase-da telefon orqali kirish o\'chirilgan.',
     emailLoginDisabled: 'Email orqali kirish o\'chirilgan — faqat SMS.',
     otpExpired: 'SMS kodi muddati tugadi. Yangisini so\'rang.',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'Noto\'g\'ri SMS kodi.',
     rateLimit: 'Juda ko\'p urinish. Kutib, qayta urinib ko\'ring.',
   },

@@ -1,17 +1,22 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { User, UserRole, Pvz, EmployeePermissions } from '../../types/user';
+import { Subscription } from '../../services/subscriptionService';
 
 export interface SignInOptions {
   pvzId?: string;
   invitationId?: string;
+  loginMethod?: 'phone' | 'email';
 }
 
 export interface AuthContextData {
   user: User | null;
   pvz: Pvz | null;
+  subscription: Subscription | null;
   isLoading: boolean;
   signIn: (phone: string, role: UserRole, options?: SignInOptions) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
+  deleteUserAccount: () => Promise<void>;
   hasRole: (roles: UserRole[]) => boolean;
   switchPvz: (pvzId: string) => Promise<void>;
   userPvzs: Pvz[];
@@ -30,6 +35,7 @@ export interface AuthContextData {
   isOwnerExists: () => Promise<boolean>;
   blockUser: (userId: string) => Promise<void>;
   hasPermission: (permission: keyof EmployeePermissions) => boolean;
+  refreshSubscription: () => Promise<Subscription | null>;
 }
 
 export interface AuthSetters {

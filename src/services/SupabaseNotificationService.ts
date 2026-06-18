@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import { isUuid, mergeById } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { NOTIFICATION_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 import { NotificationRecord } from './notifications/types';
 
 function rowToNotification(row: Record<string, unknown>): NotificationRecord {
@@ -38,11 +39,11 @@ function notificationToRow(
 }
 
 export async function fetchNotificationsFromSupabase(): Promise<NotificationRecord[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const { data, error } = await supabase
     .from('notifications')
-    .select('*')
+    .select(NOTIFICATION_COLUMNS)
     .order('created_at', { ascending: false })
     .limit(200);
 
@@ -58,20 +59,20 @@ export async function upsertNotificationToSupabase(
   notification: NotificationRecord,
   userId: string
 ): Promise<NotificationRecord | null> {
-  if (!(await hasSupabaseSession()) || !isUuid(userId)) return null;
+  if (!(await ensureSupabaseClientSession()) || !isUuid(userId)) return null;
 
   const row = notificationToRow(notification, userId);
   const { data, error } = await supabase
     .from('notifications')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(NOTIFICATION_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('notifications')
       .insert(row)
-      .select('*')
+      .select(NOTIFICATION_COLUMNS)
       .single();
 
     if (insertError) {
@@ -85,7 +86,7 @@ export async function upsertNotificationToSupabase(
 }
 
 export async function markNotificationReadInSupabase(id: string): Promise<boolean> {
-  if (!(await hasSupabaseSession()) || !isUuid(id)) return false;
+  if (!(await ensureSupabaseClientSession()) || !isUuid(id)) return false;
 
   const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   if (error) {
@@ -96,7 +97,7 @@ export async function markNotificationReadInSupabase(id: string): Promise<boolea
 }
 
 export async function markAllNotificationsReadInSupabase(): Promise<boolean> {
-  if (!(await hasSupabaseSession())) return false;
+  if (!(await ensureSupabaseClientSession())) return false;
 
   const {
     data: { session },

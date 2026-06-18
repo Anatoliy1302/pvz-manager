@@ -165,6 +165,11 @@ export const savePendingEmployeesToStorage = async (): Promise<void> => {
   await userMemory.persistPending();
 };
 
+export const resetUserMemoryStore = (): void => {
+  userMemory.setUsers([]);
+  userMemory.setPending([]);
+};
+
 export const refreshPendingEmployees = async (): Promise<void> => {
   try {
     const stored = await SecureStore.getItemAsync('pending_employees');

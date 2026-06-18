@@ -4,6 +4,7 @@ import {
   View,
   Text,
   StyleSheet,
+  FlatList,
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -31,6 +32,7 @@ import {
   Clock,
   Info,
 } from 'lucide-react-native';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 interface Invitation {
   id: string;
@@ -199,33 +201,9 @@ export default function InvitationsScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
-  const emptyDescription =
-    statusFilter === 'all'
-      ? t('screens.owner.emptyInvitesDesc')
-      : t('screens.owner.emptyInvitesFilter', {
-          status: filters.find((f) => f.key === statusFilter)?.label ?? '',
-        });
-
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <ScreenHeader
-        title={t('screens.owner.invitations')}
-        onBack={() => navigation.goBack()}
-        right={
-          <TouchableOpacity
-            onPress={() => navigation.navigate('EmployeeAddForm')}
-            accessibilityLabel={t('screens.owner.inviteEmployee')}
-          >
-            <UserPlus size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
-      />
-
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+  const listHeader = useMemo(
+    () => (
+      <>
         <View style={[styles.infoBanner, ui.card]}>
           <Info size={18} color={colors.primary} />
           <Text style={[styles.infoText, { color: screen.textSecondary }]}>
@@ -285,8 +263,105 @@ export default function InvitationsScreen({ navigation }: any) {
             </ScrollView>
           </>
         )}
+      </>
+    ),
+    [invitations.length, counts, filters, statusFilter, ui, screen, t]
+  );
 
-        {filteredInvitations.length === 0 ? (
+  const renderInvitationItem = useCallback(
+    ({ item: invitation }: { item: Invitation }) => {
+      const status = getStatusBadge(invitation.status);
+      const StatusIcon = status.icon;
+      const isResending = resendingId === invitation.id;
+
+      return (
+        <View style={[styles.invitationCard, ui.card]}>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderMain}>
+              <Text style={[styles.employeeName, ui.title]}>{invitation.name}</Text>
+              <View style={styles.employeeInfo}>
+                <Phone size={12} color={screen.textSecondary} />
+                <Text style={[styles.employeePhone, { color: screen.textSecondary }]}>
+                  {formatPhoneForDisplay(invitation.phone)}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+              <StatusIcon size={12} color={status.color} />
+              <Text style={[styles.statusText, { color: status.color }]}>{status.text}</Text>
+            </View>
+          </View>
+
+          <View style={styles.cardDetails}>
+            <View style={styles.detailRow}>
+              <Users size={12} color={screen.textSecondary} />
+              <Text style={[styles.detailText, { color: screen.textSecondary }]}>
+                {invitation.role === 'admin' ? t('common.roles.adminShort') : t('common.roles.employeeShort')}
+              </Text>
+            </View>
+            <Text style={[styles.detailText, { color: screen.textSecondary }]}>
+              {invitation.pvzName || t('common.pvz.default')}
+            </Text>
+            <Text style={[styles.invitationDate, { color: screen.textSecondary }]}>
+              {t('screens.owner.sentAt', { date: formatDate(invitation.createdAt) })}
+            </Text>
+          </View>
+
+          {invitation.status === 'pending' && (
+            <View style={[styles.cardActions, { borderTopColor: screen.border }]}>
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={() => resendInvitation(invitation)}
+                disabled={isResending}
+              >
+                <RefreshCw size={14} color={colors.primary} />
+                <Text style={styles.resendText}>
+                  {isResending ? t('screens.owner.resending') : t('screens.owner.resend')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => deleteInvitation(invitation)}
+              >
+                <X size={14} color={colors.danger} />
+                <Text style={styles.cancelText}>{t('common.actions.cancel')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    },
+    [ui, screen, t, resendingId, getStatusBadge, resendInvitation, deleteInvitation, formatDate]
+  );
+
+  const emptyDescription =
+    statusFilter === 'all'
+      ? t('screens.owner.emptyInvitesDesc')
+      : t('screens.owner.emptyInvitesFilter', {
+          status: filters.find((f) => f.key === statusFilter)?.label ?? '',
+        });
+
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <ScreenHeader
+        title={t('screens.owner.invitations')}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity
+            onPress={() => navigation.navigate('EmployeeAddForm')}
+            accessibilityLabel={t('screens.owner.inviteEmployee')}
+          >
+            <UserPlus size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        }
+      />
+
+      <FlatList
+        data={filteredInvitations}
+        keyExtractor={(item) => item.id}
+        renderItem={renderInvitationItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
           <EmptyState
             icon={Mail}
             title={invitations.length === 0 ? t('screens.owner.emptyInvitesTitle') : t('common.empty.notFound')}
@@ -296,71 +371,12 @@ export default function InvitationsScreen({ navigation }: any) {
               invitations.length === 0 ? () => navigation.navigate('EmployeeAddForm') : undefined
             }
           />
-        ) : (
-          filteredInvitations.map((invitation) => {
-            const status = getStatusBadge(invitation.status);
-            const StatusIcon = status.icon;
-            const isResending = resendingId === invitation.id;
-
-            return (
-              <View key={invitation.id} style={[styles.invitationCard, ui.card]}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardHeaderMain}>
-                    <Text style={[styles.employeeName, ui.title]}>{invitation.name}</Text>
-                    <View style={styles.employeeInfo}>
-                      <Phone size={12} color={screen.textSecondary} />
-                      <Text style={[styles.employeePhone, { color: screen.textSecondary }]}>
-                        {formatPhoneForDisplay(invitation.phone)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-                    <StatusIcon size={12} color={status.color} />
-                    <Text style={[styles.statusText, { color: status.color }]}>{status.text}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardDetails}>
-                  <View style={styles.detailRow}>
-                    <Users size={12} color={screen.textSecondary} />
-                    <Text style={[styles.detailText, { color: screen.textSecondary }]}>
-                      {invitation.role === 'admin' ? t('common.roles.adminShort') : t('common.roles.employeeShort')}
-                    </Text>
-                  </View>
-                  <Text style={[styles.detailText, { color: screen.textSecondary }]}>
-                    {invitation.pvzName || t('common.pvz.default')}
-                  </Text>
-                  <Text style={[styles.invitationDate, { color: screen.textSecondary }]}>
-                    {t('screens.owner.sentAt', { date: formatDate(invitation.createdAt) })}
-                  </Text>
-                </View>
-
-                {invitation.status === 'pending' && (
-                  <View style={[styles.cardActions, { borderTopColor: screen.border }]}>
-                    <TouchableOpacity
-                      style={styles.resendButton}
-                      onPress={() => resendInvitation(invitation)}
-                      disabled={isResending}
-                    >
-                      <RefreshCw size={14} color={colors.primary} />
-                      <Text style={styles.resendText}>
-                        {isResending ? t('screens.owner.resending') : t('screens.owner.resend')}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.cancelButton}
-                      onPress={() => deleteInvitation(invitation)}
-                    >
-                      <X size={14} color={colors.danger} />
-                      <Text style={styles.cancelText}>{t('common.actions.cancel')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        {...FLAT_LIST_PERF}
+      />
     </ThemedSafeAreaView>
   );
 }

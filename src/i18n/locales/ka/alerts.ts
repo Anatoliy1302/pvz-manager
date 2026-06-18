@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'Supabase-ში ტელეფონით შესვლა გამორთულია. ჩართეთ Phone provider Dashboard-ში.',
     emailLoginDisabled: 'Email-ით შესვლა გამორთულია — აპლიკაცია იყენებს მხოლოდ SMS-ს.',
     otpExpired: 'SMS-ის კოდის ვადა ამოიწურა. მოითხოვეთ ახალი.',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'არასწორი SMS-ის კოდი.',
     rateLimit: 'ძალიან ბევრი მცდელობა. დაელოდეთ და სცადეთ ხელახლა.',
   },

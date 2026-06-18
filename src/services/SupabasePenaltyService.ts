@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { PENALTY_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 
 export interface SyncPenalty {
   id: string;
@@ -55,23 +57,22 @@ async function penaltyToRow(penalty: SyncPenalty): Promise<Record<string, unknow
 }
 
 export async function fetchPenaltiesFromSupabase(): Promise<SyncPenalty[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
-  const { data, error } = await supabase
-    .from('penalties')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase.from('penalties').select(PENALTY_COLUMNS).order('created_at', { ascending: false })
+  );
 
-  if (error) {
-    console.warn('fetchPenaltiesFromSupabase:', error.message);
+  if (!data) {
+    console.warn('fetchPenaltiesFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToPenalty(row as Record<string, unknown>));
+  return data.map((row) => rowToPenalty(row));
 }
 
 export async function upsertPenaltyToSupabase(penalty: SyncPenalty): Promise<SyncPenalty | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await penaltyToRow(penalty);
   if (!row) return null;
@@ -79,14 +80,14 @@ export async function upsertPenaltyToSupabase(penalty: SyncPenalty): Promise<Syn
   const { data, error } = await supabase
     .from('penalties')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(PENALTY_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('penalties')
       .insert(row)
-      .select('*')
+      .select(PENALTY_COLUMNS)
       .single();
 
     if (insertError) {

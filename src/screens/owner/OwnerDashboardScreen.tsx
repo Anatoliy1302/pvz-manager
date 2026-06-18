@@ -15,14 +15,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { StorageService } from '../../services/StorageService';
 import { useAuth } from '../../context/AuthContext';
-import { Shift } from '../../types/user';
 import { ShiftRequest } from '../../services/data/dataTypes';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { colors } from '../../constants/colors';
-import DataService from '../../services/DataService';
 import { safeParseJson } from '../../utils/safeJson';
 import notificationService from '../../services/NotificationService';
-import { calculateEmployeeAccruals, getEmployeeBalance } from '../../services/PaymentService';
+import { loadPvzPayrollBundle } from '../../services/PaymentService';
+import { markScreenLoadStart, markScreenLoadEnd } from '../../utils/perfMonitor';
 import AnimatedBanner from '../../components/common/AnimatedBanner';
 import {
   Crown,
@@ -38,12 +37,16 @@ import {
 } from 'lucide-react-native';
 import { countPendingSwapsForPvz } from '../../utils/swapRequestHelpers';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { DashboardSkeleton } from '../../components/common/Skeleton';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
+import { useShiftsQuery, useEmployeesQuery } from '../../hooks/queries';
 
 export default function OwnerDashboardScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz, userPvzs, switchPvz } = useAuth();
   const { ui, screen } = useThemedScreen();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, markLoaded] = useScopedInitialLoading(pvz?.id);
   const [showPvzDropdown, setShowPvzDropdown] = useState(false);
   const [stats, setStats] = useState({
     shiftsToday: 0,
@@ -55,24 +58,26 @@ export default function OwnerDashboardScreen({ navigation }: any) {
   });
   const [unpaidEmployees, setUnpaidEmployees] = useState<{name: string; amount: number}[]>([]);
 
-  const loadDashboardData = async () => {
+  const { data: pvzShifts = [], refreshFromSupabase } = useShiftsQuery(pvz?.id, {
+    enabled: Boolean(pvz?.id),
+  });
+  const { data: pvzEmployees = [] } = useEmployeesQuery(pvz?.id, {
+    enabled: Boolean(pvz?.id),
+  });
+
+  const loadDashboardData = useCallback(async () => {
+    markScreenLoadStart('OwnerDashboard');
     try {
-      const shiftsRaw = await StorageService.getData('shifts');
-      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
+      const allShifts = pvzShifts;
       const today = new Date().toISOString().split('T')[0];
       const currentMonth = new Date().getMonth();
-      
-      const pvzShifts = allShifts.filter((s: any) => s.pvzId === pvz?.id);
-      const todayShifts = pvzShifts.filter((s: any) => s.date === today);
-      const monthShifts = pvzShifts.filter((s: any) => {
+
+      const todayShifts = allShifts.filter((s: { date: string }) => s.date === today);
+      const monthShifts = allShifts.filter((s: { date: string }) => {
         const d = new Date(s.date);
         return d.getMonth() === currentMonth;
       });
 
-      const users = await DataService.getUsers();
-      const pvzEmployees = users.filter((u: any) =>
-        u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz?.id
-      );
       const activeEmployees = pvzEmployees.length;
 
       const now = new Date();
@@ -82,14 +87,19 @@ export default function OwnerDashboardScreen({ navigation }: any) {
 
       let totalEarned = 0;
       let totalPending = 0;
-      for (const emp of pvzEmployees) {
-        const monthAccruals = await calculateEmployeeAccruals(emp.id, pvz?.id || '', {
+
+      if (pvz?.id && pvzEmployees.length > 0) {
+        const payroll = await loadPvzPayrollBundle(
+          pvz.id,
+          pvzEmployees.map((e) => e.id),
           periodStart,
-          periodEnd,
-        });
-        totalEarned += monthAccruals.netEarned;
-        const balance = await getEmployeeBalance(emp.id);
-        totalPending += balance?.balance ?? 0;
+          periodEnd
+        );
+        for (const emp of pvzEmployees) {
+          const row = payroll.get(emp.id);
+          totalEarned += row?.periodAccruals.netEarned ?? 0;
+          totalPending += row?.lifetimeBalance ?? 0;
+        }
       }
 
       const requestsRaw = await StorageService.getData('all_shift_requests');
@@ -120,28 +130,31 @@ export default function OwnerDashboardScreen({ navigation }: any) {
       setUnpaidEmployees(unpaidList);
     } catch (error) {
       console.error('Ошибка загрузки:', error);
+    } finally {
+      markLoaded();
+      markScreenLoadEnd('OwnerDashboard');
     }
-  };
+  }, [pvz?.id, pvzShifts, pvzEmployees, t, markLoaded]);
 
-  useFocusEffect(useCallback(() => {
-    if (user?.id) {
-      notificationService.deliverPendingStaffAlerts(user.id);
-    }
-    loadDashboardData();
-    const unsubBalance = DataService.subscribe('employee_balance', loadDashboardData);
-    const unsubRequests = DataService.subscribe('all_shift_requests', loadDashboardData);
-    const unsubSwaps = pvz?.id
-      ? DataService.subscribe(`swap_requests_${pvz.id}`, loadDashboardData)
-      : () => {};
-    return () => {
-      unsubBalance();
-      unsubRequests();
-      unsubSwaps();
-    };
-  }, [pvz?.id, user?.id]));
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        notificationService.deliverPendingStaffAlerts(user.id);
+      }
+    }, [user?.id])
+  );
+
+  useScreenRefresh(loadDashboardData, [pvz?.id, user?.id, loadDashboardData], {
+    subscribeKeys: [
+      'employee_balance',
+      'all_shift_requests',
+      ...(pvz?.id ? [`swap_requests_${pvz.id}`] : []),
+    ],
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await refreshFromSupabase();
     await loadDashboardData();
     setRefreshing(false);
   };
@@ -162,6 +175,10 @@ export default function OwnerDashboardScreen({ navigation }: any) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {loading ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
         <AnimatedBanner height={240} delay={0}>
           <View style={styles.bannerContent}>
             <View style={styles.bannerAvatar}>
@@ -271,6 +288,8 @@ export default function OwnerDashboardScreen({ navigation }: any) {
         )}
 
         <View style={styles.bottomSpacer} />
+          </>
+        )}
       </ScrollView>
     </ThemedSafeAreaView>
   );

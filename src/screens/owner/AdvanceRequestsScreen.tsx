@@ -5,7 +5,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -37,6 +37,7 @@ import {
   Send,
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 
 export default function AdvanceRequestsScreen({ navigation }: any) {
   const { t } = useTranslation();
@@ -192,6 +193,74 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
+  const renderRequestItem = useCallback(
+    ({ item: request }: { item: AdvanceRequest }) => (
+      <View style={[styles.requestCard, ui.card]}>
+        <View style={styles.requestHeader}>
+          <View style={styles.employeeInfo}>
+            <User size={16} color={colors.primary} />
+            <Text style={[styles.employeeName, ui.title]}>{request.employeeName}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(request.status) + '20' }]}>
+            {getStatusIcon(request.status)}
+            <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
+              {getStatusText(request.status)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.amountRow}>
+          <MoneyIcon size={16} color={colors.success} />
+          <Text style={styles.amountText}>{request.amount.toLocaleString()} ₽</Text>
+        </View>
+
+        <View style={styles.periodRow}>
+          <Calendar size={14} color={colors.gray} />
+          <Text style={styles.periodText}>
+            {formatDate(request.periodStart)} — {formatDate(request.periodEnd)}
+          </Text>
+        </View>
+
+        {request.reason && (
+          <Text style={styles.reasonText}>📝 {request.reason}</Text>
+        )}
+
+        <Text style={styles.requestDate}>
+          {t('screens.advanceRequests.requestFrom', { date: formatDate(request.createdAt) })}
+        </Text>
+
+        {request.status === 'pending' && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => handleApprove(request)}
+            >
+              <CheckCircle size={18} color={colors.success} />
+              <Text style={styles.approveButtonText}>{t('common.actions.approve')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => handleReject(request)}
+            >
+              <XCircle size={18} color={colors.danger} />
+              <Text style={styles.rejectButtonText}>{t('common.actions.reject')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {request.reviewedAt && (
+          <Text style={styles.reviewedText}>
+            {t('screens.finance.reviewedAt', {
+              date: formatDate(request.reviewedAt),
+              reviewer: request.reviewedByName ? `(${request.reviewedByName})` : '',
+            })}
+          </Text>
+        )}
+      </View>
+    ),
+    [ui, t, handleApprove, handleReject, getStatusColor, getStatusIcon, getStatusText, formatDate]
+  );
+
   return (
     <ThemedSafeAreaView style={styles.container}>
       <ScreenHeader
@@ -241,84 +310,22 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={filteredRequests}
+        keyExtractor={(item) => item.id}
+        renderItem={renderRequestItem}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
-      >
-        {filteredRequests.length === 0 ? (
+        ListEmptyComponent={
           <EmptyState
             icon={Send}
             title={t('common.empty.default')}
             description={t('screens.advanceRequests.emptyDesc')}
           />
-        ) : (
-          filteredRequests.map((request) => (
-            <View key={request.id} style={[styles.requestCard, ui.card]}>
-              <View style={styles.requestHeader}>
-                <View style={styles.employeeInfo}>
-                  <User size={16} color={colors.primary} />
-                  <Text style={[styles.employeeName, ui.title]}>{request.employeeName}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(request.status) + '20' }]}>
-                  {getStatusIcon(request.status)}
-                  <Text style={[styles.statusText, { color: getStatusColor(request.status) }]}>
-                    {getStatusText(request.status)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.amountRow}>
-                <MoneyIcon size={16} color={colors.success} />
-                <Text style={styles.amountText}>{request.amount.toLocaleString()} ₽</Text>
-              </View>
-
-              <View style={styles.periodRow}>
-                <Calendar size={14} color={colors.gray} />
-                <Text style={styles.periodText}>
-                  {formatDate(request.periodStart)} — {formatDate(request.periodEnd)}
-                </Text>
-              </View>
-
-              {request.reason && (
-                <Text style={styles.reasonText}>📝 {request.reason}</Text>
-              )}
-
-              <Text style={styles.requestDate}>
-                {t('screens.advanceRequests.requestFrom', { date: formatDate(request.createdAt) })}
-              </Text>
-
-              {request.status === 'pending' && (
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={styles.approveButton}
-                    onPress={() => handleApprove(request)}
-                  >
-                    <CheckCircle size={18} color={colors.success} />
-                    <Text style={styles.approveButtonText}>{t('common.actions.approve')}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.rejectButton}
-                    onPress={() => handleReject(request)}
-                  >
-                    <XCircle size={18} color={colors.danger} />
-                    <Text style={styles.rejectButtonText}>{t('common.actions.reject')}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {request.reviewedAt && (
-                <Text style={styles.reviewedText}>
-                  {t('screens.finance.reviewedAt', {
-                    date: formatDate(request.reviewedAt),
-                    reviewer: request.reviewedByName ? `(${request.reviewedByName})` : '',
-                  })}
-                </Text>
-              )}
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+        {...FLAT_LIST_PERF}
+      />
     </ThemedSafeAreaView>
   );
 }

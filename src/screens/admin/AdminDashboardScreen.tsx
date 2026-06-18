@@ -22,6 +22,8 @@ import { toDateKey } from '../../utils/dateHelpers';
 import { countPendingSwapsForPvz } from '../../utils/swapRequestHelpers';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { Shift, User } from '../../types/user';
+import { DashboardSkeleton } from '../../components/common/Skeleton';
+import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 import {
   Building2,
   ChevronDown,
@@ -54,6 +56,8 @@ export default function AdminDashboardScreen({ navigation }: any) {
     pendingRequests: 0,
   });
   const [selectedPvzId, setSelectedPvzId] = useState(pvz?.id || '');
+  const scopeKey = selectedPvzId || pvz?.id;
+  const [loading, markLoaded] = useScopedInitialLoading(scopeKey);
   const [showPvzDropdown, setShowPvzDropdown] = useState(false);
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
 
@@ -70,12 +74,12 @@ export default function AdminDashboardScreen({ navigation }: any) {
     }, [pvz?.id])
   );
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       const currentPvzId = selectedPvzId || pvz?.id;
       if (!currentPvzId) return;
 
-      const allShifts = await DataService.getShifts();
+      const allShifts = await DataService.getShiftsLocal();
       const today = toDateKey(new Date());
 
       const todayPvzShifts = allShifts.filter(
@@ -92,7 +96,7 @@ export default function AdminDashboardScreen({ navigation }: any) {
       );
 
       const allRequests = await DataService.getAllShiftRequests();
-      const pendingRequests = allRequests.filter((r: any) => {
+      const pendingRequests = allRequests.filter((r: { status: string; pvzId?: string; employeeId: string }) => {
         if (r.status !== 'pending') return false;
         if (r.pvzId) return r.pvzId === currentPvzId;
         const employee = users.find((u) => u.id === r.employeeId);
@@ -119,38 +123,33 @@ export default function AdminDashboardScreen({ navigation }: any) {
       });
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
+    } finally {
+      markLoaded();
     }
-  };
+  }, [selectedPvzId, pvz?.id, user?.id, canModerateSwaps, markLoaded]);
 
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
         notificationService.deliverPendingStaffAlerts(user.id);
       }
-      loadDashboardData();
-      const unsubUsers = DataService.subscribe('pvz_users', loadDashboardData);
-      const unsubShifts = DataService.subscribe('shifts', loadDashboardData);
-      const unsubRequests = DataService.subscribe('all_shift_requests', loadDashboardData);
-      const unsubSwaps = pvz?.id
-        ? DataService.subscribe(`swap_requests_${pvz.id}`, loadDashboardData)
-        : () => {};
-      const unsubNotifications = DataService.subscribe('notifications', loadDashboardData);
-      const unsubUserNotifications = user?.id
-        ? DataService.subscribe(`notifications_${user.id}`, loadDashboardData)
-        : () => {};
-      return () => {
-        unsubUsers();
-        unsubShifts();
-        unsubRequests();
-        unsubSwaps();
-        unsubNotifications();
-        unsubUserNotifications();
-      };
-    }, [selectedPvzId, pvz?.id, user?.id])
+    }, [user?.id])
   );
+
+  useScreenRefresh(loadDashboardData, [loadDashboardData], {
+    subscribeKeys: [
+      'pvz_users',
+      'shifts',
+      'all_shift_requests',
+      'notifications',
+      ...(user?.id ? [`notifications_${user.id}`] : []),
+      ...(pvz?.id ? [`swap_requests_${pvz.id}`] : []),
+    ],
+  });
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await DataService.refreshShiftsCache();
     await loadDashboardData();
     setRefreshing(false);
   };
@@ -242,6 +241,10 @@ export default function AdminDashboardScreen({ navigation }: any) {
         }
         showsVerticalScrollIndicator={false}
       >
+        {loading ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
         <AnimatedBanner height={bannerHeight} delay={0}>
           <View style={styles.bannerContent}>
             <View style={styles.bannerAvatar}>
@@ -375,6 +378,8 @@ export default function AdminDashboardScreen({ navigation }: any) {
         )}
 
         <View style={styles.bottomSpacer} />
+          </>
+        )}
       </ScrollView>
     </ThemedSafeAreaView>
   );

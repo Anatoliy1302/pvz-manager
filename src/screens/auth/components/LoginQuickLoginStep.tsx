@@ -11,7 +11,7 @@ import { useLoginStyles } from '../useLoginStyles';
 interface LoginQuickLoginStepProps {
   savedProfileName: string;
   selectedRole: UserRole | null;
-  phone: string;
+  loginDisplay: string;
   pinCode: string;
   loading: boolean;
   titleStyle?: object;
@@ -24,7 +24,7 @@ interface LoginQuickLoginStepProps {
 export default function LoginQuickLoginStep({
   savedProfileName,
   selectedRole,
-  phone,
+  loginDisplay,
   pinCode,
   loading,
   titleStyle,
@@ -38,7 +38,7 @@ export default function LoginQuickLoginStep({
   const isComplete = pinCode.length === 4;
 
   return (
-    <View style={loginStyles.stepContainer}>
+    <View style={loginStyles.quickLoginStepContainer}>
       <View style={loginStyles.quickLoginAvatar}>
         <Text style={loginStyles.quickLoginAvatarText}>
           {(savedProfileName || '?').charAt(0).toUpperCase()}
@@ -53,7 +53,7 @@ export default function LoginQuickLoginStep({
       />
 
       <Text style={[loginStyles.quickLoginMeta, subtitleStyle]}>
-        {selectedRole ? t(ROLE_LABEL_KEYS[selectedRole]) : ''} · {phone}
+        {selectedRole ? t(ROLE_LABEL_KEYS[selectedRole]) : ''} · {loginDisplay}
       </Text>
 
       <LoginPinInput

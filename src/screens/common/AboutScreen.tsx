@@ -11,7 +11,8 @@ import {
   getAppVersion,
   getCopyrightYear,
 } from '../../constants/legal';
-import { Info, Mail, FileText, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Info, Mail, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import LegalDocumentRow from '../../components/common/LegalDocumentRow';
 
 export default function AboutScreen({ navigation }: any) {
   const { t } = useTranslation();
@@ -69,19 +70,21 @@ export default function AboutScreen({ navigation }: any) {
           <Text style={styles.supportEmail}>{SUPPORT_EMAIL}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.privacyLink}
-          onPress={() => navigation.navigate('Privacy')}
-        >
-          <View style={styles.privacyLeft}>
-            <FileText size={20} color={colors.primary} />
-            <View>
-              <Text style={styles.privacyTitle}>{t('screens.about.privacy')}</Text>
-              <Text style={styles.privacyHint}>{t('screens.about.privacyHint')}</Text>
-            </View>
-          </View>
-          <ChevronRight size={18} color={colors.grayLight} />
-        </TouchableOpacity>
+        <LegalDocumentRow
+          document="privacy"
+          title={t('screens.about.privacy')}
+          hint={t('screens.about.privacyHint')}
+        />
+        <LegalDocumentRow
+          document="terms"
+          title={t('screens.about.terms')}
+          hint={t('screens.about.termsHint')}
+        />
+        <LegalDocumentRow
+          document="consent"
+          title={t('screens.about.consent')}
+          hint={t('screens.about.consentHint')}
+        />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -166,19 +169,6 @@ const styles = StyleSheet.create({
   },
   contactLink: { flex: 1, fontSize: 14, color: colors.primary, fontWeight: '600' },
   supportEmail: { fontSize: 12, color: '#999', marginTop: 8 },
-  privacyLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  privacyLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  privacyTitle: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
-  privacyHint: { fontSize: 12, color: '#999', marginTop: 2 },
   footer: { alignItems: 'center', paddingVertical: 16 },
   footerText: { fontSize: 12, color: '#999', textAlign: 'center' },
 });

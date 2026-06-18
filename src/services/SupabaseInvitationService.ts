@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import {
   isUuid,
   mergeById,
@@ -6,7 +7,8 @@ import {
   resolvePvzId,
   resolveUserId,
 } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { INVITATION_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 
 export interface SyncInvitation {
   id: string;
@@ -58,47 +60,45 @@ async function invitationToRow(
 }
 
 export async function fetchInvitationsFromSupabase(): Promise<SyncInvitation[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
-  const { data, error } = await supabase
-    .from('invitations')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
+    supabase.from('invitations').select(INVITATION_COLUMNS).order('created_at', { ascending: false })
+  );
 
-  if (error) {
-    console.warn('fetchInvitationsFromSupabase:', error.message);
+  if (!data) {
+    console.warn('fetchInvitationsFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToInvitation(row as Record<string, unknown>));
+  return data.map((row) => rowToInvitation(row));
 }
 
 export async function fetchInvitationByPhone(phone: string): Promise<SyncInvitation | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const cleanPhone = normalizePhone(phone);
   const { data, error } = await supabase
     .from('invitations')
-    .select('*')
+    .select(INVITATION_COLUMNS)
+    .eq('phone', cleanPhone)
     .eq('status', 'pending')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     console.warn('fetchInvitationByPhone:', error.message);
     return null;
   }
 
-  const match = (data || []).find(
-    (row) => normalizePhone(String((row as Record<string, unknown>).phone)) === cleanPhone
-  );
-
-  return match ? rowToInvitation(match as Record<string, unknown>) : null;
+  return data ? rowToInvitation(data as Record<string, unknown>) : null;
 }
 
 export async function upsertInvitationToSupabase(
   invitation: SyncInvitation
 ): Promise<SyncInvitation | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await invitationToRow(invitation);
   if (!row) return null;
@@ -106,14 +106,14 @@ export async function upsertInvitationToSupabase(
   const { data, error } = await supabase
     .from('invitations')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(INVITATION_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('invitations')
       .insert(row)
-      .select('*')
+      .select(INVITATION_COLUMNS)
       .single();
 
     if (insertError) {
@@ -130,7 +130,7 @@ export async function updateInvitationStatusInSupabase(
   id: string,
   status: SyncInvitation['status']
 ): Promise<boolean> {
-  if (!(await hasSupabaseSession())) return false;
+  if (!(await ensureSupabaseClientSession())) return false;
 
   if (isUuid(id)) {
     const { error } = await supabase.from('invitations').update({ status }).eq('id', id);

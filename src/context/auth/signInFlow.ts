@@ -5,9 +5,12 @@ import { mergeUserPermissions, ensureFullAdmin } from '../../utils/permissionHel
 import { runSyncOnLogin } from '../../services/runSyncOnLogin';
 import notificationService from '../../services/NotificationService';
 import SupportService from '../../services/SupportService';
+import analyticsService from '../../services/AnalyticsService';
+import { AnalyticsEvents } from '../../services/analytics/events';
 import { startSupabaseRealtime } from '../../services/SupabaseRealtimeService';
-import { hasSupabaseSession } from '../../services/SupabaseAuthService';
+import { ensureSupabaseClientSession } from '../../services/SupabaseAuthService';
 import { LAST_LOGIN_PROFILE_KEY, type LastLoginProfile } from './lastLoginProfile';
+import { normalizeEmail } from '../../utils/loginIdentifier';
 import { AuthSetters, SignInOptions } from './types';
 import { bindPvzForSessionUser } from './pvzContextHelpers';
 import {
@@ -19,41 +22,41 @@ import { resolveLocalUser } from './localSignInFlow';
 import { linkRemoteProfile } from './remoteSignInFlow';
 
 async function applyPostLoginSideEffects(sessionUser: { id: string; role: UserRole }) {
-  if (await hasSupabaseSession()) {
+  void (async () => {
+    await ensureSupabaseClientSession();
     await runSyncOnLogin(sessionUser as Parameters<typeof runSyncOnLogin>[0]);
     await startSupabaseRealtime(sessionUser as Parameters<typeof startSupabaseRealtime>[0]);
-  }
-
-  notificationService.setCurrentUserId(sessionUser.id);
-  notificationService.setCurrentUserRole(sessionUser.role);
-  await notificationService.applyUserPreferences();
-  await notificationService.registerPushTokenForUser(sessionUser.id);
-  await notificationService.deliverPendingStaffAlerts(sessionUser.id);
-  await SupportService.flushLocalQueue();
+    notificationService.setCurrentUserId(sessionUser.id);
+    notificationService.setCurrentUserRole(sessionUser.role);
+    await notificationService.applyUserPreferences();
+    await notificationService.registerPushTokenForUser(sessionUser.id);
+    await notificationService.deliverPendingStaffAlerts(sessionUser.id);
+    await SupportService.flushLocalQueue();
+    analyticsService.track(AnalyticsEvents.SIGN_IN, { role: sessionUser.role });
+  })();
 }
 
 export async function performSignIn(
-  phone: string,
+  loginKey: string,
   selectedRole: UserRole,
   setters: AuthSetters,
   options?: SignInOptions
 ) {
   setters.setIsLoading(true);
-
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  let sessionUser: Awaited<ReturnType<typeof resolveLocalUser>> | null = null;
 
   try {
     await loadUsersFromStorage();
     await refreshPendingEmployees();
 
-    const foundUser = await resolveLocalUser(cleanPhone, selectedRole, options);
+    const foundUser = await resolveLocalUser(loginKey, selectedRole, options);
 
-    let sessionUser =
+    sessionUser =
       foundUser.role === 'employee'
         ? mergeUserPermissions(foundUser, foundUser.permissions)
         : foundUser;
 
-    sessionUser = await linkRemoteProfile(sessionUser, cleanPhone);
+    sessionUser = await linkRemoteProfile(sessionUser, loginKey);
 
     if (sessionUser.role === 'admin' && sessionUser.permissionLevel !== 'full') {
       await DataService.updateAdminPermissions(sessionUser.id, { permissionLevel: 'full' });
@@ -63,16 +66,26 @@ export async function performSignIn(
     setters.setUser(sessionUser);
     await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
 
-    const lastLoginProfile: LastLoginProfile = {
-      phone: cleanPhone,
-      role: foundUser.role,
-      name: foundUser.name,
-    };
+    const lastLoginProfile: LastLoginProfile =
+      selectedRole === 'owner'
+        ? {
+            email: normalizeEmail(loginKey),
+            role: foundUser.role,
+            name: foundUser.name,
+          }
+        : {
+            phone: loginKey.replace(/[^0-9]/g, ''),
+            role: foundUser.role,
+            name: foundUser.name,
+          };
     await SecureStore.setItemAsync(LAST_LOGIN_PROFILE_KEY, JSON.stringify(lastLoginProfile));
 
     await bindPvzForSessionUser(sessionUser, setters);
-    await applyPostLoginSideEffects(sessionUser);
   } finally {
     setters.setIsLoading(false);
+  }
+
+  if (sessionUser) {
+    void applyPostLoginSideEffects(sessionUser);
   }
 }

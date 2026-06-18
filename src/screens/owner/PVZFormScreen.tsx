@@ -17,27 +17,50 @@ import {
 } from 'react-native';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
+import PremiumGate from '../../components/common/PremiumGate';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { useErrorHandler } from '../../context/ErrorHandlerContext';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import FormFieldError from '../../components/common/FormFieldError';
 import DataService from '../../services/DataService';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../hooks/useSubscription';
+import { FREE_PVZ_LIMIT } from '../../services/subscriptionService';
 import { colors } from '../../constants/colors';
 import { Pvz } from '../../types/user';
 import { MapPin, Clock, Phone, AlertCircle } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatPhoneInput, cleanPhone, isValidPhone } from '../../utils/phoneHelpers';
-import { ensurePvzSynced } from '../../services/SupabasePvzService';
+import { normalizeInn, isValidInn } from '../../utils/innHelpers';
+import { ensurePvzSynced, PVZ_INN_TAKEN_MESSAGE, PVZ_LIMIT_PRO_MESSAGE } from '../../services/SupabasePvzService';
+import analyticsService from '../../services/AnalyticsService';
+import { AnalyticsEvents } from '../../services/analytics/events';
 import { generateSecureId } from '../../utils/generateSecureId';
+
+type PvzFormField = 'name' | 'address' | 'workHours' | 'ownerInn' | 'phone';
 
 type TimePickerField = 'start' | 'end' | null;
 
 export default function PVZFormScreen({ navigation, route }: any) {
   const { t } = useTranslation();
-  const { user, refreshUserData } = useAuth();
+  const { user, refreshUserData, userPvzs } = useAuth();
+  const { isPro } = useSubscription();
   const { ui, screen, theme } = useThemedScreen();
-  const { showError, showSuccess } = useScreenToast();
+  const { showSuccess } = useScreenToast();
+  const { handleError } = useErrorHandler();
+  const {
+    validate,
+    clearFieldError,
+    getFieldError,
+    inputContainerStyle,
+  } = useFormValidation<PvzFormField>();
   const { pvz } = route.params || {};
   const isEditing = !!pvz;
+
+  const pvzCount = userPvzs.length;
+  const isFreeAndOverPvzLimit =
+    !isEditing && !isPro && pvzCount >= FREE_PVZ_LIMIT;
 
   const [formData, setFormData] = useState({
     name: pvz?.name || '',
@@ -45,6 +68,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
     workStart: pvz?.workStart || '09:00',
     workEnd: pvz?.workEnd || '21:00',
     phone: pvz?.phone ? formatPhoneInput(pvz.phone) : '',
+    ownerInn: pvz?.ownerInn || '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -52,6 +76,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
   const [timePickerDraft, setTimePickerDraft] = useState(new Date());
 
   const handlePhoneChange = (text: string) => {
+    clearFieldError('phone');
     setFormData({ ...formData, phone: formatPhoneInput(text) });
   };
 
@@ -88,29 +113,52 @@ export default function PVZFormScreen({ navigation, route }: any) {
   };
 
   const savePvz = async () => {
-    if (!formData.name.trim()) {
-      showError(t('alerts.validation.enterPvzName'));
-      return;
-    }
-    if (!formData.address.trim()) {
-      showError(t('alerts.validation.enterPvzAddress'));
-      return;
-    }
-    if (!formData.workStart || !formData.workEnd) {
-      showError(t('alerts.validation.workHours'));
-      return;
-    }
-    if (formData.phone && !isValidPhone(formData.phone)) {
-      showError(t('alerts.validation.invalidPhone'));
+    if (isFreeAndOverPvzLimit) {
+      navigation.navigate('Subscription');
       return;
     }
 
     const [startH, startM] = formData.workStart.split(':').map(Number);
     const [endH, endM] = formData.workEnd.split(':').map(Number);
-    if (startH * 60 + startM >= endH * 60 + endM) {
-      showError(t('alerts.validation.closeAfterOpen'));
-      return;
-    }
+    const workHoursInvalid =
+      !formData.workStart ||
+      !formData.workEnd ||
+      startH * 60 + startM >= endH * 60 + endM;
+
+    const ownerInnRequired = !isEditing;
+    const ownerInnInvalid =
+      (ownerInnRequired && !formData.ownerInn.trim()) ||
+      (formData.ownerInn.trim() && !isValidInn(formData.ownerInn));
+
+    const isValid = validate([
+      { field: 'name', valid: Boolean(formData.name.trim()), message: t('alerts.validation.enterPvzName') },
+      {
+        field: 'address',
+        valid: Boolean(formData.address.trim()),
+        message: t('alerts.validation.enterPvzAddress'),
+      },
+      {
+        field: 'workHours',
+        valid: !workHoursInvalid,
+        message: workHoursInvalid && formData.workStart && formData.workEnd
+          ? t('alerts.validation.closeAfterOpen')
+          : t('alerts.validation.workHours'),
+      },
+      {
+        field: 'ownerInn',
+        valid: !ownerInnInvalid,
+        message: ownerInnRequired && !formData.ownerInn.trim()
+          ? t('alerts.validation.enterOwnerInn')
+          : t('alerts.validation.invalidOwnerInn'),
+      },
+      {
+        field: 'phone',
+        valid: !formData.phone || isValidPhone(formData.phone),
+        message: t('alerts.validation.invalidPhone'),
+      },
+    ]);
+
+    if (!isValid) return;
 
     setLoading(true);
     try {
@@ -123,6 +171,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
         workEnd: formData.workEnd,
         workingHours: `${formData.workStart} — ${formData.workEnd}`,
         phone: cleanedPhone,
+        ownerInn: normalizeInn(formData.ownerInn),
         ownerId: user?.id || pvz?.ownerId || '',
       };
 
@@ -131,10 +180,22 @@ export default function PVZFormScreen({ navigation, route }: any) {
       await refreshUserData();
 
       showSuccess(isEditing ? t('alerts.success.pvzUpdated') : t('alerts.success.pvzCreated'));
+      analyticsService.track(isEditing ? AnalyticsEvents.PVZ_UPDATED : AnalyticsEvents.PVZ_CREATED, {
+        pvzId: pvzPayload.id,
+      });
       navigation.goBack();
     } catch (error) {
       console.error('Ошибка сохранения ПВЗ:', error);
-      showError(t('alerts.network.savePvzFailed'));
+      const message = error instanceof Error ? error.message : '';
+      if (message === PVZ_LIMIT_PRO_MESSAGE) {
+        navigation.navigate('Subscription');
+        return;
+      }
+      if (message === PVZ_INN_TAKEN_MESSAGE) {
+        handleError(new Error(message));
+        return;
+      }
+      handleError(error, { fallbackKey: 'alerts.network.savePvzFailed' });
     } finally {
       setLoading(false);
     }
@@ -146,16 +207,30 @@ export default function PVZFormScreen({ navigation, route }: any) {
         title={isEditing ? t('screens.owner.editPvz') : t('screens.owner.newPvz')}
         onBack={() => navigation.goBack()}
         right={
-          <TouchableOpacity onPress={savePvz} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.saveHeaderText}>{t('common.actions.save')}</Text>
-            )}
-          </TouchableOpacity>
+          !isFreeAndOverPvzLimit ? (
+            <TouchableOpacity onPress={savePvz} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveHeaderText}>{t('common.actions.save')}</Text>
+              )}
+            </TouchableOpacity>
+          ) : undefined
         }
       />
 
+      {isFreeAndOverPvzLimit ? (
+        <PremiumGate
+          requiredTier="pro"
+          title={t('subscription.pvzLimit.title')}
+          description={t('subscription.pvzLimit.description', {
+            limit: FREE_PVZ_LIMIT,
+            count: pvzCount,
+          })}
+          onUpgrade={() => navigation.navigate('Subscription')}
+        />
+      ) : (
+        <>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -169,74 +244,114 @@ export default function PVZFormScreen({ navigation, route }: any) {
             <View style={styles.inputContainer}>
               <Text style={[styles.label, ui.title]}>{t('screens.owner.pvzNameLabel')}</Text>
               <View
-                style={[
+                style={inputContainerStyle('name', [
                   styles.inputWrapper,
                   { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
-                ]}
+                ])}
               >
                 <TextInput
                   style={[styles.input, { color: screen.text }]}
                   placeholder={t('screens.owner.pvzNamePlaceholder')}
                   value={formData.name}
-                  onChangeText={(text) => setFormData({ ...formData, name: text })}
+                  onChangeText={(text) => {
+                    clearFieldError('name');
+                    setFormData({ ...formData, name: text });
+                  }}
                   placeholderTextColor={colors.grayLighter}
                 />
               </View>
+              <FormFieldError message={getFieldError('name')} />
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={[styles.label, ui.title]}>{t('screens.owner.pvzAddressLabel')}</Text>
               <View
-                style={[
+                style={inputContainerStyle('address', [
                   styles.inputWrapper,
                   { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
-                ]}
+                ])}
               >
                 <MapPin size={20} color={screen.textSecondary} />
                 <TextInput
                   style={[styles.input, { color: screen.text }]}
                   placeholder={t('screens.owner.pvzAddressPlaceholder')}
                   value={formData.address}
-                  onChangeText={(text) => setFormData({ ...formData, address: text })}
+                  onChangeText={(text) => {
+                    clearFieldError('address');
+                    setFormData({ ...formData, address: text });
+                  }}
                   placeholderTextColor={colors.grayLighter}
                 />
               </View>
+              <FormFieldError message={getFieldError('address')} />
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={[styles.label, ui.title]}>{t('screens.owner.pvzHoursLabel')}</Text>
               <View style={styles.workHoursRow}>
                 <TouchableOpacity
-                  style={[
+                  style={inputContainerStyle('workHours', [
                     styles.timeButton,
                     { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
-                  ]}
-                  onPress={() => openTimePicker('start')}
+                  ])}
+                  onPress={() => {
+                    clearFieldError('workHours');
+                    openTimePicker('start');
+                  }}
                 >
                   <Clock size={18} color={colors.primary} />
                   <Text style={[styles.timeButtonText, { color: screen.text }]}>{formData.workStart}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.workHoursSeparator, { color: screen.textSecondary }]}>—</Text>
                 <TouchableOpacity
-                  style={[
+                  style={inputContainerStyle('workHours', [
                     styles.timeButton,
                     { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
-                  ]}
-                  onPress={() => openTimePicker('end')}
+                  ])}
+                  onPress={() => {
+                    clearFieldError('workHours');
+                    openTimePicker('end');
+                  }}
                 >
                   <Clock size={18} color={colors.primary} />
                   <Text style={[styles.timeButtonText, { color: screen.text }]}>{formData.workEnd}</Text>
                 </TouchableOpacity>
               </View>
+              <FormFieldError message={getFieldError('workHours')} />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.label, ui.title]}>{t('screens.owner.pvzOwnerInnLabel')}</Text>
+              <View
+                style={inputContainerStyle('ownerInn', [
+                  styles.inputWrapper,
+                  { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
+                ])}
+              >
+                <TextInput
+                  style={[styles.input, { color: screen.text }]}
+                  placeholder={t('screens.owner.pvzOwnerInnPlaceholder')}
+                  value={formData.ownerInn}
+                  onChangeText={(text) => {
+                    clearFieldError('ownerInn');
+                    setFormData({ ...formData, ownerInn: normalizeInn(text) });
+                  }}
+                  keyboardType="number-pad"
+                  placeholderTextColor={colors.grayLighter}
+                  maxLength={12}
+                  editable={!isEditing || !pvz?.ownerInn}
+                />
+              </View>
+              <FormFieldError message={getFieldError('ownerInn')} />
             </View>
 
             <View style={styles.inputContainer}>
               <Text style={[styles.label, ui.title]}>{t('screens.owner.pvzPhoneLabel')}</Text>
               <View
-                style={[
+                style={inputContainerStyle('phone', [
                   styles.inputWrapper,
                   { backgroundColor: ui.input.backgroundColor, borderColor: screen.border },
-                ]}
+                ])}
               >
                 <Phone size={20} color={screen.textSecondary} />
                 <TextInput
@@ -249,6 +364,7 @@ export default function PVZFormScreen({ navigation, route }: any) {
                   maxLength={18}
                 />
               </View>
+              <FormFieldError message={getFieldError('phone')} />
             </View>
 
             <View style={[styles.infoCard, { backgroundColor: colors.primaryLight }]}>
@@ -319,6 +435,8 @@ export default function PVZFormScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
+        </>
+      )}
     </ThemedSafeAreaView>
   );
 }

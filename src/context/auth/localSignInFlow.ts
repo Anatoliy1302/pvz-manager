@@ -3,8 +3,8 @@ import { User, UserRole } from '../../types/user';
 import { t } from '../../i18n';
 import { safeParseJson } from '../../utils/safeJson';
 import { generateSecureId } from '../../utils/generateSecureId';
-import { DEMO_MODE } from '../../services/SupabaseAuthService';
-import { hasSupabaseSession } from '../../services/SupabaseAuthService';
+import { normalizeEmail, emailsMatch } from '../../utils/loginIdentifier';
+import { DEMO_MODE, hasSupabaseSession } from '../../services/SupabaseAuthService';
 import { fetchInvitationByPhone, updateInvitationStatusInSupabase } from '../../services/SupabaseInvitationService';
 import { DEMO_USERS } from './demoData';
 import { SignInOptions } from './types';
@@ -17,11 +17,43 @@ function roleLabel(role: UserRole): string {
 }
 
 export async function resolveLocalUser(
-  cleanPhone: string,
+  loginKey: string,
   selectedRole: UserRole,
   options?: SignInOptions
 ): Promise<User> {
   const users = userMemory.getUsers();
+
+  if (selectedRole === 'owner') {
+    const normalizedEmail = normalizeEmail(loginKey);
+    let foundOwner =
+      users.find(
+        (u) =>
+          u.role === 'owner' &&
+          u.status === 'active' &&
+          emailsMatch(u.email, normalizedEmail)
+      ) || null;
+
+    if (!foundOwner && DEMO_MODE) {
+      const demoUser = DEMO_USERS.find(
+        (d) => d.role === 'owner' && emailsMatch(d.email, normalizedEmail)
+      );
+      if (demoUser) {
+        foundOwner = userMemory.getUsers().find((u) => u.id === demoUser.id) || null;
+        if (!foundOwner) {
+          foundOwner = { ...demoUser };
+          await userMemory.addUser(foundOwner);
+        }
+      }
+    }
+
+    if (!foundOwner) {
+      throw new Error(t('alerts.auth.emailNotFound'));
+    }
+
+    return foundOwner;
+  }
+
+  const cleanPhone = loginKey.replace(/[^0-9]/g, '');
   let foundUser = users.find((u) => u.phone === cleanPhone && u.status === 'active') || null;
 
   if (foundUser && foundUser.role !== selectedRole) {
@@ -38,7 +70,7 @@ export async function resolveLocalUser(
         pendingUser = {
           id: generateSecureId('pending'),
           name: remoteInvitation.name,
-          email: `${cleanPhone}@temp.pvz`,
+          email: `${cleanPhone}@users.pvzpersonal.ru`,
           phone: cleanPhone,
           role: remoteInvitation.role,
           status: 'pending',
@@ -121,19 +153,6 @@ export async function resolveLocalUser(
             JSON.stringify(ownerInvitations)
           );
         }
-      }
-    } else {
-      throw new Error(t('alerts.auth.phoneNotFound'));
-    }
-  }
-
-  if (!foundUser && selectedRole === 'owner' && DEMO_MODE) {
-    const demoUser = DEMO_USERS.find((d) => d.phone === cleanPhone && d.role === 'owner');
-    if (demoUser) {
-      foundUser = userMemory.getUsers().find((u) => u.id === demoUser.id) || null;
-      if (!foundUser) {
-        foundUser = { ...demoUser };
-        await userMemory.addUser(foundUser);
       }
     } else {
       throw new Error(t('alerts.auth.phoneNotFound'));

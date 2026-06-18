@@ -3,6 +3,10 @@ export default {
     name: 'Персонал ПВЗ',
     tagline: 'Управление пунктом выдачи заказов',
   },
+  env: {
+    staging: 'Тестовая среда — OTP уходит на реальную почту/SMS',
+    development: 'Режим разработки (Expo Go)',
+  },
   actions: {
     back: 'Назад',
     cancel: 'Отмена',

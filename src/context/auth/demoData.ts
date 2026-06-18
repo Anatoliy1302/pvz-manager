@@ -27,7 +27,7 @@ export const DEMO_USERS: User[] = [
   {
     id: '1',
     name: 'Анатолий',
-    email: 'owner@pvz.ru',
+    email: 'owner-demo@pvzpersonal.ru',
     phone: '79991234567',
     role: 'owner',
     status: 'active',
@@ -37,7 +37,7 @@ export const DEMO_USERS: User[] = [
   {
     id: '2',
     name: 'Мария',
-    email: 'admin@pvz.ru',
+    email: 'admin-demo@pvzpersonal.ru',
     phone: '79992345678',
     role: 'admin',
     status: 'active',
@@ -50,7 +50,7 @@ export const DEMO_USERS: User[] = [
   {
     id: '3',
     name: 'Леонид',
-    email: 'emp@pvz.ru',
+    email: 'emp-demo@pvzpersonal.ru',
     phone: '79143288207',
     role: 'employee',
     status: 'active',
@@ -62,7 +62,7 @@ export const DEMO_USERS: User[] = [
   {
     id: '4',
     name: 'Илья',
-    email: 'ilya@pvz.ru',
+    email: 'ilya-demo@pvzpersonal.ru',
     phone: '79995678901',
     role: 'employee',
     status: 'active',
@@ -74,7 +74,7 @@ export const DEMO_USERS: User[] = [
   {
     id: '5',
     name: 'Саша',
-    email: 'sasha@pvz.ru',
+    email: 'sasha-demo@pvzpersonal.ru',
     phone: '79996789012',
     role: 'employee',
     status: 'active',

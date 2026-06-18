@@ -1,12 +1,12 @@
 // src/screens/owner/EmployeePaymentDetailsScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDateLocale } from '../../i18n';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
   Modal,
@@ -42,6 +42,7 @@ import {
   Filter,
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
+import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface ShiftData {
@@ -299,30 +300,22 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
 
   const formatMoney = (value: number) => value.toLocaleString(getDateLocale());
 
-  return (
-    <ThemedSafeAreaView style={styles.container}>
-      <ScreenHeader
-        title={employee?.name || initialEmployeeName}
-        onBack={() => navigation.goBack()}
-        right={
-          <TouchableOpacity onPress={openPeriodSelection}>
-            <Filter size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        }
-      />
+  const detailSections = useMemo(
+    () => [
+      { key: 'shifts' as const, title: t('screens.paymentDetails.shiftsTitle'), data: shifts },
+      { key: 'payments' as const, title: t('screens.paymentDetails.paymentHistory'), data: payments },
+    ],
+    [shifts, payments, t]
+  );
 
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        {/* Период */}
+  const detailListHeader = useMemo(
+    () => (
+      <>
         <TouchableOpacity style={[styles.periodCard, ui.card]} onPress={openPeriodSelection}>
           <Calendar size={16} color={colors.primary} />
           <Text style={styles.periodText}>{formatPeriodDisplay()}</Text>
         </TouchableOpacity>
 
-        {/* Информация о сотруднике */}
         {employee && (
           <View style={styles.employeeCard}>
             <View style={styles.employeeAvatar}>
@@ -345,13 +338,12 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
           </View>
         )}
 
-        {/* Финансовая сводка ЗА ПЕРИОД */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>{t('screens.paymentDetails.financialSummary')}</Text>
           <Text style={styles.periodSubtitle}>
             {t('screens.paymentDetails.forPeriod', { period: formatPeriodDisplay() })}
           </Text>
-          
+
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <TrendingUp size={20} color={colors.primary} />
@@ -377,7 +369,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
               </Text>
             </View>
           </View>
-          
+
           {totalEarned > 0 && (
             <View style={styles.progressSection}>
               <View style={styles.progressBar}>
@@ -391,99 +383,127 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
             </View>
           )}
         </View>
+      </>
+    ),
+    [ui, employee, t, totalEarned, totalPaid, balance, openPeriodSelection, formatPeriodDisplay, formatMoney, getProgressPercent]
+  );
 
-        {/* Список смен ЗА ПЕРИОД */}
-        <View style={styles.shiftsCard}>
-          <Text style={styles.cardTitle}>{t('screens.paymentDetails.shiftsTitle')}</Text>
-          <Text style={styles.cardSubtitle}>
-            {t('screens.paymentDetails.forPeriod', { period: formatPeriodDisplay() })}
-          </Text>
-          
-          {shifts.length === 0 ? (
-            <Text style={styles.emptyText}>{t('screens.paymentDetails.noShifts')}</Text>
-          ) : (
-            shifts.map((shift) => (
-              <View key={shift.id} style={styles.shiftItem}>
-                <View style={styles.shiftHeader}>
-                  <Text style={styles.shiftDate}>{formatShortDate(shift.date)}</Text>
-                  <Text style={[styles.shiftEarnings, shift.paymentStatus === 'paid' && styles.paidEarnings]}>
-                    {shift.paymentStatus === 'paid' ? '✓' : '+'}
-                    {formatMoney(shift.earnings)} {t('common.money.currency')}
-                  </Text>
-                </View>
-                <Text style={styles.shiftType}>{getShiftTypeName(shift.shiftType)}</Text>
-                <Text style={styles.shiftTime}>{shift.startTime} — {shift.endTime}</Text>
-                <Text style={styles.shiftHours}>
-                  {t('screens.paymentDetails.shiftHours', {
-                    hours: shift.totalHours,
-                    unit: t('common.stats.hoursShort'),
-                  })}
-                </Text>
-              </View>
-            ))
-          )}
-        </View>
+  const detailListFooter = useMemo(
+    () =>
+      balance > 0 ? (
+        <TouchableOpacity style={styles.payButton} onPress={() => setShowPaymentModal(true)}>
+          <LinearGradient colors={[colors.success, colors.success]} style={styles.payButtonGradient}>
+            <MoneyIcon size={20} color="#FFFFFF" />
+            <Text style={styles.payButtonText}>
+              {t('screens.paymentDetails.payButton', { amount: formatMoney(balance) })}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      ) : null,
+    [balance, t, formatMoney]
+  );
 
-        {/* История выплат ЗА ПЕРИОД */}
-        <View style={styles.paymentsCard}>
-          <Text style={styles.cardTitle}>{t('screens.paymentDetails.paymentHistory')}</Text>
-          <Text style={styles.cardSubtitle}>
-            {t('screens.paymentDetails.forPeriod', { period: formatPeriodDisplay() })}
-          </Text>
-          
-          {payments.length === 0 ? (
-            <Text style={styles.emptyText}>{t('screens.paymentDetails.noPayments')}</Text>
-          ) : (
-            payments.map((payment) => (
-              <View key={payment.id} style={styles.paymentItem}>
-                <View style={styles.paymentLeft}>
-                  <View style={[styles.paymentIcon, payment.type === 'advance' ? styles.advanceIcon : styles.salaryIcon]}>
-                    <Text style={styles.paymentIconText}>
-                      {payment.type === 'advance' ? '💰' : '📅'}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={styles.paymentType}>
-                      {payment.type === 'advance'
-                        ? t('screens.paymentDetails.paymentTypeAdvance')
-                        : t('screens.paymentDetails.paymentTypeSalary')}
-                    </Text>
-                    <Text style={styles.paymentPeriod}>
-                      {formatShortDate(payment.periodStart)} — {formatShortDate(payment.periodEnd)}
-                    </Text>
-                    {payment.note && (
-                      <Text style={styles.paymentNote}>{payment.note}</Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.paymentRight}>
-                  <Text style={[styles.paymentAmount, payment.type === 'advance' ? styles.advanceAmount : styles.salaryAmount]}>
-                    {formatMoney(payment.amount)} {t('common.money.currency')}
-                  </Text>
-                  <Text style={styles.paymentDate}>{formatShortDate(payment.paidAt)}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* Кнопка выплаты */}
-        {balance > 0 && (
-          <TouchableOpacity
-            style={styles.payButton}
-            onPress={() => setShowPaymentModal(true)}
-          >
-            <LinearGradient colors={[colors.success, colors.success]} style={styles.payButtonGradient}>
-              <MoneyIcon size={20} color="#FFFFFF" />
-              <Text style={styles.payButtonText}>
-                {t('screens.paymentDetails.payButton', {
-                  amount: formatMoney(balance),
-                })}
+  const renderDetailItem = useCallback(
+    ({ item, section }: { item: ShiftData | Payment; section: { key: string } }) => {
+      if (section.key === 'shifts') {
+        const shift = item as ShiftData;
+        return (
+          <View style={styles.shiftItem}>
+            <View style={styles.shiftHeader}>
+              <Text style={styles.shiftDate}>{formatShortDate(shift.date)}</Text>
+              <Text style={[styles.shiftEarnings, shift.paymentStatus === 'paid' && styles.paidEarnings]}>
+                {shift.paymentStatus === 'paid' ? '✓' : '+'}
+                {formatMoney(shift.earnings)} {t('common.money.currency')}
               </Text>
-            </LinearGradient>
+            </View>
+            <Text style={styles.shiftType}>{getShiftTypeName(shift.shiftType)}</Text>
+            <Text style={styles.shiftTime}>{shift.startTime} — {shift.endTime}</Text>
+            <Text style={styles.shiftHours}>
+              {t('screens.paymentDetails.shiftHours', {
+                hours: shift.totalHours,
+                unit: t('common.stats.hoursShort'),
+              })}
+            </Text>
+          </View>
+        );
+      }
+
+      const payment = item as Payment;
+      return (
+        <View style={styles.paymentItem}>
+          <View style={styles.paymentLeft}>
+            <View style={[styles.paymentIcon, payment.type === 'advance' ? styles.advanceIcon : styles.salaryIcon]}>
+              <Text style={styles.paymentIconText}>{payment.type === 'advance' ? '💰' : '📅'}</Text>
+            </View>
+            <View>
+              <Text style={styles.paymentType}>
+                {payment.type === 'advance'
+                  ? t('screens.paymentDetails.paymentTypeAdvance')
+                  : t('screens.paymentDetails.paymentTypeSalary')}
+              </Text>
+              <Text style={styles.paymentPeriod}>
+                {formatShortDate(payment.periodStart)} — {formatShortDate(payment.periodEnd)}
+              </Text>
+              {payment.note && <Text style={styles.paymentNote}>{payment.note}</Text>}
+            </View>
+          </View>
+          <View style={styles.paymentRight}>
+            <Text style={[styles.paymentAmount, payment.type === 'advance' ? styles.advanceAmount : styles.salaryAmount]}>
+              {formatMoney(payment.amount)} {t('common.money.currency')}
+            </Text>
+            <Text style={styles.paymentDate}>{formatShortDate(payment.paidAt)}</Text>
+          </View>
+        </View>
+      );
+    },
+    [t, formatShortDate, formatMoney, getShiftTypeName]
+  );
+
+  return (
+    <ThemedSafeAreaView style={styles.container}>
+      <ScreenHeader
+        title={employee?.name || initialEmployeeName}
+        onBack={() => navigation.goBack()}
+        right={
+          <TouchableOpacity onPress={openPeriodSelection}>
+            <Filter size={20} color="#FFFFFF" />
           </TouchableOpacity>
+        }
+      />
+
+      <SectionList
+        sections={detailSections}
+        keyExtractor={(item) => item.id}
+        renderItem={renderDetailItem}
+        renderSectionHeader={({ section }) => (
+          <View style={section.key === 'shifts' ? styles.shiftsCard : styles.paymentsCard}>
+            <Text style={styles.cardTitle}>{section.title}</Text>
+            <Text style={styles.cardSubtitle}>
+              {t('screens.paymentDetails.forPeriod', { period: formatPeriodDisplay() })}
+            </Text>
+          </View>
         )}
-      </ScrollView>
+        renderSectionFooter={({ section }) =>
+          section.data.length === 0 ? (
+            <View style={section.key === 'shifts' ? styles.shiftsCard : styles.paymentsCard}>
+              <Text style={styles.emptyText}>
+                {section.key === 'shifts'
+                  ? t('screens.paymentDetails.noShifts')
+                  : t('screens.paymentDetails.noPayments')}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.sectionSpacer} />
+          )
+        }
+        ListHeaderComponent={detailListHeader}
+        ListFooterComponent={detailListFooter}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        stickySectionHeadersEnabled={false}
+        {...FLAT_LIST_PERF}
+      />
 
       {/* Модальное окно выбора периода */}
       <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
@@ -733,6 +753,8 @@ const styles = StyleSheet.create({
   progressBar: { height: 6, backgroundColor: '#F0F0F0', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 6, backgroundColor: colors.success, borderRadius: 3 },
   progressText: { fontSize: 11, color: '#666666', marginTop: 6, textAlign: 'center' },
+
+  sectionSpacer: { height: 8 },
   
   shiftsCard: {
     backgroundColor: '#FFFFFF',

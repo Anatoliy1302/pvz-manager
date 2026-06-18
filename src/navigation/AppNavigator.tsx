@@ -1,22 +1,24 @@
 // src/navigation/AppNavigator.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
-import { ChatProvider } from '../context/ChatContext';
 import { useTheme } from '../context/ThemeContext';
 import LoginScreen from '../screens/auth/LoginScreen';
 import MainTabNavigator from './MainTabNavigator';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
-import LoadingSpinner from '../components/common/LoadingSpinner';
+import { SkeletonList } from '../components/common/Skeleton';
+import ErrorBoundary from '../components/common/ErrorBoundary';
+import { navigationRef } from './navigationRef';
 
 // Общие экраны
 import AboutScreen from '../screens/common/AboutScreen';
 import PrivacyPolicyScreen from '../screens/common/PrivacyPolicyScreen';
 import SupportScreen from '../screens/common/SupportScreen';
 import SettingsScreen from '../screens/common/SettingsScreen';
-import ChatScreen from '../screens/chat/ChatScreen';
+import ChatStackScreen from './ChatStackScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import ScheduleScreen from '../screens/common/ScheduleScreen';
 import SwapNotificationsScreen from '../screens/common/SwapNotificationsScreen';
@@ -32,6 +34,7 @@ import ShiftHistoryScreen from '../screens/profile/ShiftHistoryScreen';
 import MyRequestsScreen from '../screens/profile/MyRequestsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangePinScreen from '../screens/profile/ChangePinScreen';
+import DeleteAccountScreen from '../screens/profile/DeleteAccountScreen';
 
 // Экран заявок сотрудника
 import EmployeeRequestsScreen from '../screens/requests/EmployeeRequestsScreen';
@@ -60,6 +63,7 @@ import EmployeePaymentDetailsScreen from '../screens/owner/EmployeePaymentDetail
 import AdvanceRequestsScreen from '../screens/owner/AdvanceRequestsScreen';
 import SalaryFormulasScreen from '../screens/owner/SalaryFormulasScreen';
 import FormulaEditorScreen from '../screens/owner/FormulaEditorScreen';
+import SubscriptionScreen from '../screens/owner/SubscriptionScreen';
 
 // Экран добавления и редактирования сотрудника (владелец)
 import EmployeeAddFormScreen from '../screens/owner/EmployeeAddFormScreen';
@@ -92,6 +96,7 @@ const OwnerAdvanceRequestsScreen = withRoleGuard(AdvanceRequestsScreen, ['owner'
 const OwnerSalaryFormulasScreen = withRoleGuard(SalaryFormulasScreen, ['owner']);
 const OwnerFormulaEditorScreen = withRoleGuard(FormulaEditorScreen, ['owner']);
 const OwnerEmployeePaymentDetailsScreen = withRoleGuard(EmployeePaymentDetailsScreen, ['owner']);
+const OwnerSubscriptionScreen = withRoleGuard(SubscriptionScreen, ['owner']);
 const StaffShiftRequestsScreen = withRoleGuard(ShiftRequestsScreen, ['owner', 'admin']);
 const StaffSwapRequestsScreen = withRoleGuard(SwapRequestsScreen, ['owner', 'admin']);
 
@@ -112,21 +117,51 @@ export default function AppNavigator() {
       }
     };
     checkFirstLaunch();
+    // Не блокировать старт дольше 1.5с из-за проверки онбординга
+    const fallback = setTimeout(() => {
+      setIsFirstLaunch((prev) => (prev === null ? false : prev));
+    }, 1500);
+    return () => clearTimeout(fallback);
   }, []);
 
-  if (isLoading || isFirstLaunch === null) {
-    return <LoadingSpinner visible text={t('common.loading.default')} transparent={false} />;
+  if (isLoading) {
+    return (
+      <View style={[styles.bootShell, { backgroundColor: colors.background }]}>
+        <SkeletonList rows={3} />
+      </View>
+    );
   }
 
-  const screenOptions = {
-    headerShown: false,
-    contentStyle: {
-      backgroundColor: colors.background,
-    },
-  };
+  if (isFirstLaunch === null) {
+    return (
+      <View style={[styles.bootShell, { backgroundColor: colors.background }]}>
+        <SkeletonList rows={2} />
+      </View>
+    );
+  }
+
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      freezeOnBlur: true,
+      animation: 'slide_from_right' as const,
+      contentStyle: {
+        backgroundColor: colors.background,
+      },
+    }),
+    [colors.background]
+  );
 
   return (
-    <ChatProvider>
+    <ErrorBoundary
+      navigation={{
+        goBack: () => {
+          if (navigationRef.isReady() && navigationRef.canGoBack()) {
+            navigationRef.goBack();
+          }
+        },
+      }}
+    >
       <Stack.Navigator screenOptions={screenOptions}>
       {/* Онбординг при первом запуске */}
       {isFirstLaunch && !user && (
@@ -151,7 +186,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Privacy" component={PrivacyPolicyScreen} />
           <Stack.Screen name="Support" component={SupportScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="Chat" component={ChatStackScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
           <Stack.Screen name="ShiftRequests" component={StaffShiftRequestsScreen} />
           <Stack.Screen name="SwapRequests" component={StaffSwapRequestsScreen} />
@@ -169,6 +204,7 @@ export default function AppNavigator() {
           <Stack.Screen name="MyRequests" component={MyRequestsScreen} />
           <Stack.Screen name="EditProfile" component={EditProfileScreen} />
           <Stack.Screen name="ChangePin" component={ChangePinScreen} />
+          <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
 
           {/* Экран заявок сотрудника */}
           <Stack.Screen name="Requests" component={EmployeeRequestsScreen} />
@@ -204,6 +240,7 @@ export default function AppNavigator() {
           <Stack.Screen name="AdvanceRequests" component={OwnerAdvanceRequestsScreen} />
           <Stack.Screen name="SalaryFormulas" component={OwnerSalaryFormulasScreen} />
           <Stack.Screen name="FormulaEditor" component={OwnerFormulaEditorScreen} />
+          <Stack.Screen name="Subscription" component={OwnerSubscriptionScreen} />
 
           {/* ========== ЭКРАНЫ АДМИНИСТРАТОРА ========== */}
           <Stack.Screen name="AdminEmployees" component={AdminEmployeesScreen} />
@@ -213,6 +250,10 @@ export default function AppNavigator() {
         </>
       )}
     </Stack.Navigator>
-    </ChatProvider>
+    </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  bootShell: { flex: 1, paddingTop: 48 },
+});

@@ -62,6 +62,7 @@ export default {
     phoneProviderDisabled: 'Supabase-ում հեռախոսով մուտքն անջատված է։ Միացրեք Phone provider-ը Dashboard-ում։',
     emailLoginDisabled: 'Email-ով մուտքն անջատված է՝ հավելվածը օգտագործում է միայն SMS։',
     otpExpired: 'SMS-ի կոդը ժամկետանց է։ Պահանջեք նորը։',
+    otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
     invalidOtpCode: 'Սխալ SMS-ի կոդ։',
     rateLimit: 'Չափազանց շատ փորձեր։ Սպասեք և կրկին փորձեք։',
   },

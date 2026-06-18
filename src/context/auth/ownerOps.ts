@@ -5,10 +5,135 @@ import { AuthSetters } from './types';
 import { userMemory, loadUsersFromStorage } from './userMemoryStore';
 import { generateSecureId } from '../../utils/generateSecureId';
 import { safeParseJson } from '../../utils/safeJson';
+import { emailsMatch, normalizeEmail } from '../../utils/loginIdentifier';
+import {
+  getSupabaseSessionUserId,
+  migrateLocalUserId,
+  getCachedSessionUserId,
+  resolveAuthAccessToken,
+} from '../../services/SupabaseAuthService';
+import { fetchOwnerPvzsForSessionUser } from '../../services/SupabasePvzService';
 
 export async function checkOwnerExists(): Promise<boolean> {
   await loadUsersFromStorage();
   return userMemory.getUsers().some((u) => u.role === 'owner');
+}
+
+export interface OwnerPvzLoginResolution {
+  ownerId: string | null;
+  pvzList: Pvz[];
+  localOwner: User | null;
+}
+
+function mergePvzLists(local: Pvz[], remote: Pvz[]): Pvz[] {
+  const byId = new Map<string, Pvz>();
+  for (const pvz of local) {
+    byId.set(pvz.id, pvz);
+  }
+  for (const pvz of remote) {
+    byId.set(pvz.id, { ...byId.get(pvz.id), ...pvz });
+  }
+  return Array.from(byId.values());
+}
+
+/** Локальные + облачные ПВЗ владельца после email OTP (или без OTP в dev). */
+export async function resolveOwnerPvzsForLogin(
+  normalizedEmail: string,
+  sessionUserIdOverride?: string | null,
+  sessionAccessTokenOverride?: string | null
+): Promise<OwnerPvzLoginResolution> {
+  await loadUsersFromStorage();
+  const email = normalizeEmail(normalizedEmail);
+
+  const localOwner =
+    userMemory.getUsers().find(
+      (u) => u.role === 'owner' && u.status === 'active' && emailsMatch(u.email, email)
+    ) || null;
+
+  const accessToken =
+    sessionAccessTokenOverride ?? (await resolveAuthAccessToken());
+  const sessionUserId =
+    sessionUserIdOverride ??
+    getCachedSessionUserId() ??
+    (accessToken ? await getSupabaseSessionUserId() : null);
+
+  let pvzList: Pvz[] = [];
+  if (localOwner) {
+    pvzList = await DataService.getPvzsByOwner(localOwner.id);
+    if (sessionUserId && localOwner.id !== sessionUserId) {
+      const migratedLocal = await DataService.getPvzsByOwner(sessionUserId);
+      pvzList = mergePvzLists(pvzList, migratedLocal);
+    }
+  }
+
+  if (sessionUserId) {
+    const remotePvzs = await fetchOwnerPvzsForSessionUser(
+      sessionUserId,
+      accessToken ?? undefined
+    );
+    if (remotePvzs.length > 0) {
+      const ownerId = sessionUserId ?? localOwner?.id ?? remotePvzs[0].ownerId;
+      pvzList = mergePvzLists(pvzList, remotePvzs).map((pvz) => ({
+        ...pvz,
+        ownerId,
+      }));
+
+      await Promise.all(pvzList.map((pvz) => DataService.savePvz(pvz)));
+    } else if (__DEV__) {
+      console.info('[Auth] resolveOwnerPvzsForLogin: no remote PVZ for owner', sessionUserId);
+    }
+  } else if (__DEV__) {
+    console.info('[Auth] resolveOwnerPvzsForLogin: no session user id after OTP');
+  }
+
+  return {
+    ownerId: sessionUserId ?? localOwner?.id ?? null,
+    pvzList,
+    localOwner,
+  };
+}
+
+/** Создать или обновить локальную запись владельца перед PIN / выбором ПВЗ. */
+export async function ensureLocalOwnerRecord(
+  normalizedEmail: string,
+  ownerId: string,
+  primaryPvzId?: string,
+  ownerName?: string
+): Promise<User> {
+  await loadUsersFromStorage();
+  const email = normalizeEmail(normalizedEmail);
+  let owner =
+    userMemory.getUsers().find(
+      (u) => u.role === 'owner' && u.status === 'active' && emailsMatch(u.email, email)
+    ) || null;
+
+  if (owner && owner.id !== ownerId) {
+    await migrateLocalUserId(owner.id, ownerId, 'owner');
+    await userMemory.replaceUserId(owner.id, ownerId);
+    owner = { ...owner, id: ownerId };
+  }
+
+  if (!owner) {
+    owner = {
+      id: ownerId,
+      name: ownerName || 'Владелец',
+      email,
+      phone: '',
+      role: 'owner',
+      status: 'active',
+      pvzId: primaryPvzId,
+      createdAt: new Date().toISOString(),
+    };
+    await userMemory.addUser(owner);
+    return owner;
+  }
+
+  if (primaryPvzId && owner.pvzId !== primaryPvzId) {
+    await userMemory.updateUser(ownerId, { pvzId: primaryPvzId });
+    owner = { ...owner, pvzId: primaryPvzId };
+  }
+
+  return owner;
 }
 
 export async function registerOwnerAccount(
@@ -32,7 +157,7 @@ export async function registerOwnerAccount(
   const newOwner: User = {
     id: ownerId,
     name,
-    email: `${cleanPhone}@pvz.owner`,
+    email: `${cleanPhone}@users.pvzpersonal.ru`,
     phone: cleanPhone,
     role: 'owner',
     status: 'active',
@@ -99,3 +224,5 @@ export async function blockUserAccount(
     await SecureStore.setItemAsync('all_invitations', JSON.stringify(allInvitations));
   }
 }
+
+export { deleteUserAccount } from '../../services/accountLifecycle';

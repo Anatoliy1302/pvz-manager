@@ -8,12 +8,14 @@ import {
   Keyboard,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useLoginStyles } from './useLoginStyles';
 import { useLoginFlow } from './useLoginFlow';
 import LoginLoadingView from './components/LoginLoadingView';
 import LoginRoleSelectionStep from './components/LoginRoleSelectionStep';
+import LoginEmailStep from './components/LoginEmailStep';
 import LoginPhoneStep from './components/LoginPhoneStep';
 import LoginSmsStep from './components/LoginSmsStep';
 import LoginPinStep from './components/LoginPinStep';
@@ -21,11 +23,14 @@ import LoginQuickLoginStep from './components/LoginQuickLoginStep';
 import LoginCreatePvzStep from './components/LoginCreatePvzStep';
 import LoginSelectPvzStep from './components/LoginSelectPvzStep';
 import LanguagePicker from '../../components/common/LanguagePicker';
+import AppEnvBanner from '../../components/common/AppEnvBanner';
+import GdprConsentBanner from '../../components/legal/GdprConsentBanner';
 
 export default function LoginScreen(_props: { navigation: unknown }) {
   const { ui, screen } = useThemedScreen();
   const { styles: loginStyles } = useLoginStyles();
   const flow = useLoginFlow();
+  const insets = useSafeAreaInsets();
 
   const renderStep = () => {
     switch (flow.step) {
@@ -34,7 +39,7 @@ export default function LoginScreen(_props: { navigation: unknown }) {
           <LoginQuickLoginStep
             savedProfileName={flow.savedProfileName}
             selectedRole={flow.selectedRole}
-            phone={flow.phone}
+            loginDisplay={flow.loginDisplay}
             pinCode={flow.pinCode}
             loading={flow.loading}
             titleStyle={ui.title}
@@ -53,7 +58,23 @@ export default function LoginScreen(_props: { navigation: unknown }) {
             cardBackground={screen.card}
             cardBorder={screen.border}
             onSelectRole={flow.setSelectedRole}
-            onContinue={() => flow.selectedRole && flow.setStep('phone')}
+            onContinue={flow.handleRoleContinue}
+          />
+        );
+      case 'email':
+        return (
+          <LoginEmailStep
+            email={flow.email}
+            loading={flow.loading}
+            isValid={flow.isValidEmail()}
+            titleStyle={ui.title}
+            subtitleStyle={ui.subtitle}
+            inputBackground={ui.input.backgroundColor}
+            inputBorder={screen.border}
+            textColor={screen.text}
+            onBack={() => flow.setStep('role')}
+            onChangeEmail={flow.handleEmailChange}
+            onContinue={flow.handleEmailContinue}
           />
         );
       case 'phone':
@@ -75,16 +96,20 @@ export default function LoginScreen(_props: { navigation: unknown }) {
       case 'sms':
         return (
           <LoginSmsStep
-            phone={flow.phone}
+            otpChannel={flow.otpChannel}
+            contactDisplay={flow.otpContactDisplay}
             smsCode={flow.smsCode}
             smsTimer={flow.smsTimer}
+            otpSendStatus={flow.otpSendStatus}
+            rateLimitWaitMinutes={flow.rateLimitWaitMinutes}
             loading={flow.loading}
+            authErrorMessage={flow.authErrorMessage}
             titleStyle={ui.title}
             subtitleStyle={ui.subtitle}
-            onBack={() => flow.setStep('phone')}
+            onBack={() => flow.setStep(flow.otpChannel === 'email' ? 'email' : 'phone')}
             onChangeCode={flow.handleSmsCodeChange}
-            onVerify={flow.handleVerifySms}
-            onResend={flow.handleSendSms}
+            onVerify={flow.handleVerifyOtp}
+            onResend={flow.handleSendOtp}
           />
         );
       case 'pin':
@@ -139,12 +164,19 @@ export default function LoginScreen(_props: { navigation: unknown }) {
     }
   };
 
+  const showLegalNote =
+    flow.step === 'role' ||
+    flow.step === 'email' ||
+    flow.step === 'phone' ||
+    flow.step === 'sms';
+
   if (flow.checkingSavedProfile) {
     return <LoginLoadingView subtitleStyle={ui.subtitle} />;
   }
 
   return (
-    <ThemedSafeAreaView style={loginStyles.container} edges={['top', 'left', 'right']}>
+    <ThemedSafeAreaView style={loginStyles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <AppEnvBanner />
       <View style={loginStyles.languageBar}>
         <LanguagePicker variant="compact" />
       </View>
@@ -157,11 +189,22 @@ export default function LoginScreen(_props: { navigation: unknown }) {
             contentContainerStyle={[
               loginStyles.scrollContent,
               (flow.step === 'role' || flow.step === 'quickLogin') && loginStyles.scrollContentRole,
+              flow.step === 'quickLogin' && {
+                paddingBottom: Math.max(
+                  Platform.OS === 'android' ? 48 : 32,
+                  insets.bottom + 20,
+                ),
+              },
             ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {renderStep()}
+            {showLegalNote ? (
+              <GdprConsentBanner
+                style={loginStyles.legalNote}
+              />
+            ) : null}
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>

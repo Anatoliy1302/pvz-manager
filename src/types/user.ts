@@ -63,6 +63,7 @@ export interface Pvz {
   workEnd: string;             // "21:00"
   phone: string;
   ownerId: string;
+  ownerInn?: string;
 }
 
 export interface Shift {

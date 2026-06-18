@@ -7,6 +7,7 @@ import alerts from './alerts';
 import screens from './screens';
 import legal from './legal';
 import notifications from './notifications';
+import subscription from './subscription';
 
 export default {
   common,
@@ -18,4 +19,5 @@ export default {
   screens,
   legal,
   notifications,
+  subscription,
 };

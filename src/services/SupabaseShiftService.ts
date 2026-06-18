@@ -1,7 +1,9 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { Shift } from '../types/user';
 import { formatTimeFromDate, isUuid, resolvePvzId } from '../utils/supabaseHelpers';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { SHIFT_COLUMNS } from './supabase/selectColumns';
+import { ensureSupabaseClientSession } from './SupabaseAuthService';
 
 function rowToShift(row: Record<string, unknown>): Shift {
   return {
@@ -44,37 +46,51 @@ async function shiftToRow(shift: Shift): Promise<Record<string, unknown>> {
   return row;
 }
 
-export async function fetchShiftsFromSupabase(): Promise<Shift[] | null> {
-  if (!(await hasSupabaseSession())) return null;
+const SHIFT_SELECT_COLUMNS = SHIFT_COLUMNS;
 
-  const { data, error } = await supabase
-    .from('shifts')
-    .select('*')
-    .order('date', { ascending: true });
+export async function fetchShiftsFromSupabase(pvzIds?: string[]): Promise<Shift[] | null> {
+  if (!(await ensureSupabaseClientSession())) return null;
 
-  if (error) {
-    console.warn('fetchShiftsFromSupabase:', error.message);
+  let resolvedIds: string[] | undefined;
+  if (pvzIds && pvzIds.length > 0) {
+    const resolved = await Promise.all(pvzIds.map((id) => resolvePvzId(id)));
+    const uniqueIds = [...new Set(resolved.filter(Boolean))];
+    if (uniqueIds.length > 0) {
+      resolvedIds = uniqueIds;
+    }
+  }
+
+  const data = await fetchAllFromQuery<Record<string, unknown>>(() => {
+    let query = supabase.from('shifts').select(SHIFT_SELECT_COLUMNS).order('date', { ascending: true });
+    if (resolvedIds?.length) {
+      query = query.in('pvz_id', resolvedIds);
+    }
+    return query;
+  });
+
+  if (!data) {
+    console.warn('fetchShiftsFromSupabase: paginated fetch failed');
     return null;
   }
 
-  return (data || []).map((row) => rowToShift(row as Record<string, unknown>));
+  return data.map((row) => rowToShift(row));
 }
 
 export async function upsertShiftToSupabase(shift: Shift): Promise<Shift | null> {
-  if (!(await hasSupabaseSession())) return null;
+  if (!(await ensureSupabaseClientSession())) return null;
 
   const row = await shiftToRow(shift);
   const { data, error } = await supabase
     .from('shifts')
     .upsert(row, { onConflict: 'id' })
-    .select('*')
+    .select(SHIFT_COLUMNS)
     .single();
 
   if (error) {
     const { data: inserted, error: insertError } = await supabase
       .from('shifts')
       .insert(row)
-      .select('*')
+      .select(SHIFT_COLUMNS)
       .single();
 
     if (insertError) {
@@ -88,7 +104,7 @@ export async function upsertShiftToSupabase(shift: Shift): Promise<Shift | null>
 }
 
 export async function deleteShiftFromSupabase(id: string): Promise<boolean> {
-  if (!(await hasSupabaseSession()) || !isUuid(id)) return false;
+  if (!(await ensureSupabaseClientSession()) || !isUuid(id)) return false;
 
   const { error } = await supabase.from('shifts').delete().eq('id', id);
   if (error) {
