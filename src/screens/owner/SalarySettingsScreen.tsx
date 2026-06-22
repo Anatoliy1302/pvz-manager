@@ -26,9 +26,10 @@ import {
   getGlobalFullShiftRate,
   buildRatesFromFullShift,
 } from '../../utils/salaryRateHelpers';
-import { pushPvzSalarySettings } from '../../services/SupabaseSalarySettingsService';
+import { pushPvzSalarySettings, pullPvzSalaryFromServer } from '../../services/SupabaseSalarySettingsService';
 import DataService from '../../services/DataService';
 import { safeParseJson } from '../../utils/safeJson';
+import { userBelongsToPvz } from '../../utils/chatHelpers';
 import { 
   ChevronLeft, 
   Clock, 
@@ -118,10 +119,19 @@ export default function SalarySettingsScreen({ navigation }: any) {
     const totalHours = totalHoursOverride ?? pvzWorkHours.totalHours;
 
     try {
+      await pullPvzSalaryFromServer(selectedPvzId);
+
       const usersRaw = await SecureStore.getItemAsync('pvz_users');
       const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-      const employeesList = users.filter((u: any) =>
-        u.role !== 'owner' && u.status === 'active' && u.pvzId === selectedPvzId
+      const selectedPvz =
+        userPvzs?.find((p) => p.id === selectedPvzId) ??
+        (pvz?.id === selectedPvzId ? pvz : null);
+      const employeesList = users.filter(
+        (u: User) =>
+          u.role !== 'owner' &&
+          u.status === 'active' &&
+          selectedPvz != null &&
+          userBelongsToPvz(u, selectedPvz)
       );
 
       const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);

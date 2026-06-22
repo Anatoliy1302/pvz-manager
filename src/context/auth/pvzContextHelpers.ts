@@ -3,6 +3,7 @@ import { User, Pvz } from '../../types/user';
 import DataService from '../../services/DataService';
 import { AuthSetters } from './types';
 import { safeParseJson } from '../../utils/safeJson';
+import { loadOwnerPvzsWithRemoteFallback } from '../../services/SupabasePvzService';
 
 export async function syncAdminPvzContext(
   adminUser: User,
@@ -35,13 +36,18 @@ export async function syncAdminPvzContext(
 
 export async function bindPvzForSessionUser(sessionUser: User, setters: AuthSetters) {
   if (sessionUser.role === 'owner') {
-    const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
+    const ownerPvzs = await loadOwnerPvzsWithRemoteFallback(sessionUser.id);
     setters.setUserPvzs(ownerPvzs);
     const storedPvz = await SecureStore.getItemAsync('pvz');
     if (storedPvz) {
       const parsed = safeParseJson<Pvz | null>(storedPvz, null);
-      if (parsed) setters.setPvz(parsed);
-    } else if (ownerPvzs.length > 0) {
+      const matched = parsed ? ownerPvzs.find((p) => p.id === parsed.id) : null;
+      if (matched) {
+        setters.setPvz(matched);
+        return;
+      }
+    }
+    if (ownerPvzs.length > 0) {
       setters.setPvz(ownerPvzs[0]);
       await SecureStore.setItemAsync('pvz', JSON.stringify(ownerPvzs[0]));
     }
@@ -71,17 +77,25 @@ export async function bindPvzForSessionUser(sessionUser: User, setters: AuthSett
   }
 }
 
+function samePvzList(prev: Pvz[], next: Pvz[]): boolean {
+  if (prev.length !== next.length) return false;
+  return prev.every((p, i) => p.id === next[i]?.id);
+}
+
 export async function refreshOwnerPvzList(
   ownerId: string,
   currentPvz: Pvz | null,
   setters: Pick<AuthSetters, 'setUserPvzs' | 'setPvz'>
 ) {
-  const ownerPvzs = await DataService.getPvzsByOwner(ownerId);
-  setters.setUserPvzs(ownerPvzs);
+  const ownerPvzs = await loadOwnerPvzsWithRemoteFallback(ownerId);
+  setters.setUserPvzs((prev) => (samePvzList(prev, ownerPvzs) ? prev : ownerPvzs));
   if (currentPvz && ownerPvzs.some((p) => p.id === currentPvz.id)) {
     const updatedPvz = ownerPvzs.find((p) => p.id === currentPvz.id);
-    if (updatedPvz) setters.setPvz(updatedPvz);
+    if (updatedPvz) {
+      setters.setPvz((prev) => (prev?.id === updatedPvz.id ? prev : updatedPvz));
+    }
   } else if (ownerPvzs.length > 0) {
-    setters.setPvz(ownerPvzs[0]);
+    setters.setPvz((prev) => (prev?.id === ownerPvzs[0].id ? prev : ownerPvzs[0]));
+    await SecureStore.setItemAsync('pvz', JSON.stringify(ownerPvzs[0]));
   }
 }

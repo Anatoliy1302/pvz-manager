@@ -4,6 +4,7 @@ export default {
     invalidEmail: 'Enter a valid email address',
     invalidOtp: 'Enter the {{length}}-digit SMS code',
     invalidPin: 'PIN must be at least 4 digits',
+    invalidPassword: 'Password must be at least 6 characters',
     wrongPin: 'Incorrect PIN',
     fillAll: 'Fill in all fields',
     pinLength: 'PIN must contain {{length}} digits',
@@ -60,6 +61,7 @@ export default {
     phoneNotFound: 'Phone number not found. Contact the PVZ owner',
     emailNotFound: 'Owner account with this email was not found',
     linkProfileFailed: 'Failed to link profile to Supabase',
+    profileSyncFailed: 'Could not create owner profile. Please try signing in again.',
     supabaseNoUserId: 'Supabase did not return a user ID after SMS verification',
     smsNotConfigured: 'SMS sign-in is not configured. Set EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true and configure Phone provider in Supabase.',
     emailNotConfigured: 'Email sign-in is not configured. Enable Email provider in Supabase Dashboard.',
@@ -72,6 +74,14 @@ export default {
     otpExpired: 'Code expired or outdated. Request a new one and enter the latest code you received.',
     otpAlreadyInFlight: 'A request is already in progress. Please wait.',
     invalidOtpCode: 'Invalid code. Check the latest SMS.',
+    invalidCredentials: 'Invalid email or password',
+    weakPassword: 'Password must be at least 6 characters',
+    emailAlreadyRegistered:
+      'This email is already registered in the cloud. Sign in with your PIN, or verify via “Forgot PIN?” and delete the account again.',
+    passwordResetFailed: 'Could not send password reset email',
+    deleteAccountReauthRequired:
+      'Enter your PIN on the delete account screen.',
+    deleteAccountReauthTitle: 'Email confirmation required',
     smsSendFailed: 'SMS was not sent. Wait a minute and do not request again if you already received an SMS.',
     rateLimit: 'Too many attempts. Please wait and try again.',
   },
@@ -79,6 +89,8 @@ export default {
     noInternet: 'No internet connection',
     smsFailed: 'Failed to send SMS code',
     emailFailed: 'Failed to send email code',
+    emailMailRuRejected:
+      'Mail.ru rejected the message: noreply@pvzpersonal.ru is not verified. Add SPF and DKIM DNS records at @ (NotiSend → Domains). Use Gmail or Yandex temporarily.',
     serverUnavailable: 'Server is temporarily unavailable. Please try again later.',
     supabaseUnreachable:
       'Cannot reach {{host}}. Check internet, try mobile data or VPN. On iPhone open {{host}} in Safari. Restart Metro: npx expo start -c.',

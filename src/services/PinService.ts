@@ -56,6 +56,10 @@ const PinService = {
     await SecureStore.deleteItemAsync(pinKey(loginKey));
     await SecureStore.deleteItemAsync(setupKey(loginKey));
   },
+
+  async getStoredPinHash(loginKey: string): Promise<string | null> {
+    return SecureStore.getItemAsync(pinKey(loginKey));
+  },
 };
 
 export default PinService;

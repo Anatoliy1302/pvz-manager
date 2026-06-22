@@ -1,5 +1,5 @@
 // src/screens/owner/OwnerDashboardScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { StorageService } from '../../services/StorageService';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../hooks/useSubscription';
 import { ShiftRequest } from '../../services/data/dataTypes';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { colors } from '../../constants/colors';
@@ -27,6 +28,7 @@ import {
   Crown,
   Building2,
   ChevronDown,
+  ChevronRight,
   UserPlus,
   Bell,
   ClipboardList,
@@ -43,7 +45,10 @@ import { useShiftsQuery, useEmployeesQuery } from '../../hooks/queries';
 
 export default function OwnerDashboardScreen({ navigation }: any) {
   const { t } = useTranslation();
-  const { user, pvz, userPvzs, switchPvz } = useAuth();
+  const { user, pvz, userPvzs, switchPvz, refreshUserData } = useAuth();
+  const { subscriptionTier, isTrialActive } = useSubscription();
+  const refreshUserDataRef = useRef(refreshUserData);
+  refreshUserDataRef.current = refreshUserData;
   const { ui, screen } = useThemedScreen();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, markLoaded] = useScopedInitialLoading(pvz?.id);
@@ -57,6 +62,11 @@ export default function OwnerDashboardScreen({ navigation }: any) {
     swapCount: 0,
   });
   const [unpaidEmployees, setUnpaidEmployees] = useState<{name: string; amount: number}[]>([]);
+  const selectablePvzs = useMemo(() => {
+    if (userPvzs.length > 0) return userPvzs;
+    return pvz ? [pvz] : [];
+  }, [userPvzs, pvz]);
+  const canSwitchPvz = selectablePvzs.length > 1;
 
   const { data: pvzShifts = [], refreshFromSupabase } = useShiftsQuery(pvz?.id, {
     enabled: Boolean(pvz?.id),
@@ -144,6 +154,14 @@ export default function OwnerDashboardScreen({ navigation }: any) {
     }, [user?.id])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.role === 'owner') {
+        void refreshUserDataRef.current();
+      }
+    }, [user?.role])
+  );
+
   useScreenRefresh(loadDashboardData, [pvz?.id, user?.id, loadDashboardData], {
     subscribeKeys: [
       'employee_balance',
@@ -159,8 +177,11 @@ export default function OwnerDashboardScreen({ navigation }: any) {
     setRefreshing(false);
   };
 
+  const showTrialPromo = subscriptionTier === 'free' && !isTrialActive;
+
   const quickActions: DashboardActionTile[] = [
     { icon: CalendarDays, label: t('screens.dashboard.owner.schedule'), onPress: () => navigation.navigate('Schedule'), gradient: ['#4CAF50', '#388E3C'] },
+    { icon: Building2, label: t('screens.owner.pvzList'), onPress: () => navigation.navigate('PVZManagement'), gradient: ['#00897B', '#00695C'] },
     { icon: UserPlus, label: t('screens.dashboard.owner.add'), onPress: () => navigation.navigate('EmployeeAddForm'), gradient: ['#2196F3', '#1565C0'] },
     { icon: Bell, label: t('screens.dashboard.owner.requests'), onPress: () => navigation.navigate('ShiftRequests'), gradient: ['#FF9800', '#E65100'], badge: stats.requestsCount },
     { icon: Repeat, label: t('screens.dashboard.owner.swaps'), onPress: () => navigation.navigate('SwapRequests'), gradient: ['#2196F3', '#1565C0'], badge: stats.swapCount },
@@ -191,7 +212,7 @@ export default function OwnerDashboardScreen({ navigation }: any) {
                 {user?.phone ? formatPhoneForDisplay(user.phone) : ''}
               </Text>
             </View>
-            {userPvzs && userPvzs.length > 1 ? (
+            {canSwitchPvz ? (
               <>
                 <TouchableOpacity
                   style={styles.bannerPvzRow}
@@ -207,11 +228,11 @@ export default function OwnerDashboardScreen({ navigation }: any) {
                   />
                 </TouchableOpacity>
                 <Text style={styles.pvzHint}>
-                  {t('common.pvz.countSwitchHint', { count: userPvzs.length })}
+                  {t('common.pvz.countSwitchHint', { count: selectablePvzs.length })}
                 </Text>
                 {showPvzDropdown && (
                   <View style={[styles.pvzDropdown, { backgroundColor: screen.card }]}>
-                    {userPvzs.map((item) => (
+                    {selectablePvzs.map((item) => (
                       <TouchableOpacity
                         key={item.id}
                         style={styles.pvzDropdownItem}
@@ -263,6 +284,20 @@ export default function OwnerDashboardScreen({ navigation }: any) {
             </View>
           </View>
         </AnimatedBanner>
+
+        {showTrialPromo && (
+          <TouchableOpacity
+            style={[styles.trialPromoBanner, { backgroundColor: screen.surface, borderColor: colors.primary }]}
+            onPress={() => navigation.navigate('Subscription')}
+            activeOpacity={0.85}
+          >
+            <Crown size={20} color={colors.primary} />
+            <Text style={[styles.trialPromoText, { color: screen.text }]}>
+              {t('subscription.dashboardTrialPromo')}
+            </Text>
+            <ChevronRight size={16} color={colors.primary} />
+          </TouchableOpacity>
+        )}
 
         <DashboardActionTiles actions={quickActions} />
 
@@ -321,6 +356,19 @@ const styles = StyleSheet.create({
   bannerStatValue: { fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' },
   bannerStatLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)' },
   bannerStatDivider: { width: 1, height: 24, backgroundColor: 'rgba(255,255,255,0.2)' },
+
+  trialPromoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  trialPromoText: { flex: 1, fontSize: 14, fontWeight: '600', lineHeight: 20 },
 
   // Невыплаченные суммы
   unpaidSection: {

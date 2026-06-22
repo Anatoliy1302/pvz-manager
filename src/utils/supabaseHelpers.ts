@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../../lib/supabase';
 import { safeParseJson } from './safeJson';
+import { cleanPhone, isValidPhone } from './phoneHelpers';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -81,36 +81,14 @@ export async function setUserIdMapping(localUserId: string, supabaseUserId: stri
   await SecureStore.setItemAsync(`${USER_MAP_PREFIX}${localUserId}`, supabaseUserId);
 }
 
-/** Локальный id → UUID профиля Supabase (маппинг или поиск по телефону). */
+/** Локальный id → UUID (маппинг или уже UUID). */
 export async function resolveUserId(localOrUuid: string): Promise<string | null> {
   if (isUuid(localOrUuid)) return localOrUuid;
 
   const mapped = await getUserIdMapping(localOrUuid);
   if (mapped) return mapped;
 
-  const usersRaw = await SecureStore.getItemAsync('pvz_users');
-  if (!usersRaw) return null;
-
-  const users = safeParseJson<Array<{ id: string; phone?: string }>>(usersRaw, []);
-  const localUser = users.find((u) => u.id === localOrUuid);
-  if (!localUser?.phone) return null;
-
-  const cleanPhone = localUser.phone.replace(/[^0-9]/g, '');
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.user?.id) return null;
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('phone', cleanPhone)
-    .maybeSingle();
-
-  if (error || !data?.id) return null;
-
-  await setUserIdMapping(localOrUuid, data.id);
-  return data.id;
+  return null;
 }
 
 export function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[] {
@@ -120,5 +98,9 @@ export function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[
 }
 
 export function normalizePhone(phone: string): string {
-  return phone.replace(/[^0-9]/g, '');
+  const raw = phone.replace(/[^0-9]/g, '');
+  if (isValidPhone(phone) || raw.length === 10 || (raw.length === 11 && (raw[0] === '7' || raw[0] === '8'))) {
+    return cleanPhone(phone);
+  }
+  return raw;
 }

@@ -1,5 +1,3 @@
-import { supabase } from '../../../lib/supabase';
-import { hasSupabaseSession } from '../SupabaseAuthService';
 import pushTokenService from './PushTokenService';
 
 interface ExpoPushReceipt {
@@ -13,41 +11,6 @@ interface ExpoPushResponse {
 }
 
 const INVALID_TOKEN_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials']);
-
-async function sendViaEdgeFunction(
-  recipientUserId: string,
-  title: string,
-  body: string,
-  data: Record<string, unknown>
-): Promise<boolean> {
-  if (!(await hasSupabaseSession())) return false;
-
-  try {
-    const { data: result, error } = await supabase.functions.invoke('send-push-notification', {
-      body: {
-        recipientUserId,
-        title,
-        body,
-        data,
-      },
-    });
-
-    if (error) {
-      console.warn('send-push-notification edge function:', error.message);
-      return false;
-    }
-
-    const receipts = (result as ExpoPushResponse | null)?.data;
-    if (Array.isArray(receipts)) {
-      await handlePushReceipts(receipts, { recipientUserId });
-    }
-
-    return true;
-  } catch (error) {
-    console.warn('send-push-notification invoke failed:', error);
-    return false;
-  }
-}
 
 async function sendDirectExpoPush(
   token: string,
@@ -123,9 +86,6 @@ class PushDeliveryService {
     if (token && pushTokenService.isOwnToken(token)) {
       return;
     }
-
-    const sentViaEdge = await sendViaEdgeFunction(recipientUserId, title, body, payload);
-    if (sentViaEdge) return;
 
     if (token) {
       await sendDirectExpoPush(token, title, body, payload);

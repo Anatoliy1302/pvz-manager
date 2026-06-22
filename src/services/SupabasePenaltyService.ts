@@ -1,9 +1,7 @@
-import { supabase } from '../../lib/supabase';
-import { fetchAllFromQuery } from '../../lib/supabasePagination';
-import { isUuid, mergeById, resolvePvzId, resolveUserId } from '../utils/supabaseHelpers';
-import { PENALTY_COLUMNS } from './supabase/selectColumns';
-import { ensureSupabaseClientSession } from './SupabaseAuthService';
-
+import { mergeById, resolvePvzId, resolveUserId, isUuid } from '../utils/supabaseHelpers';
+import { getToken } from '../../lib/authSessionStore';
+import { upsertPvzPenalty, deletePvzPenalty } from '../../lib/pvzFinanceService';
+import { generateUuidV4 } from '../utils/generateSecureId';
 export interface SyncPenalty {
   id: string;
   employeeId: string;
@@ -16,90 +14,45 @@ export interface SyncPenalty {
   pvzId?: string;
 }
 
-function rowToPenalty(row: Record<string, unknown>): SyncPenalty {
-  const type = row.type as string;
-  const rawAmount = Number(row.amount);
-  return {
-    id: row.id as string,
-    employeeId: row.employee_id as string,
-    employeeName: '',
-    amount: type === 'bonus' ? -rawAmount : rawAmount,
-    reason: row.reason as string,
-    date: row.date as string,
-    createdAt: row.created_at as string,
-    createdBy: '',
-    pvzId: row.pvz_id as string,
-  };
-}
+export async function upsertPenaltyToSupabase(penalty: SyncPenalty): Promise<SyncPenalty | null> {
+  if (!(await getToken()) || !penalty.pvzId) return null;
 
-async function penaltyToRow(penalty: SyncPenalty): Promise<Record<string, unknown> | null> {
-  if (!penalty.pvzId) return null;
+  const localPvzId = penalty.pvzId;
+  const pvzId = await resolvePvzId(localPvzId);
+  const employeeId = (await resolveUserId(penalty.employeeId)) || penalty.employeeId;
 
-  const pvzId = await resolvePvzId(penalty.pvzId);
-  const employeeId = await resolveUserId(penalty.employeeId);
-  if (!employeeId || !isUuid(pvzId)) return null;
-
-  const type = penalty.amount >= 0 ? 'fine' : 'bonus';
-  const row: Record<string, unknown> = {
-    pvz_id: pvzId,
-    employee_id: employeeId,
-    type,
-    amount: Math.abs(penalty.amount),
-    reason: penalty.reason,
-    date: penalty.date,
+  const payload: SyncPenalty = {
+    ...penalty,
+    id: penalty.id && isUuid(penalty.id) ? penalty.id : generateUuidV4(),
+    pvzId,
+    employeeId,
+    createdAt: penalty.createdAt || new Date().toISOString(),
   };
 
-  if (penalty.id && isUuid(penalty.id)) {
-    row.id = penalty.id;
-  }
-
-  return row;
-}
-
-export async function fetchPenaltiesFromSupabase(): Promise<SyncPenalty[] | null> {
-  if (!(await ensureSupabaseClientSession())) return null;
-
-  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
-    supabase.from('penalties').select(PENALTY_COLUMNS).order('created_at', { ascending: false })
-  );
-
-  if (!data) {
-    console.warn('fetchPenaltiesFromSupabase: paginated fetch failed');
+  try {
+    return await upsertPvzPenalty(localPvzId, payload);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('upsertPenaltyToSupabase:', error);
+    }
     return null;
   }
-
-  return data.map((row) => rowToPenalty(row));
 }
 
-export async function upsertPenaltyToSupabase(penalty: SyncPenalty): Promise<SyncPenalty | null> {
-  if (!(await ensureSupabaseClientSession())) return null;
-
-  const row = await penaltyToRow(penalty);
-  if (!row) return null;
-
-  const { data, error } = await supabase
-    .from('penalties')
-    .upsert(row, { onConflict: 'id' })
-    .select(PENALTY_COLUMNS)
-    .single();
-
-  if (error) {
-    const { data: inserted, error: insertError } = await supabase
-      .from('penalties')
-      .insert(row)
-      .select(PENALTY_COLUMNS)
-      .single();
-
-    if (insertError) {
-      console.warn('upsertPenaltyToSupabase:', insertError.message);
-      return null;
+export async function deletePenaltyFromSupabase(
+  localPvzId: string,
+  penaltyId: string
+): Promise<boolean> {
+  if (!(await getToken()) || !penaltyId) return false;
+  try {
+    await deletePvzPenalty(localPvzId, penaltyId);
+    return true;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('deletePenaltyFromSupabase:', error);
     }
-    const synced = rowToPenalty(inserted as Record<string, unknown>);
-    return { ...penalty, ...synced, employeeName: penalty.employeeName };
+    return false;
   }
-
-  const synced = rowToPenalty(data as Record<string, unknown>);
-  return { ...penalty, ...synced, employeeName: penalty.employeeName };
 }
 
 export function mergePenalties(local: SyncPenalty[], remote: SyncPenalty[]): SyncPenalty[] {

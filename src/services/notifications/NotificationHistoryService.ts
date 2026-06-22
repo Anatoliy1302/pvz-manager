@@ -1,6 +1,7 @@
 import StorageService from '../StorageService';
 import DataService from '../DataService';
-import { generateSecureId } from '../../utils/generateSecureId';
+import { generateUuidV4 } from '../../utils/generateSecureId';
+import { isUuid } from '../../utils/supabaseHelpers';
 import { safeParseJson } from '../../utils/safeJson';
 import { hasSupabaseSession } from '../SupabaseAuthService';
 import {
@@ -27,7 +28,7 @@ class NotificationHistoryService {
       const notifications = safeParseJson<NotificationRecord[]>(stored ?? '[]', []);
 
       const newNotification: NotificationRecord = {
-        id: generateSecureId(),
+        id: generateUuidV4(),
         title,
         message,
         type,
@@ -50,6 +51,53 @@ class NotificationHistoryService {
     } catch (error) {
       console.error('Ошибка сохранения уведомления:', error);
       return null;
+    }
+  }
+
+  /** Сохранить push, пришедший с другого устройства (без дубля по notificationId). */
+  async savePushNotification(params: {
+    title: string;
+    message: string;
+    type: NotificationType;
+    data?: Record<string, unknown>;
+    userId?: string;
+  }): Promise<void> {
+    const { title, message, type, data, userId } = params;
+    const notificationId =
+      typeof data?.notificationId === 'string' ? data.notificationId : undefined;
+
+    try {
+      const stored = await StorageService.getItem(NOTIFICATIONS_STORAGE_KEY);
+      const notifications = safeParseJson<NotificationRecord[]>(stored ?? '[]', []);
+
+      if (notificationId && notifications.some((item) => item.id === notificationId)) {
+        await this.updateBadgeCount(userId);
+        return;
+      }
+
+      const newNotification: NotificationRecord = {
+        id: notificationId && isUuid(notificationId) ? notificationId : generateUuidV4(),
+        title,
+        message,
+        type,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        data,
+        recipientUserId: userId,
+      };
+
+      notifications.unshift(newNotification);
+      await StorageService.setItem(
+        NOTIFICATIONS_STORAGE_KEY,
+        JSON.stringify(notifications.slice(0, 200))
+      );
+      DataService.emitChange('notifications');
+      if (userId) {
+        DataService.emitChange(`notifications_${userId}`);
+      }
+      await this.updateBadgeCount(userId);
+    } catch (error) {
+      console.error('Ошибка сохранения push-уведомления:', error);
     }
   }
 

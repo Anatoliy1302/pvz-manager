@@ -3,8 +3,9 @@ import {
   AuthRequestTimeoutError,
   NetworkError,
   isRetryableFetchError,
-} from '../../lib/supabaseAuthDirect';
-import { formatSupabaseAuthError, isAuthNetworkOrTimeoutError } from '../services/SupabaseAuthService';
+  formatSupabaseAuthError,
+  isAuthNetworkOrTimeoutError,
+} from '../services/SupabaseAuthService';
 
 export type AppErrorKind = 'network' | 'supabase' | 'validation' | 'unknown';
 

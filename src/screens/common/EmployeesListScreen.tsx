@@ -12,6 +12,7 @@ import {
   TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as SecureStore from 'expo-secure-store';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
@@ -35,7 +36,7 @@ import {
   Search,
   Clock,
 } from 'lucide-react-native';
-import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
+import MoneyIcon from '../../components/icons/MoneyIcon';
 import { markScreenLoadStart, markScreenLoadEnd } from '../../utils/perfMonitor';
 import { EmployeesListSkeleton } from '../../components/common/Skeleton';
 import { FLAT_LIST_PERF } from '../../constants/flatListPerf';

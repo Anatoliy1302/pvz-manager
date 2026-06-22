@@ -149,6 +149,10 @@ export interface ShiftCalculation {
 export interface ShiftStats {
   goodsIssuedCount: number;
   goodsReceivedCount: number;
+  /** Суммарная стоимость выданных товаров (для % премии). */
+  goodsIssuedValue?: number;
+  /** Суммарная стоимость принятых товаров (для % премии). */
+  goodsReceivedValue?: number;
   rating: number;
   lateMinutes: number;
   isSubstitution: boolean;

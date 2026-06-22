@@ -204,28 +204,33 @@ async function sendViaNotiSendApi(to: string, token: string): Promise<void> {
   }
 
   if (messageId) {
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-    try {
-      const statusRes = await fetchWithTimeout(
-        `${NOTISEND_API}/${messageId}`,
-        { headers: { Authorization: `Bearer ${apiKey}` } },
-        2_000,
-      );
-      const statusText = await statusRes.text();
-      const delivery = JSON.parse(statusText) as { status?: string };
-      console.log(
-        `[send-auth-email] NotiSend delivery id=${messageId} status=${delivery.status ?? 'unknown'}`,
-      );
-      if (delivery.status === 'soft_bounced' || delivery.status === 'hard_bounced') {
-        throw new Error(`delivery_${delivery.status}`);
+    const pollDelivery = async (): Promise<void> => {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      try {
+        const statusRes = await fetchWithTimeout(
+          `${NOTISEND_API}/${messageId}`,
+          { headers: { Authorization: `Bearer ${apiKey}` } },
+          2_000,
+        );
+        const statusText = await statusRes.text();
+        const delivery = JSON.parse(statusText) as { status?: string };
+        console.log(
+          `[send-auth-email] NotiSend delivery id=${messageId} status=${delivery.status ?? 'unknown'}`,
+        );
+        if (delivery.status === 'soft_bounced' || delivery.status === 'hard_bounced') {
+          console.error(`[send-auth-email] delivery_${delivery.status} id=${messageId}`);
+        }
+      } catch (error) {
+        console.warn(
+          `[send-auth-email] delivery poll skipped: ${error instanceof Error ? error.message : error}`,
+        );
       }
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('delivery_')) {
-        throw error;
-      }
-      console.warn(
-        `[send-auth-email] delivery poll skipped: ${error instanceof Error ? error.message : error}`,
-      );
+    };
+
+  if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+      EdgeRuntime.waitUntil(pollDelivery());
+    } else {
+      void pollDelivery();
     }
   }
 }
@@ -366,6 +371,9 @@ Deno.serve(async (req) => {
   const startedAt = Date.now();
 
   if (req.method !== 'POST') {
+    if (req.method === 'GET') {
+      return jsonResponse({ ok: true, service: 'send-auth-email' }, 200);
+    }
     return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 

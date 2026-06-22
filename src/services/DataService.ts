@@ -62,6 +62,7 @@ class DataService {
   saveScheduleAssignments = scheduleDataService.saveScheduleAssignments;
   upsertScheduleAssignment = scheduleDataService.upsertScheduleAssignment;
   syncScheduleFromShifts = scheduleDataService.syncScheduleFromShifts;
+  pullPvzScheduleFromServer = scheduleDataService.pullPvzScheduleFromServer;
   approveShiftRequest = scheduleDataService.approveShiftRequest;
 
   getAllShiftRequests = shiftRequestDataService.getAllShiftRequests;
@@ -86,6 +87,8 @@ class DataService {
   resendInvitation = invitationDataService.resendInvitation;
   refreshInvitationsForLogin = invitationDataService.refreshInvitationsForLogin;
   getPendingInvitationsForLoginPhone = invitationDataService.getPendingInvitationsForLoginPhone;
+  checkPendingInvitationForPhone = invitationDataService.checkPendingInvitationForPhone;
+  hasPendingEmployeeInvite = invitationDataService.hasPendingEmployeeInvite;
   refreshInvitationsCache = invitationDataService.refreshInvitationsCache;
 
   getCorrections = employeeExtrasDataService.getCorrections;

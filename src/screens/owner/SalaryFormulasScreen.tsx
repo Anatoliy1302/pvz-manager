@@ -15,13 +15,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import EmptyState from '../../components/common/EmptyState';
+import PremiumGate from '../../components/common/PremiumGate';
+import { useSubscription } from '../../hooks/useSubscription';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
 import { useFocusEffect } from '@react-navigation/native';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { SalaryFormula } from '../../types/salary';
 import { getFormulas, deleteFormula, saveFormula } from '../../services/SalaryFormulaService';
+import { pullPvzSalaryFromServer, pushPvzSalarySettings } from '../../services/SupabaseSalarySettingsService';
 import DataService from '../../services/DataService';
 import { 
   ChevronLeft, 
@@ -43,6 +47,8 @@ import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 export default function SalaryFormulasScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { pvz } = useAuth();
+  const { canAccessFeature } = useSubscription();
+  const canUseFormulas = canAccessFeature('salary_calculation');
   const { ui, screen } = useThemedScreen();
   const { showSuccess } = useScreenToast();
   const [refreshing, setRefreshing] = useState(false);
@@ -50,6 +56,7 @@ export default function SalaryFormulasScreen({ navigation }: any) {
 
   const loadFormulas = async () => {
     if (!pvz?.id) return;
+    await pullPvzSalaryFromServer(pvz.id);
     const loaded = await getFormulas(pvz.id);
     setFormulas(loaded);
   };
@@ -88,16 +95,19 @@ export default function SalaryFormulasScreen({ navigation }: any) {
 
   const handleSetDefault = async (formula: SalaryFormula) => {
     if (!pvz?.id) return;
-    
-    const updatedFormulas = formulas.map(f => ({
+
+    const updatedFormulas = formulas.map((f) => ({
       ...f,
       isActive: f.id === formula.id,
+      updatedAt: f.id === formula.id ? new Date().toISOString() : f.updatedAt,
     }));
-    
-    for (const f of updatedFormulas) {
-      await saveFormula(pvz.id, f);
-    }
-    
+
+    await SecureStore.setItemAsync(
+      `salary_formulas_${pvz.id}`,
+      JSON.stringify(updatedFormulas)
+    );
+    await pushPvzSalarySettings(pvz.id);
+    DataService.emitChange(`salary_formulas_${pvz.id}`);
     await loadFormulas();
     showSuccess(t('alerts.success.formulaSetDefault', { name: formula.name }));
   };
@@ -214,12 +224,19 @@ export default function SalaryFormulasScreen({ navigation }: any) {
         title={t('screens.finance.formulas')}
         onBack={() => navigation.goBack()}
         right={
-          <TouchableOpacity onPress={() => navigation.navigate('FormulaEditor', { formula: null })}>
-            <Plus size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          canUseFormulas ? (
+            <TouchableOpacity onPress={() => navigation.navigate('FormulaEditor', { formula: null })}>
+              <Plus size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : undefined
         }
       />
 
+      <PremiumGate
+        requiredPlan="pro"
+        feature="salary_calculation"
+        onUpgrade={() => navigation.navigate('Subscription')}
+      >
       <FlatList
         data={formulas}
         keyExtractor={(item) => item.id}
@@ -238,6 +255,7 @@ export default function SalaryFormulasScreen({ navigation }: any) {
         contentContainerStyle={styles.content}
         {...FLAT_LIST_PERF}
       />
+      </PremiumGate>
     </ThemedSafeAreaView>
   );
 }

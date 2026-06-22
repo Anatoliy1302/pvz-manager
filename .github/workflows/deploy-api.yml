@@ -1,0 +1,49 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload server to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          source: server/
+          target: /opt/pvz
+          strip_components: 1
+          overwrite: true
+
+      - name: Install deps and restart PM2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          script: |
+            cd /opt/pvz
+            npm install --omit=dev
+            if pm2 describe pvz-api >/dev/null 2>&1; then
+              pm2 restart pvz-api --update-env
+            else
+              pm2 start ecosystem.config.cjs
+            fi
+            pm2 save
+            curl -sf http://localhost:3000/

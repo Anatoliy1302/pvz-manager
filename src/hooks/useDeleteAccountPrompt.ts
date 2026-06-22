@@ -1,19 +1,29 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { AccountDeletionError } from '../services/accountDeletionService';
 
+type DeleteAccountNavigation = {
+  navigate: (screen: 'DeleteAccount') => void;
+};
+
+/** @deprecated Prefer navigation to DeleteAccount screen (email + OTP for owners). */
 export function useDeleteAccountPrompt() {
   const { t } = useTranslation();
+  const navigation = useNavigation<DeleteAccountNavigation>();
   const { user, deleteAccount } = useAuth();
-  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const promptDeleteAccount = useCallback(() => {
-    const isOwner = user?.role === 'owner';
+    if (user?.role === 'owner') {
+      navigation.navigate('DeleteAccount');
+      return;
+    }
+
     Alert.alert(
       t('alerts.confirm.deleteAccountTitle'),
-      t(isOwner ? 'alerts.confirm.deleteAccountMessageOwner' : 'alerts.confirm.deleteAccountMessage'),
+      t('alerts.confirm.deleteAccountMessage'),
       [
         { text: t('common.actions.cancel'), style: 'cancel' },
         {
@@ -21,7 +31,6 @@ export function useDeleteAccountPrompt() {
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              setDeletingAccount(true);
               try {
                 await deleteAccount();
               } catch (error) {
@@ -30,15 +39,13 @@ export function useDeleteAccountPrompt() {
                     ? error.message
                     : t('alerts.network.deleteAccountFailed');
                 Alert.alert(t('common.error.generic'), message);
-              } finally {
-                setDeletingAccount(false);
               }
             })();
           },
         },
       ]
     );
-  }, [deleteAccount, t, user?.role]);
+  }, [deleteAccount, navigation, t, user?.role]);
 
-  return { promptDeleteAccount, deletingAccount };
+  return { promptDeleteAccount, deletingAccount: false };
 }

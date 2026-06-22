@@ -68,11 +68,13 @@ export default function StatisticsScreen({ navigation }: any) {
     if (!user?.id) return;
 
     try {
-      const data = await loadEmployeeMonthStats(
-        user.id,
-        pvz?.id || user.pvzId || '',
-        selectedMonth
-      );
+      const pvzId = pvz?.id || user.pvzId || '';
+      if (pvzId) {
+        const { pullPvzOperationalData } = await import('../../services/data/pvzDataPull');
+        await pullPvzOperationalData(pvzId);
+      }
+
+      const data = await loadEmployeeMonthStats(user.id, pvzId, selectedMonth);
       setStats(data);
     } catch (error) {
       console.error('Ошибка загрузки статистики:', error);

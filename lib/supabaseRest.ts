@@ -1,68 +1,42 @@
-import { requireExpoPublicEnv } from './expoPublicEnv';
-
-const DEFAULT_REST_TIMEOUT_MS = 10_000;
+/** @deprecated Supabase REST заменён — заглушки для совместимости. */
 export const REST_PAGE_SIZE = 500;
 
 export function getSupabaseRestConfig(): { baseUrl: string; apiKey: string } {
-  return {
-    baseUrl: requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_URL').replace(/\/+$/, ''),
-    apiKey: requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
-  };
+  return { baseUrl: '', apiKey: '' };
 }
 
-/** GET /rest/v1/{table} — без ожидания supabase.auth.setSession. */
-export async function supabaseRestGet<T>(
-  table: string,
-  query: string,
-  accessToken: string,
-  timeoutMs = DEFAULT_REST_TIMEOUT_MS
-): Promise<T[] | null> {
-  const { baseUrl, apiKey } = getSupabaseRestConfig();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`${baseUrl}/rest/v1/${table}?${query}`, {
-      method: 'GET',
-      headers: {
-        apikey: apiKey,
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as T[];
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+export async function supabaseRestGet<T>(_table: string, _query: string, _accessToken: string, _timeoutMs?: number): Promise<T[] | null> {
+  return null;
 }
 
-/** GET с пагинацией limit/offset (PostgREST). */
-export async function supabaseRestGetAll<T>(
-  table: string,
-  queryBase: string,
-  accessToken: string,
-  pageSize = REST_PAGE_SIZE,
-  timeoutMs = DEFAULT_REST_TIMEOUT_MS
-): Promise<T[] | null> {
-  const all: T[] = [];
-  let offset = 0;
+export async function supabaseRestGetAll<T>(_table: string, _queryBase: string, _accessToken: string, _pageSize?: number, _timeoutMs?: number): Promise<T[] | null> {
+  return null;
+}
 
-  while (true) {
-    const separator = queryBase.includes('?') ? '&' : '';
-    const query = `${queryBase}${separator}limit=${pageSize}&offset=${offset}`;
-    const rows = await supabaseRestGet<T>(table, query, accessToken, timeoutMs);
-    if (rows === null) {
-      return offset === 0 ? null : all;
-    }
-    all.push(...rows);
-    if (rows.length < pageSize) {
-      break;
-    }
-    offset += pageSize;
-  }
+export async function supabaseRestUpsert<T>(_table: string, _rows: Record<string, unknown> | Record<string, unknown>[], _accessToken: string, _onConflict?: string, _timeoutMs?: number): Promise<T | null> {
+  return null;
+}
 
-  return all;
+export async function supabaseRestInsert<T>(_table: string, _rows: Record<string, unknown>[], _accessToken: string, _timeoutMs?: number): Promise<T[] | null> {
+  return null;
+}
+
+export async function supabaseRestPatch<T>(_table: string, _query: string, _body: Record<string, unknown>, _accessToken: string, _timeoutMs?: number): Promise<T | null> {
+  return null;
+}
+
+export async function supabaseRestDelete(_table: string, _query: string, _accessToken: string, _timeoutMs?: number): Promise<boolean> {
+  return false;
+}
+
+export async function supabaseRestRpc<T>(_fn: string, _args: Record<string, unknown>, _accessToken: string, _timeoutMs?: number): Promise<T | null> {
+  return null;
+}
+
+export async function supabaseRestRpcVoid(_fn: string, _args: Record<string, unknown>, _accessToken: string, _timeoutMs?: number): Promise<boolean> {
+  return false;
+}
+
+export async function supabaseRestRpcAnon<T>(_fn: string, _args: Record<string, unknown>, _timeoutMs?: number): Promise<T | null> {
+  return null;
 }

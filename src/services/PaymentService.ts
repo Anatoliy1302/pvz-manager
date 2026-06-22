@@ -7,17 +7,16 @@ import {
   upsertPaymentToSupabase,
 } from './SupabasePaymentService';
 import {
-  fetchAdvanceRequestsFromSupabase,
   mergeAdvanceRequests,
   upsertAdvanceRequestToSupabase,
-  updateAdvanceRequestInSupabase,
 } from './SupabaseAdvanceRequestService';
-import { resolvePvzId } from '../utils/supabaseHelpers';
-import { generateSecureId } from '../utils/generateSecureId';
+import { resolvePvzId, isSamePvz } from '../utils/supabaseHelpers';
+import { generateUuidV4 } from '../utils/generateSecureId';
 import { safeParseJson } from '../utils/safeJson';
 import {
-  fetchPenaltiesFromSupabase,
   mergePenalties,
+  upsertPenaltyToSupabase,
+  deletePenaltyFromSupabase,
   SyncPenalty,
 } from './SupabasePenaltyService';
 import { 
@@ -174,6 +173,12 @@ export interface EmployeeSalaryOverviewRow {
   hours: number;
 }
 
+function employeeWorksAtPvz(user: User, pvzId: string): boolean {
+  if (!pvzId) return true;
+  if (user.pvzId === pvzId) return true;
+  return user.pvzIds?.includes(pvzId) ?? false;
+}
+
 /**
  * Сводка зарплаты по всем сотрудникам ПВЗ за период — один проход по данным
  * (без N вызовов syncShiftStatuses / fetchPaymentsFromSupabase).
@@ -193,7 +198,16 @@ export async function calculatePvzSalaryOverview(
 
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-  const employees = users.filter((u) => u.role !== 'owner' && u.status === 'active');
+  const pvzShifts: Shift[] = [];
+  for (const shift of allShifts) {
+    if (await isSamePvz(shift.pvzId, pvzId)) {
+      pvzShifts.push(shift);
+    }
+  }
+
+  const employees = users.filter(
+    (u) => u.role !== 'owner' && u.status === 'active' && employeeWorksAtPvz(u, pvzId)
+  );
 
   const penaltyEntries = await Promise.all(
     employees.map(async (emp) => {
@@ -204,11 +218,10 @@ export async function calculatePvzSalaryOverview(
   const penaltyByEmployee = new Map(penaltyEntries);
 
   return employees.map((emp) => {
-    const empPvzId = emp.pvzId || pvzId;
     const employeeShifts = filterCountableShifts(
-      allShifts,
+      pvzShifts,
       emp.id,
-      empPvzId,
+      undefined,
       periodStart,
       periodEnd
     );
@@ -501,52 +514,10 @@ export async function refreshPaymentsCache(pvzId: string): Promise<Payment[]> {
   return merged;
 }
 
-/** ╨Ю╨▒╨╜╨╛╨▓╨╕╤В╤М ╨╗╨╛╨║╨░╨╗╤М╨╜╤Л╨╣ ╨║╤Н╤И ╤И╤В╤А╨░╤Д╨╛╨▓/╨▒╨╛╨╜╤Г╤Б╨╛╨▓ (╨┤╨╗╤П Realtime). */
+/** Обновить локальный кэш штрафов/бонусов из snapshot владельца. */
 export async function refreshPenaltiesCache(pvzIds: string[]): Promise<void> {
-  const remote = await fetchPenaltiesFromSupabase();
-  if (!remote) return;
-
-  const users = await DataService.getUsers();
-  const employeeIds = users
-    .filter(
-      (u) =>
-        u.role === 'employee' &&
-        u.status === 'active' &&
-        u.pvzId &&
-        pvzIds.includes(u.pvzId)
-    )
-    .map((u) => u.id);
-
-  for (const employeeId of employeeIds) {
-    const key = `penalties_${employeeId}`;
-    const stored = await StorageService.getItem(key);
-    const local = safeParseJson<SyncPenalty[]>(stored ?? '[]', []);
-    const employee = users.find((u) => u.id === employeeId);
-    const pvzId = employee?.pvzId;
-
-    const remoteForEmployee = remote.filter((p) => p.employeeId === employeeId);
-    if (remoteForEmployee.length === 0 && local.length === 0) continue;
-
-    const merged = mergePenalties(
-      local,
-      remoteForEmployee.map((p) => ({
-        ...p,
-        employeeName: employee?.name || p.employeeName,
-        pvzId: p.pvzId || pvzId,
-      }))
-    );
-    await StorageService.setItem(key, JSON.stringify(merged));
-    DataService.emitChange(`penalties_${employeeId}`);
-
-    if (pvzId) {
-      await updateEmployeeBalance(employeeId, pvzId);
-    }
-  }
-
-  for (const pvzId of pvzIds) {
-    DataService.emitChange(`penalties_${pvzId}`);
-  }
-  DataService.emitChange('employee_balance');
+  const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+  await Promise.all(pvzIds.map((pvzId) => pullPvzFinanceFromServer(pvzId)));
 }
 
 export async function addPayment(
@@ -555,7 +526,7 @@ export async function addPayment(
 ): Promise<Payment> {
   const newPayment: Payment = {
     ...payment,
-    id: generateSecureId(),
+    id: generateUuidV4(),
     status: 'completed',
     paidAt: new Date().toISOString(),
   };
@@ -563,6 +534,7 @@ export async function addPayment(
   const synced = await upsertPaymentToSupabase(newPayment);
   if (synced) {
     newPayment.id = synced.id;
+    if (synced.pvzId) newPayment.pvzId = synced.pvzId;
   }
 
   const allPayments = await getPayments(pvzId);
@@ -574,6 +546,10 @@ export async function addPayment(
   await StorageService.setItem(getEmployeePaymentsKey(payment.employeeId), JSON.stringify(employeePayments));
   
   await updateEmployeeBalance(payment.employeeId, pvzId);
+
+  DataService.emitChange(`payments_${pvzId}`);
+  DataService.emitChange(`payments_employee_${payment.employeeId}`);
+  DataService.emitChange('employee_balance');
   
   return newPayment;
 }
@@ -593,16 +569,35 @@ export async function addPenalty(
 ): Promise<void> {
   const existingRaw = await StorageService.getItem(`penalties_${employeeId}`);
   const existing = safeParseJson<SyncPenalty[]>(existingRaw ?? '[]', []);
-  existing.push({ ...penalty, employeeId });
-  await StorageService.setItem(`penalties_${employeeId}`, JSON.stringify(existing));
 
-  const { upsertPenaltyToSupabase } = await import('./SupabasePenaltyService');
-  await upsertPenaltyToSupabase({ ...penalty, employeeId, pvzId });
+  const synced = await upsertPenaltyToSupabase({ ...penalty, employeeId, pvzId });
+  const saved: SyncPenalty = synced ?? { ...penalty, employeeId, pvzId };
+
+  const merged = mergePenalties(existing, [saved]);
+  await StorageService.setItem(`penalties_${employeeId}`, JSON.stringify(merged));
 
   DataService.emitChange(`penalties_${employeeId}`);
   if (pvzId) {
     DataService.emitChange(`penalties_${pvzId}`);
   }
+}
+
+export async function removePenalty(
+  employeeId: string,
+  penaltyId: string,
+  pvzId: string
+): Promise<void> {
+  const existingRaw = await StorageService.getItem(`penalties_${employeeId}`);
+  const existing = safeParseJson<SyncPenalty[]>(existingRaw ?? '[]', []);
+  const filtered = existing.filter((p) => p.id !== penaltyId);
+  await StorageService.setItem(`penalties_${employeeId}`, JSON.stringify(filtered));
+
+  await deletePenaltyFromSupabase(pvzId, penaltyId);
+
+  DataService.emitChange(`penalties_${employeeId}`);
+  DataService.emitChange(`penalties_${pvzId}`);
+  await updateEmployeeBalance(employeeId, pvzId);
+  DataService.emitChange('employee_balance');
 }
 
 /**
@@ -656,33 +651,20 @@ export async function getEmployeeBalance(employeeId: string): Promise<EmployeeBa
 
 // ============ ╨Ч╨Р╨Я╨а╨Ю╨б╨л ╨Э╨Р ╨Р╨Т╨Р╨Э╨б ============
 
-export async function getAdvanceRequests(pvzId: string): Promise<AdvanceRequest[]> {
+export async function getAdvanceRequests(
+  pvzId: string,
+  options?: { refresh?: boolean }
+): Promise<AdvanceRequest[]> {
   try {
+    if (options?.refresh) {
+      const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+      await pullPvzFinanceFromServer(pvzId);
+    }
+
     const stored = await StorageService.getItem(getAdvanceRequestsKey(pvzId));
-    const local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
-    const remote = await fetchAdvanceRequestsFromSupabase();
-
-    if (!remote) {
-      return local;
-    }
-
-    const resolvedPvzId = await resolvePvzId(pvzId);
-    const remoteForPvz = remote.filter(
-      (request) => request.pvzId === resolvedPvzId || request.pvzId === pvzId
-    );
-
-    if (remoteForPvz.length === 0) {
-      return local;
-    }
-
-    const merged = mergeAdvanceRequests(
-      local,
-      remoteForPvz.map((request) => ({ ...request, pvzId }))
-    );
-    await StorageService.setItem(getAdvanceRequestsKey(pvzId), JSON.stringify(merged));
-    return merged;
+    return safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨╖╨░╨┐╤А╨╛╤Б╨╛╨▓:', error);
+    console.error('Ошибка загрузки запросов:', error);
     return [];
   }
 }
@@ -691,58 +673,41 @@ export async function getEmployeeAdvanceRequests(employeeId: string): Promise<Ad
   try {
     const usersRaw = await StorageService.getItem('pvz_users');
     const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-    const employee = users.find((user: { id: string; pvzId?: string }) => user.id === employeeId);
+    const employee = users.find((user) => user.id === employeeId);
 
-    if (employee?.pvzId) {
-      const pvzRequests = await getAdvanceRequests(employee.pvzId);
-      return pvzRequests.filter((request) => request.employeeId === employeeId);
+    const pvzIds = new Set<string>();
+    if (employee?.pvzId) pvzIds.add(employee.pvzId);
+    if (Array.isArray(employee?.pvzIds)) {
+      employee.pvzIds.forEach((id) => pvzIds.add(id));
+    }
+
+    if (pvzIds.size > 0) {
+      const all: AdvanceRequest[] = [];
+      for (const id of pvzIds) {
+        const pvzRequests = await getAdvanceRequests(id);
+        all.push(...pvzRequests.filter((request) => request.employeeId === employeeId));
+      }
+      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      await StorageService.setItem(
+        getEmployeeAdvanceRequestsKey(employeeId),
+        JSON.stringify(all)
+      );
+      return all;
     }
 
     const stored = await StorageService.getItem(getEmployeeAdvanceRequestsKey(employeeId));
     return safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨╖╨░╨┐╤А╨╛╤Б╨╛╨▓ ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░:', error);
+    console.error('Ошибка загрузки запросов сотрудника:', error);
     return [];
   }
 }
 
-/** ╨Ю╨▒╨╜╨╛╨▓╨╕╤В╤М ╨╗╨╛╨║╨░╨╗╤М╨╜╤Л╨╣ ╨║╤Н╤И ╨░╨▓╨░╨╜╤Б╨╛╨▓ ╨┐╨╛ ╨Я╨Т╨Ч (╨┤╨╗╤П Realtime). */
+/** Обновить локальный кэш авансов по ПВЗ (из snapshot владельца). */
 export async function refreshAdvanceRequestsCache(pvzId: string): Promise<AdvanceRequest[]> {
-  const stored = await StorageService.getItem(getAdvanceRequestsKey(pvzId));
-  const local = safeParseJson<AdvanceRequest[]>(stored ?? '[]', []);
-  const remote = await fetchAdvanceRequestsFromSupabase();
-
-  if (!remote) {
-    return local;
-  }
-
-  const resolvedPvzId = await resolvePvzId(pvzId);
-  const remoteForPvz = remote.filter(
-    (request) => request.pvzId === resolvedPvzId || request.pvzId === pvzId
-  );
-
-  const merged = mergeAdvanceRequests(
-    local,
-    remoteForPvz.map((request) => ({ ...request, pvzId }))
-  );
-  await StorageService.setItem(getAdvanceRequestsKey(pvzId), JSON.stringify(merged));
-
-  const byEmployee = new Map<string, AdvanceRequest[]>();
-  merged.forEach((request) => {
-    const list = byEmployee.get(request.employeeId) || [];
-    list.push(request);
-    byEmployee.set(request.employeeId, list);
-  });
-
-  for (const [employeeId, requests] of byEmployee.entries()) {
-    await StorageService.setItem(
-      getEmployeeAdvanceRequestsKey(employeeId),
-      JSON.stringify(requests)
-    );
-    DataService.emitChange(`advance_requests_employee_${employeeId}`);
-  }
-
-  return merged;
+  const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+  await pullPvzFinanceFromServer(pvzId);
+  return getAdvanceRequests(pvzId);
 }
 
 export async function createAdvanceRequest(
@@ -755,7 +720,7 @@ export async function createAdvanceRequest(
   reason?: string
 ): Promise<AdvanceRequest> {
   const newRequest: AdvanceRequest = {
-    id: generateSecureId(),
+    id: generateUuidV4(),
     employeeId,
     employeeName,
     amount,
@@ -768,22 +733,24 @@ export async function createAdvanceRequest(
   };
   
   const synced = await upsertAdvanceRequestToSupabase(newRequest);
-  if (synced) {
-    newRequest.id = synced.id;
-  }
+  const saved: AdvanceRequest = synced ?? newRequest;
 
-  const allRequests = await getAdvanceRequests(pvzId);
-  allRequests.push(newRequest);
+  const allRequests = mergeAdvanceRequests(await getAdvanceRequests(pvzId), [saved]);
   await StorageService.setItem(getAdvanceRequestsKey(pvzId), JSON.stringify(allRequests));
-  
-  const employeeRequests = await getEmployeeAdvanceRequests(employeeId);
-  employeeRequests.push(newRequest);
-  await StorageService.setItem(getEmployeeAdvanceRequestsKey(employeeId), JSON.stringify(employeeRequests));
+
+  const employeeRequests = mergeAdvanceRequests(
+    await getEmployeeAdvanceRequests(employeeId),
+    [saved]
+  );
+  await StorageService.setItem(
+    getEmployeeAdvanceRequestsKey(employeeId),
+    JSON.stringify(employeeRequests)
+  );
 
   DataService.emitChange(`advance_requests_${pvzId}`);
   DataService.emitChange(`advance_requests_employee_${employeeId}`);
 
-  return newRequest;
+  return saved;
 }
 
 export async function updateAdvanceRequestStatus(
@@ -806,18 +773,16 @@ export async function updateAdvanceRequestStatus(
   await StorageService.setItem(getAdvanceRequestsKey(pvzId), JSON.stringify(allRequests));
 
   const updated = allRequests[requestIndex];
-  await updateAdvanceRequestInSupabase(requestId, updated);
   await upsertAdvanceRequestToSupabase(updated);
-  
-  const employeeRequests = await getEmployeeAdvanceRequests(updated.employeeId);
-  const empIndex = employeeRequests.findIndex(r => r.id === requestId);
-  if (empIndex !== -1) {
-    employeeRequests[empIndex] = updated;
-    await StorageService.setItem(
-      getEmployeeAdvanceRequestsKey(updated.employeeId),
-      JSON.stringify(employeeRequests)
-    );
-  }
+
+  const employeeRequests = mergeAdvanceRequests(
+    await getEmployeeAdvanceRequests(updated.employeeId),
+    [updated]
+  );
+  await StorageService.setItem(
+    getEmployeeAdvanceRequestsKey(updated.employeeId),
+    JSON.stringify(employeeRequests)
+  );
 
   DataService.emitChange(`advance_requests_${pvzId}`);
   DataService.emitChange(`advance_requests_employee_${updated.employeeId}`);

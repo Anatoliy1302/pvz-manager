@@ -22,12 +22,13 @@ import { useSubscription } from '../../hooks/useSubscription';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { colors } from '../../constants/colors';
 import { Crown, Check, RefreshCw, Shield, Sparkles, XCircle } from 'lucide-react-native';
-import { PLAN_PRICING, formatPlanPrice, hasProAccess } from '../../services/subscriptionService';
+import { PLAN_PRICING, formatPlanPrice, getProAmountRub, hasProAccess } from '../../services/subscriptionService';
+import type { BillingPeriod } from '../../constants/subscription';
 import { PAYMENT_RETURN_URL } from '../../constants/paymentDeepLink';
-import { PRO_SUBSCRIPTION_PERIOD_DAYS } from '../../constants/subscriptionProduct';
 import {
   createProPayment,
   cancelSubscription,
+  syncProPayment,
   SubscriptionPaymentError,
 } from '../../services/subscriptionPaymentService';
 import LegalConsentNote from '../../components/common/LegalConsentNote';
@@ -46,17 +47,18 @@ const PLANS = [
       { labelKey: 'subscription.plans.free.feature1', included: true },
       { labelKey: 'subscription.plans.free.feature2', included: true },
       { labelKey: 'subscription.plans.free.feature3', included: true },
-      { labelKey: 'subscription.plans.free.feature4', included: false },
-      { labelKey: 'subscription.plans.free.feature5', included: false },
+      { labelKey: 'subscription.plans.free.feature4', included: true },
+      { labelKey: 'subscription.plans.free.feature5', included: true },
       { labelKey: 'subscription.plans.free.feature6', included: false },
     ] as { labelKey: string; included: boolean }[],
   },
   {
     id: 'pro',
     nameKey: 'subscription.plans.pro.name',
-    priceKey: 'subscription.plans.pro.price',
+    priceMonthKey: 'subscription.plans.pro.priceMonth',
+    priceYearKey: 'subscription.plans.pro.priceYear',
     color: colors.primary,
-    popular: true,
+    recommended: true,
     features: [
       { labelKey: 'subscription.plans.pro.feature1', included: true },
       { labelKey: 'subscription.plans.pro.feature2', included: true },
@@ -85,12 +87,14 @@ const PLANS = [
 export default function SubscriptionScreen({ navigation }: any) {
   const { t, i18n } = useTranslation();
   const { subscription: currentSub, user, refreshSubscription } = useAuth();
-  const { isTrialActive, isEarlyAdopterActive, proPriceRub, isRenewalReminderDue, daysUntilSubscriptionEnds, subscriptionAutopayEnabled } = useSubscription();
+  const { isTrialActive, isEarlyAdopterActive, isRenewalReminderDue, daysUntilSubscriptionEnds, subscriptionAutopayEnabled } = useSubscription();
   const { ui, screen } = useThemedScreen();
   const styles = createStyles(screen);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('month');
+  const [lastPaymentId, setLastPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role === 'owner') {
@@ -102,8 +106,9 @@ export default function SubscriptionScreen({ navigation }: any) {
   const currentTier = currentSub?.tier ?? 'free';
   const currentStatus = currentSub?.status ?? 'active';
   const subscriptionStatus = getSubscriptionStatus(currentSub);
-  const proDisplayPrice = formatPlanPrice(proPriceRub, locale);
-  const standardProPrice = formatPlanPrice(PLAN_PRICING.pro.amountRub, locale);
+  const proAmountRub = getProAmountRub(billingPeriod, isEarlyAdopterActive);
+  const proDisplayPrice = formatPlanPrice(proAmountRub, locale);
+  const standardProPrice = formatPlanPrice(PLAN_PRICING.pro.monthlyRub, locale);
   const enterpriseMinMonthly = formatPlanPrice(PLAN_PRICING.enterprise.minMonthlyRub, locale);
 
   const trialDaysLeft =
@@ -135,7 +140,8 @@ export default function SubscriptionScreen({ navigation }: any) {
 
     setLoading(true);
     try {
-      const payment = await createProPayment(PAYMENT_RETURN_URL, paymentKind);
+      const payment = await createProPayment(PAYMENT_RETURN_URL, paymentKind, billingPeriod);
+      setLastPaymentId(payment.paymentId);
       await Linking.openURL(payment.confirmationUrl);
 
       Alert.alert(
@@ -148,7 +154,14 @@ export default function SubscriptionScreen({ navigation }: any) {
           {
             text: t('subscription.checkPayment'),
             onPress: () => {
-              void refreshSubscription();
+              void (async () => {
+                try {
+                  await syncProPayment(lastPaymentId ?? undefined);
+                } catch {
+                  // webhook may have already processed payment
+                }
+                await refreshSubscription();
+              })();
             },
           },
         ]
@@ -237,6 +250,11 @@ export default function SubscriptionScreen({ navigation }: any) {
   const handleRestore = async () => {
     setRestoring(true);
     try {
+      try {
+        await syncProPayment(lastPaymentId ?? undefined);
+      } catch {
+        // ignore — still refresh from sync
+      }
       const sub = await refreshSubscription();
       if (sub && (sub.tier === 'pro' || sub.tier === 'enterprise')) {
         Alert.alert(t('subscription.restoreSuccess'));
@@ -273,13 +291,13 @@ export default function SubscriptionScreen({ navigation }: any) {
           styles.planCard,
           ui.card,
           active && styles.planCardActive,
-          (plan as any).popular && styles.planCardPopular,
+          (plan as any).recommended && styles.planCardPopular,
         ]}
       >
-        {(plan as any).popular && (
+        {(plan as any).recommended && (
           <View style={styles.popularBadge}>
             <Crown size={14} color="#FFFFFF" />
-            <Text style={styles.popularBadgeText}>{t('subscription.popular')}</Text>
+            <Text style={styles.popularBadgeText}>{t('subscription.recommended')}</Text>
           </View>
         )}
 
@@ -290,14 +308,21 @@ export default function SubscriptionScreen({ navigation }: any) {
           {isEnterprisePlan
             ? t('subscription.enterprisePriceFrom', { price: enterpriseMinMonthly })
             : isProPlan
-              ? t(plan.priceKey, { price: proDisplayPrice })
-              : t(plan.priceKey)}
+              ? t(
+                  billingPeriod === 'year'
+                    ? (plan as any).priceYearKey
+                    : (plan as any).priceMonthKey,
+                  { price: proDisplayPrice }
+                )
+              : t((plan as any).priceKey)}
         </Text>
         {isProPlan && (
           <SubscriptionBillingAmount
             amount={proDisplayPrice}
             textColor={screen.text}
             accentColor={colors.primary}
+            period={billingPeriod}
+            savingsPercent={PLAN_PRICING.pro.yearlySavingsPercent}
           />
         )}
         {plan.id === 'pro' && isEarlyAdopterActive && (
@@ -310,14 +335,14 @@ export default function SubscriptionScreen({ navigation }: any) {
         )}
         {plan.id === 'pro' && !isEarlyAdopterActive && (
           <Text style={[styles.planPriceNote, { color: screen.textSecondary }]}>
-            {t('subscription.proPriceNote', { days: PRO_SUBSCRIPTION_PERIOD_DAYS })}
+            {billingPeriod === 'year'
+              ? t('subscription.proPriceNoteYear')
+              : t('subscription.proPriceNoteMonth')}
           </Text>
         )}
         {plan.id === 'enterprise' && (
           <Text style={[styles.planPriceNote, { color: screen.textSecondary }]}>
-            {t('subscription.enterprisePriceNote', {
-              minPvz: PLAN_PRICING.enterprise.minPvz,
-            })}
+            {t('subscription.enterprisePriceNote')}
           </Text>
         )}
 
@@ -517,7 +542,59 @@ export default function SubscriptionScreen({ navigation }: any) {
         <Text style={[styles.sectionTitle, { color: screen.text }]}>
           {t('subscription.choosePlan')}
         </Text>
-        {PLANS.map(renderPlanCard)}
+
+        <View style={[styles.billingToggle, ui.card]}>
+          <TouchableOpacity
+            style={[
+              styles.billingOption,
+              billingPeriod === 'month' && styles.billingOptionActive,
+            ]}
+            onPress={() => setBillingPeriod('month')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.billingOptionText,
+                { color: billingPeriod === 'month' ? '#FFFFFF' : screen.text },
+              ]}
+            >
+              {t('subscription.billingMonth')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.billingOption,
+              billingPeriod === 'year' && styles.billingOptionActive,
+            ]}
+            onPress={() => setBillingPeriod('year')}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.billingOptionText,
+                { color: billingPeriod === 'year' ? '#FFFFFF' : screen.text },
+              ]}
+            >
+              {t('subscription.billingYear')}
+            </Text>
+            <Text
+              style={[
+                styles.billingSavings,
+                { color: billingPeriod === 'year' ? '#FFFFFF' : colors.primary },
+              ]}
+            >
+              {t('subscription.yearlySavings', {
+                percent: PLAN_PRICING.pro.yearlySavingsPercent,
+              })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {PLANS.filter((p) => p.id !== 'enterprise').map(renderPlanCard)}
+        <Text style={[styles.enterpriseSectionTitle, { color: screen.textSecondary }]}>
+          {t('subscription.contactUs')}
+        </Text>
+        {PLANS.filter((p) => p.id === 'enterprise').map(renderPlanCard)}
 
         {canCancelSubscription && (
           <TouchableOpacity
@@ -686,6 +763,42 @@ const createStyles = (screen: ReturnType<typeof useThemedScreen>['screen']) =>
       fontSize: 16,
       fontWeight: '700',
       marginBottom: 12,
+    },
+    enterpriseSectionTitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 8,
+      marginTop: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    billingToggle: {
+      flexDirection: 'row',
+      borderRadius: 14,
+      padding: 4,
+      marginBottom: 16,
+      gap: 4,
+      borderWidth: 1,
+      borderColor: screen.border,
+    },
+    billingOption: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 10,
+      gap: 2,
+    },
+    billingOptionActive: {
+      backgroundColor: colors.primary,
+    },
+    billingOptionText: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    billingSavings: {
+      fontSize: 10,
+      fontWeight: '600',
     },
 
     planCard: {

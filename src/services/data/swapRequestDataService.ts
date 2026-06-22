@@ -4,15 +4,13 @@ import { getShiftRequestNotifyRecipients } from './shiftRequestDataService';
 import * as shiftDataService from './shiftDataService';
 import { generateSecureId } from '../../utils/generateSecureId';
 import { safeParseJson } from '../../utils/safeJson';
+import { syncSwapRequestsToServer } from '../../../lib/syncPersistence';
+import {
+  getScheduleAssignments,
+  saveScheduleAssignments,
+} from './scheduleDataService';
 
 export type SwapRequestStatus = 'pending' | 'approved' | 'rejected';
-
-type ScheduleAssignmentRow = {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  [key: string]: unknown;
-};
 
 export interface SwapRequest {
   id: string;
@@ -46,6 +44,7 @@ async function readAll(pvzId: string): Promise<SwapRequest[]> {
 async function writeAll(pvzId: string, requests: SwapRequest[]): Promise<void> {
   await StorageService.setItem(storageKey(pvzId), JSON.stringify(requests));
   dataEventBus.notify(eventKey(pvzId));
+  void syncSwapRequestsToServer(pvzId, requests);
 }
 
 export async function getSwapRequestsByPvz(pvzId: string): Promise<SwapRequest[]> {
@@ -101,8 +100,7 @@ export async function addSwapRequest(
 }
 
 async function executeShiftSwap(request: SwapRequest, pvzId: string): Promise<void> {
-  const assignmentsRaw = await StorageService.getItem(`schedule_assignments_${pvzId}`);
-  let assignments = safeParseJson<ScheduleAssignmentRow[]>(assignmentsRaw ?? '[]', []);
+  let assignments = await getScheduleAssignments(pvzId);
 
   const fromShiftIndex = assignments.findIndex((s) => s.id === request.fromShiftId);
   const toShiftIndex = assignments.findIndex((s) => s.id === request.toShiftId);
@@ -129,10 +127,7 @@ async function executeShiftSwap(request: SwapRequest, pvzId: string): Promise<vo
     assignments[fromShiftIndex].employeeName = assignments[toShiftIndex].employeeName;
     assignments[toShiftIndex].employeeId = tempEmployeeId;
     assignments[toShiftIndex].employeeName = tempEmployeeName;
-    await StorageService.setItem(
-      `schedule_assignments_${pvzId}`,
-      JSON.stringify(assignments)
-    );
+    await saveScheduleAssignments(pvzId, assignments);
   }
 
   dataEventBus.notify('shifts');

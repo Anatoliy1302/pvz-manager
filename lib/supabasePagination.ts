@@ -20,7 +20,11 @@ export async function fetchAllPages<T>(
   let offset = 0;
 
   while (true) {
-    const { data, error } = await buildPage(offset, offset + pageSize - 1);
+    let result = await buildPage(offset, offset + pageSize - 1);
+    if (result.error?.message?.toLowerCase().includes('abort')) {
+      result = await buildPage(offset, offset + pageSize - 1);
+    }
+    const { data, error } = result;
     if (error) {
       if (__DEV__) {
         console.warn('[Supabase] fetchAllPages:', error.message);

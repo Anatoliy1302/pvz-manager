@@ -3,6 +3,7 @@ import { UserRole } from '../types/user';
 import { cleanPhone } from './phoneHelpers';
 
 export const LAST_OWNER_EMAIL_KEY = 'last_owner_email';
+export const OTP_PENDING_OWNER_EMAIL_KEY = 'otp_pending_owner_email';
 
 export function normalizeEmail(email: string | undefined | null): string {
   if (email == null || email === '') {
@@ -62,4 +63,25 @@ export async function loadLastOwnerEmail(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+export async function savePendingOtpEmail(email: string): Promise<void> {
+  const normalized = normalizeEmail(email);
+  if (!isValidEmail(normalized)) return;
+  await AsyncStorage.setItem(OTP_PENDING_OWNER_EMAIL_KEY, normalized);
+}
+
+export async function loadPendingOtpEmail(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(OTP_PENDING_OWNER_EMAIL_KEY);
+    if (!raw) return null;
+    const normalized = normalizeEmail(raw);
+    return isValidEmail(normalized) ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearPendingOtpEmail(): Promise<void> {
+  await AsyncStorage.removeItem(OTP_PENDING_OWNER_EMAIL_KEY);
 }

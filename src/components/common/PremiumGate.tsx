@@ -17,6 +17,8 @@ type RequiredTier = 'pro' | 'enterprise';
 interface PremiumGateProps {
   /** Минимальный требуемый тариф */
   requiredTier?: RequiredTier;
+  /** Алиас requiredTier (pro | enterprise) */
+  requiredPlan?: RequiredTier;
   /** Имя функции для проверки (из useSubscription) */
   feature?: ProFeature;
   /** Контент для платящих пользователей */
@@ -32,7 +34,8 @@ interface PremiumGateProps {
 }
 
 export default function PremiumGate({
-  requiredTier = 'pro',
+  requiredTier: requiredTierProp,
+  requiredPlan,
   feature,
   children,
   onUpgrade,
@@ -40,6 +43,7 @@ export default function PremiumGate({
   title,
   description,
 }: PremiumGateProps) {
+  const requiredTier = requiredPlan ?? requiredTierProp ?? 'pro';
   const { t, i18n } = useTranslation();
   const { isPro, canAccessFeature, proPriceRub } = useSubscription();
 

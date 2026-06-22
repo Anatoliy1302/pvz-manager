@@ -41,10 +41,12 @@ import {
   Filter,
   Download,
   Info,
+  Lock,
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import EmptyState from '../../components/common/EmptyState';
+import PremiumGate from '../../components/common/PremiumGate';
 import { PayrollSkeleton } from '../../components/common/Skeleton';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
@@ -206,6 +208,9 @@ export default function PaymentsScreen({ navigation }: any) {
     if (!pvz?.id) return;
     markScreenLoadStart('PaymentsScreen');
     try {
+      const { pullPvzFinanceFromServer } = await import('../../services/data/financeDataService');
+      await pullPvzFinanceFromServer(pvz.id);
+
       const users = await DataService.getUsers();
       const pvzEmployees = users.filter(
         (u: { role: string; status: string; pvzId?: string }) =>
@@ -454,6 +459,28 @@ export default function PaymentsScreen({ navigation }: any) {
           </Text>
         </View>
 
+        <PremiumGate
+          requiredPlan="pro"
+          feature="export"
+          onUpgrade={() => navigation.navigate('Subscription')}
+          fallback={
+            <TouchableOpacity
+              style={[styles.exportCard, ui.card, styles.exportCardLocked]}
+              onPress={() => navigation.navigate('Subscription')}
+              activeOpacity={0.8}
+            >
+              <Lock size={18} color={colors.gray} />
+              <View style={styles.exportCardText}>
+                <Text style={[styles.exportCardTitle, { color: screen.textSecondary }]}>
+                  {t('screens.finance.exportForAccountant')}
+                </Text>
+                <Text style={[styles.exportCardHint, ui.subtitle]}>
+                  {t('subscription.exportNotAvailable')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          }
+        >
         <TouchableOpacity
           style={[styles.exportCard, ui.card, exporting && styles.exportCardDisabled]}
           onPress={handleExport}
@@ -467,6 +494,7 @@ export default function PaymentsScreen({ navigation }: any) {
             <Text style={[styles.exportCardHint, ui.subtitle]}>{t('screens.finance.exportDesc')}</Text>
           </View>
         </TouchableOpacity>
+        </PremiumGate>
 
         <View style={[styles.summaryCard, ui.card]}>
           <View style={styles.summaryRow}>
@@ -528,7 +556,7 @@ export default function PaymentsScreen({ navigation }: any) {
         </Text>
       </>
     ),
-    [ui, screen, filterPeriod, exporting, summary, unpaidEmployees, employees, t, openFilterModal, handleExport, openPaymentModal]
+    [ui, screen, filterPeriod, exporting, summary, unpaidEmployees, employees, t, openFilterModal, handleExport, openPaymentModal, navigation]
   );
 
   return (
@@ -796,6 +824,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   exportCardDisabled: { opacity: 0.6 },
+  exportCardLocked: { opacity: 0.85 },
   exportCardText: { flex: 1 },
   exportCardTitle: { fontSize: 14, fontWeight: '600', color: colors.primary },
   exportCardHint: { fontSize: 11, marginTop: 2 },

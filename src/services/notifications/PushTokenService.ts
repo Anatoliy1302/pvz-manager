@@ -1,8 +1,12 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import StorageService from '../StorageService';
-import { supabase } from '../../../lib/supabase';
-import { hasSupabaseSession } from '../SupabaseAuthService';
+import { hasStoredAccessToken, resolveAuthAccessToken } from '../SupabaseAuthService';
+import {
+  upsertPushToken,
+  fetchPushToken,
+  deletePushToken,
+} from '../../../lib/pushTokenApi';
 import { safeParseJson } from '../../utils/safeJson';
 import {
   loadExpoNotificationsModule,
@@ -69,21 +73,15 @@ class PushTokenService {
   }
 
   async syncPushTokenToSupabase(userId: string, token: string): Promise<void> {
-    if (!userId || !token || !(await hasSupabaseSession())) return;
+    if (!userId || !token || !(await hasStoredAccessToken())) return;
     try {
-      const { error } = await supabase.from('user_push_tokens').upsert(
-        {
-          user_id: userId,
-          expo_push_token: token,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
-      if (error) {
-        console.warn('syncPushTokenToSupabase:', error.message);
-      }
+      const accessToken = await resolveAuthAccessToken();
+      if (!accessToken) return;
+      await upsertPushToken(token);
     } catch (error) {
-      console.warn('syncPushTokenToSupabase:', error);
+      if (__DEV__) {
+        console.warn('syncPushTokenToSupabase:', error);
+      }
     }
   }
 
@@ -103,27 +101,19 @@ class PushTokenService {
       await StorageService.setItem(USER_PUSH_TOKENS_KEY, JSON.stringify(map));
     }
 
-    if (await hasSupabaseSession()) {
-      const { error } = await supabase.from('user_push_tokens').delete().eq('user_id', userId);
-      if (error) {
-        console.warn('invalidatePushTokenForUser:', error.message);
+    if (await hasStoredAccessToken()) {
+      try {
+        await deletePushToken(userId);
+      } catch (error) {
+        console.warn('invalidatePushTokenForUser:', error);
       }
     }
   }
 
   private async getRemotePushToken(userId: string): Promise<string | null> {
-    if (!userId || !(await hasSupabaseSession())) return null;
+    if (!userId || !(await hasStoredAccessToken())) return null;
     try {
-      const { data, error } = await supabase
-        .from('user_push_tokens')
-        .select('expo_push_token')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (error) {
-        console.warn('getRemotePushToken:', error.message);
-        return null;
-      }
-      return data?.expo_push_token || null;
+      return await fetchPushToken(userId);
     } catch {
       return null;
     }

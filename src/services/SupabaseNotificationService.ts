@@ -1,120 +1,90 @@
-import { supabase } from '../../lib/supabase';
 import { isUuid, mergeById } from '../utils/supabaseHelpers';
-import { NOTIFICATION_COLUMNS } from './supabase/selectColumns';
-import { ensureSupabaseClientSession } from './SupabaseAuthService';
+import { getToken } from '../../lib/authSessionStore';
+import { readStoredAuthSession } from '../../lib/authSessionStore';
+import {
+  readSnapshotArray,
+  upsertSnapshotItem,
+  updateSnapshotItem,
+  writeSnapshotArray,
+} from '../../lib/snapshotSync';
+import { upsertNotificationForUser } from '../../lib/notificationApi';
 import { NotificationRecord } from './notifications/types';
+import { generateUuidV4 } from '../utils/generateSecureId';
 
-function rowToNotification(row: Record<string, unknown>): NotificationRecord {
-  const data = (row.data as Record<string, unknown>) || {};
-  return {
-    id: row.id as string,
-    title: row.title as string,
-    message: row.message as string,
-    type: row.type as NotificationRecord['type'],
-    isRead: Boolean(row.is_read),
-    createdAt: row.created_at as string,
-    data: Object.keys(data).length > 0 ? data : undefined,
-    recipientUserId: row.user_id as string,
-  };
-}
-
-function notificationToRow(
-  notification: NotificationRecord,
-  userId: string
-): Record<string, unknown> {
-  const row: Record<string, unknown> = {
-    user_id: userId,
-    title: notification.title,
-    message: notification.message,
-    type: notification.type,
-    is_read: notification.isRead,
-    data: notification.data || {},
-  };
-
-  if (notification.id && isUuid(notification.id)) {
-    row.id = notification.id;
-  }
-
-  return row;
-}
+const SNAPSHOT_KEY = 'notifications';
 
 export async function fetchNotificationsFromSupabase(): Promise<NotificationRecord[] | null> {
-  if (!(await ensureSupabaseClientSession())) return null;
-
-  const { data, error } = await supabase
-    .from('notifications')
-    .select(NOTIFICATION_COLUMNS)
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  if (error) {
-    console.warn('fetchNotificationsFromSupabase:', error.message);
+  if (!(await getToken())) return null;
+  try {
+    return await readSnapshotArray<NotificationRecord>(SNAPSHOT_KEY);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('fetchNotificationsFromSupabase:', error);
+    }
     return null;
   }
-
-  return (data || []).map((row) => rowToNotification(row as Record<string, unknown>));
 }
 
 export async function upsertNotificationToSupabase(
   notification: NotificationRecord,
   userId: string
 ): Promise<NotificationRecord | null> {
-  if (!(await ensureSupabaseClientSession()) || !isUuid(userId)) return null;
+  if (!(await getToken()) || !userId) return null;
 
-  const row = notificationToRow(notification, userId);
-  const { data, error } = await supabase
-    .from('notifications')
-    .upsert(row, { onConflict: 'id' })
-    .select(NOTIFICATION_COLUMNS)
-    .single();
+  const payload: NotificationRecord = {
+    ...notification,
+    id: notification.id && isUuid(notification.id) ? notification.id : generateUuidV4(),
+    recipientUserId: userId,
+    createdAt: notification.createdAt || new Date().toISOString(),
+  };
 
-  if (error) {
-    const { data: inserted, error: insertError } = await supabase
-      .from('notifications')
-      .insert(row)
-      .select(NOTIFICATION_COLUMNS)
-      .single();
-
-    if (insertError) {
-      console.warn('upsertNotificationToSupabase:', insertError.message);
-      return null;
+  try {
+    const session = await readStoredAuthSession();
+    const currentUserId = session?.user?.id ?? null;
+    if (currentUserId && currentUserId === userId) {
+      return await upsertSnapshotItem(SNAPSHOT_KEY, payload);
     }
-    return rowToNotification(inserted as Record<string, unknown>);
+    return await upsertNotificationForUser(userId, payload);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('upsertNotificationToSupabase:', error);
+    }
+    return null;
   }
-
-  return data ? rowToNotification(data as Record<string, unknown>) : null;
 }
 
 export async function markNotificationReadInSupabase(id: string): Promise<boolean> {
-  if (!(await ensureSupabaseClientSession()) || !isUuid(id)) return false;
-
-  const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-  if (error) {
-    console.warn('markNotificationReadInSupabase:', error.message);
+  if (!(await getToken()) || !isUuid(id)) return false;
+  try {
+    return await updateSnapshotItem<NotificationRecord>(SNAPSHOT_KEY, id, { isRead: true });
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('markNotificationReadInSupabase:', error);
+    }
     return false;
   }
-  return true;
 }
 
 export async function markAllNotificationsReadInSupabase(): Promise<boolean> {
-  if (!(await ensureSupabaseClientSession())) return false;
+  if (!(await getToken())) return false;
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.user?.id) return false;
+  const stored = await readStoredAuthSession();
+  const userId = stored?.user?.id ?? null;
+  if (!userId) return false;
 
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('user_id', session.user.id)
-    .eq('is_read', false);
-
-  if (error) {
-    console.warn('markAllNotificationsReadInSupabase:', error.message);
+  try {
+    const items = await readSnapshotArray<NotificationRecord>(SNAPSHOT_KEY);
+    const updated = items.map((item) =>
+      item.recipientUserId === userId ? { ...item, isRead: true } : item
+    );
+    await writeSnapshotArray(SNAPSHOT_KEY, updated);
+    return true;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('markAllNotificationsReadInSupabase:', error);
+    }
     return false;
   }
-  return true;
 }
 
 export function mergeNotifications(

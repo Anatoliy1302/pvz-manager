@@ -1,9 +1,9 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../../lib/supabase';
 import { getAppVersion } from '../constants/legal';
 import { UserRole } from '../types/user';
-import { hasSupabaseSession } from './SupabaseAuthService';
+import { hasStoredAccessToken, readStoredAuthSession } from '../../lib/authSessionStore';
+import { sendChatMessage } from '../../lib/chatService';
 import { SupportTopic, getSupportTopicLabel } from '../utils/supportHelpers';
 import { generateSecureId } from '../utils/generateSecureId';
 import { safeParseJson } from '../utils/safeJson';
@@ -29,29 +29,25 @@ interface LocalSupportMessage extends SupportMessagePayload {
   synced: boolean;
 }
 
-function buildSupportRow(
-  userId: string,
+function formatSupportMessage(
   payload: SupportMessagePayload & { message: string; appVersion?: string; platform?: string }
-) {
+): string {
   const subject = getSupportTopicLabel(payload.topic);
-  return {
-    user_id: userId,
-    topic: payload.topic,
-    subject,
-    message: payload.message,
-    user_name: payload.userName ?? null,
-    user_role: payload.userRole ?? null,
-    user_phone: payload.userPhone ?? null,
-    pvz_id: payload.pvzId ?? null,
-    pvz_name: payload.pvzName ?? null,
-    app_version: payload.appVersion ?? getAppVersion(),
-    platform: payload.platform ?? Platform.OS,
-  };
+  const meta = [
+    `[${subject}]`,
+    payload.pvzName ? `ПВЗ: ${payload.pvzName}` : null,
+    payload.userName ? `От: ${payload.userName}` : null,
+    payload.userPhone ? `Тел: ${payload.userPhone}` : null,
+    `v${payload.appVersion ?? getAppVersion()} / ${payload.platform ?? Platform.OS}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return `${meta}\n\n${payload.message}`;
 }
 
 class SupportService {
   async flushLocalQueue(): Promise<void> {
-    if (!(await hasSupabaseSession())) {
+    if (!(await hasStoredAccessToken())) {
       return;
     }
 
@@ -65,10 +61,7 @@ class SupportService {
       return;
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
+    const session = await readStoredAuthSession();
     if (!session?.user?.id) {
       return;
     }
@@ -77,13 +70,7 @@ class SupportService {
 
     for (const item of queue) {
       try {
-        const { error } = await supabase
-          .from('support_messages')
-          .insert(buildSupportRow(session.user.id, item));
-
-        if (error) {
-          remaining.push(item);
-        }
+        await sendChatMessage(formatSupportMessage(item), { isSupport: true });
       } catch {
         remaining.push(item);
       }
@@ -99,30 +86,21 @@ class SupportService {
   async submitMessage(payload: SupportMessagePayload): Promise<void> {
     const trimmedMessage = payload.message.trim();
 
-    if (await hasSupabaseSession()) {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+    if (await hasStoredAccessToken()) {
+      const session = await readStoredAuthSession();
       if (!session?.user?.id) {
         throw new Error('Сессия не найдена');
       }
 
-      const { error } = await supabase
-        .from('support_messages')
-        .insert(
-          buildSupportRow(session.user.id, {
-            ...payload,
-            message: trimmedMessage,
-            appVersion: getAppVersion(),
-            platform: Platform.OS,
-          })
-        );
-
-      if (error) {
-        throw error;
-      }
-
+      await sendChatMessage(
+        formatSupportMessage({
+          ...payload,
+          message: trimmedMessage,
+          appVersion: getAppVersion(),
+          platform: Platform.OS,
+        }),
+        { isSupport: true }
+      );
       return;
     }
 

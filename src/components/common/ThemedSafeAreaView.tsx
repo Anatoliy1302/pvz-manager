@@ -11,10 +11,11 @@ interface ThemedSafeAreaViewProps {
 
 export default function ThemedSafeAreaView({ children, style, edges }: ThemedSafeAreaViewProps) {
   const { colors } = useTheme();
+  const backgroundColor = colors?.background ?? '#F8F9FA';
 
   return (
     <SafeAreaView
-      style={[{ flex: 1, backgroundColor: colors.background }, style]}
+      style={[{ flex: 1, backgroundColor }, style]}
       edges={edges}
     >
       {children}

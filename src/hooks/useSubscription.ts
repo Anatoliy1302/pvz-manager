@@ -9,6 +9,8 @@ import {
 } from '../subscription/subscriptionStatus';
 import { useAuth } from '../context/AuthContext';
 import subscriptionService, {
+  FREE_EMPLOYEE_LIMIT,
+  FREE_PVZ_LIMIT,
   getEffectiveTier,
   getProPriceRub,
   getDaysUntilSubscriptionEnds,
@@ -17,6 +19,7 @@ import subscriptionService, {
   isRenewalReminderDue,
   isTrialActive,
   type Subscription,
+  type SubscriptionLimitType,
   type SubscriptionTier,
 } from '../services/subscriptionService';
 
@@ -34,8 +37,8 @@ const DEFAULT_SUBSCRIPTION: Subscription = {
   subscriptionPeriodEndsAt: null,
   isEarlyAdopter: false,
   earlyAdopterEndsAt: null,
-  pvzLimit: 1,
-  employeeLimit: 3,
+  pvzLimit: FREE_PVZ_LIMIT,
+  employeeLimit: FREE_EMPLOYEE_LIMIT,
 };
 
 export function useSubscription() {
@@ -53,13 +56,9 @@ export function useSubscription() {
     const proPriceRub = getProPriceRub(sub);
 
     const canAccessFeature = (feature: ProFeature): boolean => {
-      if (status !== 'active') return false;
-      if (tier === 'enterprise' && proAccess) return true;
-      if (proAccess) {
-        if (feature === 'employee_limits') return true;
-        return true;
-      }
-      if (feature === 'employee_limits') return true;
+      if (status !== 'active' && !(status === 'canceled' && proAccess)) return false;
+      if (proAccess) return true;
+      if (feature === 'employee_limits' || feature === 'multi_pvz') return false;
       return false;
     };
 
@@ -77,6 +76,9 @@ export function useSubscription() {
       subscriptionAutopayEnabled: Boolean(sub.subscriptionAutopayEnabled),
       proPriceRub,
       canAccessFeature,
+      getStatus: () => subscriptionService.getStatus(sub),
+      checkLimit: (type: SubscriptionLimitType, currentCount: number) =>
+        subscriptionService.checkLimit(sub, type, currentCount),
     };
   }, [subscription]);
 }

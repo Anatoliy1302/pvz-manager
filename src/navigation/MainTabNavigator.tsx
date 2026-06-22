@@ -33,8 +33,6 @@ import EmployeeHomeScreen from '../screens/employee/EmployeeHomeScreen';
 import EmployeeProfileScreen from '../screens/profile/EmployeeProfileScreen';
 import EmployeeChatScreen from '../screens/chat/ChatScreen';
 import StatisticsScreen from '../screens/statistics/StatisticsScreen';
-
-import StatisticsScreen from '../screens/statistics/StatisticsScreen';
 import { ChatProvider } from '../context/ChatContext';
 
 const Tab = createBottomTabNavigator();

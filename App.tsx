@@ -83,6 +83,8 @@ function RootNavigation() {
 
 export default function App() {
   useEffect(() => {
+    analyticsService.setAuthFlushPaused(true);
+
     const task = InteractionManager.runAfterInteractions(() => {
       void notificationService.initialize();
       analyticsService.track(AnalyticsEvents.APP_OPEN);
@@ -102,17 +104,24 @@ export default function App() {
       };
 
       void runMigrations();
+
+      setTimeout(() => {
+        analyticsService.setAuthFlushPaused(false);
+      }, 4_000);
     });
 
-    return () => task.cancel();
+    return () => {
+      task.cancel();
+      analyticsService.setAuthFlushPaused(false);
+    };
   }, []);
 
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <QueryProvider>
-          <LanguageProvider>
-            <ThemeProvider>
+    <SafeAreaProvider>
+      <QueryProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <ErrorBoundary>
               <ToastProvider>
                 <ErrorHandlerProvider>
                   <AuthProvider>
@@ -121,11 +130,11 @@ export default function App() {
                   </AuthProvider>
                 </ErrorHandlerProvider>
               </ToastProvider>
-            </ThemeProvider>
-          </LanguageProvider>
-        </QueryProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </LanguageProvider>
+      </QueryProvider>
+    </SafeAreaProvider>
   );
 }
 

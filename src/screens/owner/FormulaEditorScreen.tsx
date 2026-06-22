@@ -22,6 +22,7 @@ import { colors } from '../../constants/colors';
 import {
   SalaryFormula,
   PayType,
+  AppliesTo,
   defaultSalaryFormula,
   GoodsBonus,
   SubstitutionBonus,
@@ -156,6 +157,37 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
             {t('screens.formulas.payTypeHourly')}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.payTypeButton, formula.payType === 'mixed' && styles.payTypeActive]}
+          onPress={() => setFormula({ ...formula, payType: 'mixed' })}
+        >
+          <Text style={[styles.payTypeText, formula.payType === 'mixed' && styles.payTypeTextActive]}>
+            {t('screens.formulas.payTypeMixed')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {formula.payType === 'mixed' && (
+        <Text style={styles.hintText}>{t('screens.formulaEditor.mixedPayHint')}</Text>
+      )}
+
+      <Text style={styles.sectionTitle}>{t('screens.formulaEditor.appliesToSection')}</Text>
+      <View style={styles.appliesToRow}>
+        {(['all_employees', 'managers_only', 'assistants_only'] as AppliesTo[]).map((value) => (
+          <TouchableOpacity
+            key={value}
+            style={[styles.appliesToButton, formula.appliesTo === value && styles.appliesToActive]}
+            onPress={() => setFormula({ ...formula, appliesTo: value })}
+          >
+            <Text
+              style={[
+                styles.appliesToText,
+                formula.appliesTo === value && styles.appliesToTextActive,
+              ]}
+            >
+              {t(`screens.formulaEditor.appliesTo_${value}`)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <Text style={styles.sectionTitle}>{t('screens.formulaEditor.ratesSection')}</Text>
@@ -257,6 +289,17 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
             })}
             keyboardType="numeric"
           />
+          <TextInput
+            style={styles.bonusInput}
+            placeholder={t('screens.formulaEditor.percentBonus')}
+            value={formula.goodsIssuedBonus?.percent?.toString()}
+            onChangeText={(v) => setFormula({
+              ...formula,
+              goodsIssuedBonus: mergeGoodsBonus(formula.goodsIssuedBonus, { percent: parseFloat(v) || 0 }),
+            })}
+            keyboardType="numeric"
+          />
+          <Text style={styles.hintText}>{t('screens.formulaEditor.percentBonusHint')}</Text>
         </View>
       )}
 
@@ -290,6 +333,16 @@ export default function FormulaEditorScreen({ navigation, route }: any) {
             onChangeText={(v) => setFormula({
               ...formula,
               goodsReceivedBonus: mergeGoodsBonus(formula.goodsReceivedBonus, { perItem: parseFloat(v) || 0 }),
+            })}
+            keyboardType="numeric"
+          />
+          <TextInput
+            style={styles.bonusInput}
+            placeholder={t('screens.formulaEditor.percentBonus')}
+            value={formula.goodsReceivedBonus?.percent?.toString()}
+            onChangeText={(v) => setFormula({
+              ...formula,
+              goodsReceivedBonus: mergeGoodsBonus(formula.goodsReceivedBonus, { percent: parseFloat(v) || 0 }),
             })}
             keyboardType="numeric"
           />
@@ -567,11 +620,17 @@ const styles = StyleSheet.create({
   
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginTop: 20, marginBottom: 12 },
   
-  payTypeRow: { flexDirection: 'row', gap: 12 },
-  payTypeButton: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' },
+  payTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  payTypeButton: { flexGrow: 1, flexBasis: '30%', paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' },
   payTypeActive: { backgroundColor: colors.primary },
   payTypeText: { fontSize: 14, color: '#666' },
   payTypeTextActive: { color: '#FFF' },
+  hintText: { fontSize: 12, color: '#888', marginTop: 8, lineHeight: 16 },
+  appliesToRow: { gap: 8 },
+  appliesToButton: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#F5F5F5' },
+  appliesToActive: { backgroundColor: colors.primaryLight },
+  appliesToText: { fontSize: 13, color: '#666' },
+  appliesToTextActive: { color: colors.primary, fontWeight: '500' },
   
   ratesGrid: { gap: 12 },
   rateItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

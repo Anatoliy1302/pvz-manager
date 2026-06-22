@@ -1,12 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../../lib/supabase';
-import { fetchAllFromQuery } from '../../lib/supabasePagination';
 import { User, UserRole, EmployeePermissions, defaultPermissions } from '../types/user';
 import { cleanPhone } from '../utils/phoneHelpers';
 import { isUuid, resolvePvzId } from '../utils/supabaseHelpers';
-import { PROFILE_COLUMNS } from './supabase/selectColumns';
-import { ensureSupabaseClientSession } from './SupabaseAuthService';
+import { getToken } from '../../lib/authSessionStore';
+import { readSnapshotArray, writeSnapshotArray } from '../../lib/snapshotSync';
 import DataService from './DataService';
+
+const SNAPSHOT_KEY = 'profiles';
 
 function mapProfileRow(row: Record<string, unknown>): User {
   return {
@@ -16,25 +16,12 @@ function mapProfileRow(row: Record<string, unknown>): User {
     email: (row.email as string) || '',
     role: row.role as UserRole,
     status: (row.status as User['status']) || 'active',
-    pvzId: (row.pvz_id as string) || undefined,
-    pvzIds: (row.pvz_ids as string[]) || undefined,
-    permissionLevel: (row.permission_level as User['permissionLevel']) || undefined,
+    pvzId: (row.pvzId as string) || (row.pvz_id as string) || undefined,
+    pvzIds: (row.pvzIds as string[]) || (row.pvz_ids as string[]) || undefined,
+    permissionLevel: (row.permissionLevel as User['permissionLevel']) || undefined,
     permissions: (row.permissions as EmployeePermissions) || { ...defaultPermissions },
-    createdAt: (row.created_at as string) || new Date().toISOString(),
+    createdAt: (row.createdAt as string) || (row.created_at as string) || new Date().toISOString(),
   };
-}
-
-async function fetchProfilesForResolvedPvz(resolvedPvzId: string): Promise<User[] | null> {
-  const data = await fetchAllFromQuery<Record<string, unknown>>(() =>
-    supabase.from('profiles').select(PROFILE_COLUMNS).eq('pvz_id', resolvedPvzId)
-  );
-
-  if (!data) {
-    console.warn('fetchProfilesForResolvedPvz: paginated fetch failed');
-    return null;
-  }
-
-  return data.map((row) => mapProfileRow(row));
 }
 
 function mergeUsersByPhone(local: User[], remote: User[]): User[] {
@@ -59,9 +46,17 @@ function mergeUsersByPhone(local: User[], remote: User[]): User[] {
   return Array.from(byPhone.values());
 }
 
-/** Подтянуть profiles из Supabase в локальный pvz_users для доступных ПВЗ. */
+async function fetchProfilesForResolvedPvz(resolvedPvzId: string): Promise<User[] | null> {
+  const all = await readSnapshotArray<Record<string, unknown>>(SNAPSHOT_KEY);
+  const filtered = all.filter(
+    (row) => row.pvzId === resolvedPvzId || row.pvz_id === resolvedPvzId
+  );
+  return filtered.map((row) => mapProfileRow(row));
+}
+
+/** Подтянуть profiles с API в локальный pvz_users. */
 export async function mergeRemoteProfilesIntoLocal(pvzIds: string[]): Promise<string | null> {
-  if (!(await ensureSupabaseClientSession()) || pvzIds.length === 0) return null;
+  if (!(await getToken()) || pvzIds.length === 0) return null;
 
   try {
     const localUsers = await DataService.getUsers();
@@ -89,9 +84,9 @@ export async function mergeRemoteProfilesIntoLocal(pvzIds: string[]): Promise<st
   }
 }
 
-/** Запушить локальных пользователей с UUID в profiles (только известные auth id). */
+/** Запушить локальных пользователей в snapshot profiles. */
 export async function pushLocalProfilesToSupabase(sessionUser: User): Promise<string | null> {
-  if (!(await ensureSupabaseClientSession())) return null;
+  if (!(await getToken())) return null;
 
   try {
     const users = await DataService.getUsers();
@@ -112,35 +107,35 @@ export async function pushLocalProfilesToSupabase(sessionUser: User): Promise<st
         isUuid(u.id)
     );
 
-    const results = await Promise.all(
-      scopedUsers.map(async (user) => {
-        const resolvedPvzId = user.pvzId ? await resolvePvzId(user.pvzId) : null;
-        const { error } = await supabase.from('profiles').upsert(
-          {
-            id: user.id,
-            name: user.name,
-            phone: user.phone,
-            email: null,
-            role: user.role,
-            pvz_id: resolvedPvzId,
-            pvz_ids: user.pvzIds || [],
-            permission_level: user.permissionLevel || null,
-            permissions: user.permissions || defaultPermissions,
-            status: user.status,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        );
-        return error?.message ?? null;
-      })
-    );
+    const remote = await readSnapshotArray<Record<string, unknown>>(SNAPSHOT_KEY);
+    const remoteIds = new Set(remote.map((row) => String(row.id)));
+    const next = [...remote];
 
-    const firstError = results.find((message) => message);
-    if (firstError) {
-      console.warn('pushLocalProfilesToSupabase:', firstError);
-      return firstError;
+    for (const user of scopedUsers) {
+      const resolvedPvzId = user.pvzId ? await resolvePvzId(user.pvzId) : null;
+      const row = {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email || null,
+        role: user.role,
+        pvzId: resolvedPvzId,
+        pvzIds: user.pvzIds || [],
+        permissionLevel: user.permissionLevel || null,
+        permissions: user.permissions || defaultPermissions,
+        status: user.status,
+        updatedAt: new Date().toISOString(),
+      };
+      const index = next.findIndex((entry) => String(entry.id) === user.id);
+      if (index >= 0) {
+        next[index] = row;
+      } else {
+        next.push(row);
+      }
+      remoteIds.add(user.id);
     }
 
+    await writeSnapshotArray(SNAPSHOT_KEY, next);
     return null;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Не удалось отправить профили';

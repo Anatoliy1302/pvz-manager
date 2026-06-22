@@ -14,6 +14,26 @@ import { navigateFromNotificationData } from '../../navigation/navigationRef';
 import notificationHistoryService from './NotificationHistoryService';
 import type { NotificationType } from './types';
 
+function resolveNotificationTypeFromData(data?: Record<string, unknown>): NotificationType {
+  const explicit = data?.notificationType;
+  if (
+    explicit === 'shift' ||
+    explicit === 'schedule' ||
+    explicit === 'request' ||
+    explicit === 'swap' ||
+    explicit === 'system'
+  ) {
+    return explicit;
+  }
+  const raw = typeof data?.type === 'string' ? data.type : '';
+  if (raw.includes('swap')) return 'swap';
+  if (raw.includes('schedule')) return 'schedule';
+  if (raw.includes('shift')) return 'shift';
+  if (raw.includes('message')) return 'system';
+  if (raw.includes('request') || raw.includes('advance')) return 'request';
+  return 'system';
+}
+
 export interface LocalNotificationOptions {
   title: string;
   body: string;
@@ -124,8 +144,20 @@ class LocalNotificationService {
     this.notificationListener?.remove();
     this.responseListener?.remove();
 
-    this.notificationListener = Notifications.addNotificationReceivedListener(() => {
-      void notificationHistoryService.updateBadgeCount(this.currentUserId);
+    this.notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+      const content = notification.request.content;
+      const data = (content.data ?? {}) as Record<string, unknown>;
+      if (data.remotePush === true && this.currentUserId) {
+        void notificationHistoryService.savePushNotification({
+          title: content.title ?? '',
+          message: content.body ?? '',
+          type: resolveNotificationTypeFromData(data),
+          data,
+          userId: this.currentUserId,
+        });
+      } else {
+        void notificationHistoryService.updateBadgeCount(this.currentUserId);
+      }
     });
 
     this.responseListener = Notifications.addNotificationResponseReceivedListener((response) => {

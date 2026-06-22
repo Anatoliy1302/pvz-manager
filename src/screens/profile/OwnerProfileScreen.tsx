@@ -11,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { useSubscription } from '../../hooks/useSubscription';
 import { useProfileQuery } from '../../hooks/queries';
 import { colors as staticColors } from '../../constants/colors';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
@@ -33,6 +34,7 @@ import {
   Mail,
   Sigma,
   HandCoins,
+  Crown,
 } from 'lucide-react-native';
 
 type MenuItem = {
@@ -50,6 +52,7 @@ type MenuSection = {
 export default function OwnerProfileScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { user, pvz, userPvzs, signOut } = useAuth();
+  const { isTrialActive, isPro, subscription } = useSubscription();
   const { colors, screen } = useThemedScreen();
   const styles = createStyles(colors, screen);
   const { refetch: refetchProfile } = useProfileQuery(user?.id);
@@ -77,7 +80,23 @@ export default function OwnerProfileScreen({ navigation }: any) {
     );
   };
 
+  const subscriptionStatusLabel = (() => {
+    if (isTrialActive) return t('subscription.trialPlanName');
+    if (isPro && subscription?.subscriptionPeriodEndsAt) {
+      const date = new Date(subscription.subscriptionPeriodEndsAt).toLocaleDateString('ru-RU');
+      return t('screens.profile.subscriptionProUntil', { date });
+    }
+    if (isPro) return t('subscription.plans.pro.name');
+    return t('screens.profile.subscriptionFree');
+  })();
+
   const accountItems = [
+    {
+      title: t('subscription.title'),
+      icon: Crown,
+      screen: 'Subscription',
+      description: subscriptionStatusLabel,
+    },
     { title: t('screens.profile.editProfile'), icon: User, screen: 'EditProfile', description: t('screens.profile.editProfileDescContact') },
     { title: t('screens.profile.settings'), icon: Settings, screen: 'Settings', description: t('screens.profile.settingsDesc') },
   ];
@@ -86,7 +105,6 @@ export default function OwnerProfileScreen({ navigation }: any) {
     {
       title: t('screens.profile.sections.organization'),
       items: [
-        { title: t('screens.owner.pvzList'), icon: Building2, screen: 'PVZManagement', description: t('screens.owner.pvzListDesc') },
         { title: t('screens.owner.invitations'), icon: Mail, screen: 'Invitations', description: t('screens.owner.invitationsDesc') },
         { title: t('screens.owner.permissions'), icon: Shield, screen: 'EmployeePermissions', description: t('screens.owner.permissionsDesc') },
       ],

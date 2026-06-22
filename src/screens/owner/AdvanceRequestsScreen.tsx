@@ -52,7 +52,7 @@ export default function AdvanceRequestsScreen({ navigation }: any) {
     if (!pvz?.id) return;
     
     try {
-      const allRequests = await getAdvanceRequests(pvz.id);
+      const allRequests = await getAdvanceRequests(pvz.id, { refresh: true });
       allRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRequests(allRequests);
     } catch (error) {

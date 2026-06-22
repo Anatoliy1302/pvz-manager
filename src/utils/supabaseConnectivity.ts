@@ -1,9 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
-import { directPingAuthHealth } from '../../lib/supabaseAuthDirect';
-import {
-  getExpoPublicEnv,
-  requireExpoPublicEnv,
-} from '../../lib/expoPublicEnv';
+import { getApiUrl } from '../../config/api';
+import { pingApiHealth } from '../../lib/authApi';
 
 export interface SupabaseReachabilityResult {
   ok: boolean;
@@ -12,14 +9,13 @@ export interface SupabaseReachabilityResult {
   error?: string;
 }
 
-function getSupabaseHost(): string {
-  const url = getExpoPublicEnv('EXPO_PUBLIC_SUPABASE_URL') ?? '';
-  return url.replace(/^https:\/\//, '').split('/')[0];
+function getApiHost(): string {
+  return getApiUrl().replace(/^https?:\/\//, '').split('/')[0];
 }
 
-/** Проверка сети и доступности Supabase Auth с устройства. */
+/** Проверка сети и доступности VPS API. */
 export async function checkSupabaseReachability(): Promise<SupabaseReachabilityResult> {
-  const host = getSupabaseHost();
+  const host = getApiHost();
   const net = await NetInfo.fetch();
 
   if (net.isConnected === false) {
@@ -31,19 +27,7 @@ export async function checkSupabaseReachability(): Promise<SupabaseReachabilityR
     };
   }
 
-  try {
-    requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_URL');
-    requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
-  } catch (error) {
-    return {
-      ok: false,
-      host,
-      isConnected: net.isConnected,
-      error: error instanceof Error ? error.message : 'missing_env',
-    };
-  }
-
-  const ok = await directPingAuthHealth();
+  const ok = await pingApiHealth();
   return {
     ok,
     host,
@@ -53,5 +37,5 @@ export async function checkSupabaseReachability(): Promise<SupabaseReachabilityR
 }
 
 export function getSupabaseHostForDisplay(): string {
-  return getSupabaseHost() || 'supabase.co';
+  return getApiHost() || 'api';
 }

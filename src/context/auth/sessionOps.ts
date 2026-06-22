@@ -15,6 +15,8 @@ import {
   refreshOwnerPvzList,
   syncAdminPvzContext,
 } from './pvzContextHelpers';
+import { loadOwnerPvzsWithRemoteFallback } from '../../services/SupabasePvzService';
+import { hasStoredAccessToken } from '../../../lib/authSessionStore';
 import {
   userMemory,
   subscribeUsersStore,
@@ -32,6 +34,11 @@ export async function quickRestoreFromStorage(setters: AuthSetters): Promise<boo
     const currentUser = userMemory.getUsers().find((u) => u.id === parsedUser.id);
     if (currentUser && currentUser.status !== 'active') return false;
 
+    const needsApiToken = parsedUser.role === 'owner' || parsedUser.role === 'admin';
+    if (needsApiToken && !(await hasStoredAccessToken())) {
+      return false;
+    }
+
     let sessionUser = parsedUser;
     if (sessionUser.role === 'employee') {
       const source = currentUser || userMemory.getUsers().find((u) => u.id === sessionUser.id);
@@ -46,11 +53,16 @@ export async function quickRestoreFromStorage(setters: AuthSetters): Promise<boo
 
     const storedPvz = await SecureStore.getItemAsync('pvz');
     if (sessionUser.role === 'owner') {
-      const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
+      const ownerPvzs = await loadOwnerPvzsWithRemoteFallback(sessionUser.id);
       setters.setUserPvzs(ownerPvzs);
       if (storedPvz) {
         const pvzData = safeParseJson<Pvz | null>(storedPvz, null);
-        if (pvzData) setters.setPvz(pvzData);
+        const matched = pvzData ? ownerPvzs.find((p) => p.id === pvzData.id) : null;
+        if (matched) {
+          setters.setPvz(matched);
+        } else if (ownerPvzs.length > 0) {
+          setters.setPvz(ownerPvzs[0]);
+        }
       } else if (ownerPvzs.length > 0) {
         setters.setPvz(ownerPvzs[0]);
       }
@@ -140,13 +152,20 @@ export async function loadStoredUser(
     await SecureStore.setItemAsync('user', JSON.stringify(sessionUser));
 
     if (sessionUser.role === 'owner') {
-      const ownerPvzs = await DataService.getPvzsByOwner(sessionUser.id);
+      const ownerPvzs = await loadOwnerPvzsWithRemoteFallback(sessionUser.id);
       setters.setUserPvzs(ownerPvzs);
       if (storedPvz) {
         const pvz = safeParseJson<Pvz | null>(storedPvz, null);
-        if (pvz) setters.setPvz(pvz);
+        const matched = pvz ? ownerPvzs.find((p) => p.id === pvz.id) : null;
+        if (matched) {
+          setters.setPvz(matched);
+        } else if (ownerPvzs.length > 0) {
+          setters.setPvz(ownerPvzs[0]);
+          await SecureStore.setItemAsync('pvz', JSON.stringify(ownerPvzs[0]));
+        }
       } else if (ownerPvzs.length > 0) {
         setters.setPvz(ownerPvzs[0]);
+        await SecureStore.setItemAsync('pvz', JSON.stringify(ownerPvzs[0]));
       }
     } else if (sessionUser.role === 'admin') {
       await syncAdminPvzContext(sessionUser, setters);
@@ -186,7 +205,12 @@ export async function refreshUserData(
     }
   }
 
-  setters.setUser(currentUser);
+  setters.setUser((prev) => {
+    if (prev?.id === currentUser.id && prev.role === currentUser.role) {
+      return prev;
+    }
+    return currentUser;
+  });
 
   if (currentUser.role === 'owner') {
     await refreshOwnerPvzList(currentUser.id, currentPvz, setters);

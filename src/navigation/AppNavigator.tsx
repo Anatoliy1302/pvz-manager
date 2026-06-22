@@ -106,6 +106,18 @@ export default function AppNavigator() {
   const { colors } = useTheme();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      freezeOnBlur: true,
+      animation: 'slide_from_right' as const,
+      contentStyle: {
+        backgroundColor: colors.background,
+      },
+    }),
+    [colors.background]
+  );
+
   useEffect(() => {
     const checkFirstLaunch = async () => {
       try {
@@ -139,18 +151,6 @@ export default function AppNavigator() {
       </View>
     );
   }
-
-  const screenOptions = useMemo(
-    () => ({
-      headerShown: false,
-      freezeOnBlur: true,
-      animation: 'slide_from_right' as const,
-      contentStyle: {
-        backgroundColor: colors.background,
-      },
-    }),
-    [colors.background]
-  );
 
   return (
     <ErrorBoundary

@@ -1,7 +1,8 @@
 // src/services/subscriptionPaymentService.ts
-// Оплата подписки Pro через ЮKassa (Edge Functions create-payment / cancel-subscription)
+// Оплата подписки Pro через ЮKassa (VPS API)
 
-import { supabase } from '../../lib/supabase';
+import { getApiUrl } from '../../config/api';
+import { fetchWithRaceTimeout } from '../../lib/fetchWithRaceTimeout';
 import { resolveAuthAccessToken } from './SupabaseAuthService';
 
 export interface CreateProPaymentResult {
@@ -22,39 +23,61 @@ export class SubscriptionPaymentError extends Error {
   }
 }
 
-async function invokeAuthenticatedFunction<T>(
-  functionName: string,
+async function invokePaymentApi<T>(
+  path: string,
   body?: Record<string, unknown>
-): Promise<{ data: T | null; error: { message?: string } | null }> {
+): Promise<T> {
   const accessToken = await resolveAuthAccessToken();
   if (!accessToken) {
     throw new SubscriptionPaymentError('Требуется авторизация через email', 'reauth_required');
   }
 
-  return supabase.functions.invoke(functionName, {
-    ...(body ? { body } : {}),
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const response = await fetchWithRaceTimeout(
+    `${getApiUrl()}${path}`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body ?? {}),
     },
-  });
+    30_000
+  );
+
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = (await response.json()) as Record<string, unknown>;
+  } catch {
+    // ignore
+  }
+
+  if (!response.ok) {
+    const message =
+      (typeof payload.error === 'string' && payload.error) ||
+      (response.status === 501
+        ? 'Оплата подписки пока не настроена на сервере'
+        : `HTTP ${response.status}`);
+    throw new SubscriptionPaymentError(message);
+  }
+
+  return payload as T;
 }
 
 export async function createProPayment(
   returnUrl?: string,
-  paymentKind?: 'initial' | 'renewal'
+  paymentKind?: 'initial' | 'renewal',
+  billingPeriod?: 'month' | 'year'
 ): Promise<CreateProPaymentResult> {
-  const { data, error } = await invokeAuthenticatedFunction<
-    CreateProPaymentResult & { error?: string }
-  >('create-payment', {
-    ...(returnUrl ? { returnUrl } : {}),
-    ...(paymentKind ? { paymentKind } : {}),
-  });
-
-  if (error) {
-    throw new SubscriptionPaymentError(error.message || 'Не удалось создать платёж');
-  }
-
-  const payload = data as CreateProPaymentResult & { error?: string };
+  const payload = await invokePaymentApi<CreateProPaymentResult & { error?: string }>(
+    '/api/subscription/create-payment',
+    {
+      ...(returnUrl ? { returnUrl } : {}),
+      ...(paymentKind ? { paymentKind } : {}),
+      ...(billingPeriod ? { billingPeriod } : {}),
+    }
+  );
 
   if (payload?.error) {
     throw new SubscriptionPaymentError(payload.error);
@@ -79,16 +102,23 @@ export interface CancelSubscriptionResult {
   subscriptionPeriodEndsAt: string | null;
 }
 
-export async function cancelSubscription(): Promise<CancelSubscriptionResult> {
-  const { data, error } = await invokeAuthenticatedFunction<
-    CancelSubscriptionResult & { error?: string; ok?: boolean }
-  >('cancel-subscription');
+export async function syncProPayment(paymentId?: string): Promise<{ activated: boolean }> {
+  const payload = await invokePaymentApi<{ activated?: boolean; error?: string }>(
+    '/api/subscription/sync-payment',
+    paymentId ? { paymentId } : {}
+  );
 
-  if (error) {
-    throw new SubscriptionPaymentError(error.message || 'Не удалось отменить подписку');
+  if (payload?.error) {
+    throw new SubscriptionPaymentError(payload.error);
   }
 
-  const payload = data as CancelSubscriptionResult & { error?: string; ok?: boolean };
+  return { activated: Boolean(payload.activated) };
+}
+
+export async function cancelSubscription(): Promise<CancelSubscriptionResult> {
+  const payload = await invokePaymentApi<
+    CancelSubscriptionResult & { error?: string; ok?: boolean }
+  >('/api/subscription/cancel');
 
   if (payload?.error) {
     throw new SubscriptionPaymentError(payload.error);

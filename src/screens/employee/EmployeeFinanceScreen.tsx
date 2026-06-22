@@ -95,6 +95,16 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
 
   const hasPendingRequest = advanceRequests.some((r) => r.status === 'pending');
 
+  const pullRemoteFinance = async () => {
+    if (!pvz?.id) return;
+    const { pullPvzFinanceFromServer } = await import('../../services/data/financeDataService');
+    const { pullPvzSalaryFromServer } = await import('../../services/SupabaseSalarySettingsService');
+    await Promise.all([
+      pullPvzFinanceFromServer(pvz.id),
+      pullPvzSalaryFromServer(pvz.id),
+    ]);
+  };
+
   const loadData = async () => {
     if (!user?.id || !pvz?.id) return;
     
@@ -123,7 +133,7 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      void pullRemoteFinance().then(() => loadData());
       const unsubBalance = DataService.subscribe('employee_balance', loadData);
       const unsubAdvances = user?.id
         ? DataService.subscribe(`advance_requests_employee_${user.id}`, loadData)
@@ -262,6 +272,7 @@ export default function EmployeeFinanceScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await pullRemoteFinance();
     await loadData();
     setRefreshing(false);
   };

@@ -6,6 +6,8 @@ interface SubscriptionBillingAmountProps {
   amount: string;
   textColor: string;
   accentColor: string;
+  period?: 'month' | 'year';
+  savingsPercent?: number;
 }
 
 /** Prominent billed amount for App Store Guideline 3.1.2 (subscription pricing). */
@@ -13,8 +15,14 @@ export default function SubscriptionBillingAmount({
   amount,
   textColor,
   accentColor,
+  period = 'month',
+  savingsPercent,
 }: SubscriptionBillingAmountProps) {
   const { t } = useTranslation();
+
+  const billingKey = period === 'year' ? 'subscription.billingAmountYear' : 'subscription.billingAmountMonth';
+  const noteKey =
+    period === 'year' ? 'subscription.billingAmountNoteYear' : 'subscription.billingAmountNoteMonth';
 
   return (
     <View style={styles.container} accessibilityRole="text">
@@ -22,10 +30,12 @@ export default function SubscriptionBillingAmount({
         {t('subscription.billingAmountLabel')}
       </Text>
       <Text style={[styles.billingAmount, { color: accentColor }]}>
-        {t('subscription.billingAmount', { amount })}
+        {t(billingKey, { amount })}
       </Text>
       <Text style={[styles.billingNote, { color: textColor }]}>
-        {t('subscription.billingAmountNote')}
+        {period === 'year' && savingsPercent != null
+          ? t(noteKey, { percent: savingsPercent })
+          : t(noteKey)}
       </Text>
     </View>
   );

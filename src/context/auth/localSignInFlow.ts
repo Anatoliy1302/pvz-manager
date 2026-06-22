@@ -4,11 +4,21 @@ import { t } from '../../i18n';
 import { safeParseJson } from '../../utils/safeJson';
 import { generateSecureId } from '../../utils/generateSecureId';
 import { normalizeEmail, emailsMatch } from '../../utils/loginIdentifier';
-import { DEMO_MODE, hasSupabaseSession } from '../../services/SupabaseAuthService';
+import { cleanPhone } from '../../utils/phoneHelpers';
+import {
+  DEMO_MODE,
+  hasSupabaseSession,
+  hasStoredAuthTokens,
+  getCachedSessionUserId,
+  getSupabaseSessionUserId,
+} from '../../services/SupabaseAuthService';
 import { fetchInvitationByPhone, updateInvitationStatusInSupabase } from '../../services/SupabaseInvitationService';
 import { DEMO_USERS } from './demoData';
 import { SignInOptions } from './types';
-import { userMemory } from './userMemoryStore';
+import { userMemory, loadUsersFromStorage } from './userMemoryStore';
+import { ensureLocalOwnerRecord } from './ownerOps';
+import { restoreOwnerForPinLogin } from './ownerPinLoginRestore';
+import PinService from '../../services/PinService';
 
 function roleLabel(role: UserRole): string {
   if (role === 'owner') return t('common.roles.owner');
@@ -46,6 +56,25 @@ export async function resolveLocalUser(
       }
     }
 
+    if (!foundOwner && (await hasStoredAuthTokens())) {
+      const sessionUserId = getCachedSessionUserId() ?? (await getSupabaseSessionUserId());
+      if (sessionUserId) {
+        return ensureLocalOwnerRecord(normalizedEmail, sessionUserId);
+      }
+    }
+
+    if (!foundOwner && (await PinService.hasPin(normalizedEmail))) {
+      if (await restoreOwnerForPinLogin(normalizedEmail)) {
+        foundOwner =
+          userMemory.getUsers().find(
+            (u) =>
+              u.role === 'owner' &&
+              u.status === 'active' &&
+              emailsMatch(u.email, normalizedEmail)
+          ) || null;
+      }
+    }
+
     if (!foundOwner) {
       throw new Error(t('alerts.auth.emailNotFound'));
     }
@@ -53,8 +82,8 @@ export async function resolveLocalUser(
     return foundOwner;
   }
 
-  const cleanPhone = loginKey.replace(/[^0-9]/g, '');
-  let foundUser = users.find((u) => u.phone === cleanPhone && u.status === 'active') || null;
+  const normalizedPhone = cleanPhone(loginKey);
+  let foundUser = users.find((u) => u.phone === normalizedPhone && u.status === 'active') || null;
 
   if (foundUser && foundUser.role !== selectedRole) {
     throw new Error(t('alerts.auth.wrongRole', { role: roleLabel(foundUser.role) }));
@@ -62,16 +91,16 @@ export async function resolveLocalUser(
 
   if (!foundUser && selectedRole !== 'owner') {
     const pending = userMemory.getPendingEmployees();
-    let pendingUser = pending.find((u) => u.phone === cleanPhone);
+    let pendingUser = pending.find((u) => u.phone === normalizedPhone);
 
     if (!pendingUser && (await hasSupabaseSession())) {
-      const remoteInvitation = await fetchInvitationByPhone(cleanPhone);
+      const remoteInvitation = await fetchInvitationByPhone(normalizedPhone, selectedRole === 'admin' ? 'admin' : 'employee');
       if (remoteInvitation?.status === 'pending') {
         pendingUser = {
           id: generateSecureId('pending'),
           name: remoteInvitation.name,
-          email: `${cleanPhone}@users.pvzpersonal.ru`,
-          phone: cleanPhone,
+          email: `${normalizedPhone}@users.pvzpersonal.ru`,
+          phone: normalizedPhone,
           role: remoteInvitation.role,
           status: 'pending',
           pvzId: remoteInvitation.pvzId,
@@ -105,7 +134,7 @@ export async function resolveLocalUser(
       if (!invitation) {
         invitation = allInvitations.find(
           (inv) =>
-            inv.phone.replace(/[^0-9]/g, '') === cleanPhone &&
+            cleanPhone(inv.phone) === normalizedPhone &&
             inv.status === 'pending' &&
             (!options?.pvzId || inv.pvzId === options.pvzId) &&
             (!inv.role || inv.role === selectedRole)
@@ -133,7 +162,7 @@ export async function resolveLocalUser(
       };
 
       await userMemory.addUser(foundUser);
-      await userMemory.removePendingByPhone(cleanPhone);
+      await userMemory.removePendingByPhone(normalizedPhone);
 
       invitation.status = 'accepted';
       await SecureStore.setItemAsync('all_invitations', JSON.stringify(allInvitations));

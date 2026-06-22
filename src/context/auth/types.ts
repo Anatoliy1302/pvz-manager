@@ -15,8 +15,14 @@ export interface AuthContextData {
   isLoading: boolean;
   signIn: (phone: string, role: UserRole, options?: SignInOptions) => Promise<void>;
   signOut: () => Promise<void>;
-  deleteAccount: () => Promise<void>;
-  deleteUserAccount: () => Promise<void>;
+  deleteAccount: (options?: {
+    accessToken?: string;
+    ownerPin?: { email: string; userId: string; pin: string };
+  }) => Promise<void>;
+  deleteUserAccount: (options?: {
+    accessToken?: string;
+    ownerPin?: { email: string; userId: string; pin: string };
+  }) => Promise<void>;
   hasRole: (roles: UserRole[]) => boolean;
   switchPvz: (pvzId: string) => Promise<void>;
   userPvzs: Pvz[];

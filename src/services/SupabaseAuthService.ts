@@ -1,23 +1,41 @@
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import NetInfo from '@react-native-community/netinfo';
-import { supabase, getSupabaseProjectHost, getSupabaseAuthStorageKey } from '../../lib/supabase';
+import { getSupabaseProjectHost } from '../../lib/supabase';
 import {
-  directSendEmailOtp,
-  directSendPhoneOtp,
-  directVerifyEmailOtp,
-  directVerifyPhoneOtp,
-  applyDirectSession,
-  NetworkError,
-  AuthRequestTimeoutError,
-  isRetryableFetchError,
-  type DirectAuthSession,
-} from '../../lib/supabaseAuthDirect';
-import { secureStorageAdapter } from '../utils/secureStorageAdapter';
+  suspendAuthClientNetworkSync as gateSuspendAuthClientNetworkSync,
+  resumeAuthClientNetworkSync as gateResumeAuthClientNetworkSync,
+  isAuthClientNetworkSyncSuspended,
+} from '../../lib/authClientSyncGate';
+import {
+  sendOtp as apiSendOtp,
+  verifyOtp as apiVerifyOtp,
+  login as apiLogin,
+  setPin as apiSetPin,
+  resetPin as apiResetPin,
+  sendSmsOtp as apiSendSmsOtp,
+  verifySmsOtp as apiVerifySmsOtp,
+  pingApiHealth,
+  AuthApiError,
+  type AuthSession,
+  type StaffAuthSession,
+} from '../../lib/authApi';
+import { acceptStaffInvitationApi } from '../../lib/invitationApi';
+import {
+  readStoredAccessToken,
+  readStoredAuthSession,
+  hasStoredAccessToken,
+  clearAuthSessionCache,
+  cacheMemoryAuthSession,
+  persistAuthSession,
+  clearAuthSession,
+} from '../../lib/authSessionStore';
+import { useStorageOnlyAuthClient } from '../../lib/authClientMode';
 import { withTimeoutReject } from '../utils/withTimeout';
 import DataService from './DataService';
 import { User, UserRole, EmployeePermissions, defaultPermissions } from '../types/user';
 import { normalizeEmail } from '../utils/loginIdentifier';
+import { cleanPhone as normalizeRuPhone } from '../utils/phoneHelpers';
 import { safeParseJson } from '../utils/safeJson';
 import { t } from '../i18n';
 import { PROFILE_COLUMNS } from './supabase/selectColumns';
@@ -26,6 +44,61 @@ import { PROFILE_COLUMNS } from './supabase/selectColumns';
 export const DEMO_OTP_CODE = '000000';
 
 const DEMO_BYPASS_USER_ID = 'demo-otp-bypass';
+
+export class AuthOtpVerifyError extends Error {
+  readonly errorCode?: string;
+  readonly httpStatus?: number;
+
+  constructor(message: string, errorCode?: string, httpStatus?: number) {
+    super(message);
+    this.name = 'AuthOtpVerifyError';
+    this.errorCode = errorCode;
+    this.httpStatus = httpStatus;
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message = 'network_error', cause?: unknown) {
+    super(message);
+    this.name = 'NetworkError';
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
+export class AuthRequestTimeoutError extends Error {
+  constructor() {
+    super('auth_request_timeout');
+    this.name = 'AuthRequestTimeoutError';
+  }
+}
+
+export function isRetryableFetchError(error: unknown): boolean {
+  if (error instanceof AuthRequestTimeoutError || error instanceof NetworkError) {
+    return true;
+  }
+  if (error instanceof AuthApiError) {
+    return error.httpStatus >= 500;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const lower = error.message.toLowerCase();
+  return (
+    lower.includes('network request failed') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('network error') ||
+    lower.includes('auth_request_timeout') ||
+    lower.includes('econnreset') ||
+    lower.includes('etimedout') ||
+    lower.includes('enotfound') ||
+    lower.includes('socket') ||
+    lower.includes('load failed') ||
+    lower.includes('abort') ||
+    lower.includes('connection timeout')
+  );
+}
 
 /**
  * Режим демо без реальных OTP (только локально и eas development).
@@ -42,28 +115,27 @@ export function isDemoMode(): boolean {
 /** @deprecated Используйте isDemoMode() */
 export const DEMO_MODE = isDemoMode();
 
-/**
- * Реальный Supabase Phone OTP (Twilio и др.).
- * Обязателен в production; в dev можно включить EXPO_PUBLIC_DEMO_MODE.
- */
-export const USE_SUPABASE_PHONE_OTP =
-  process.env.EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP === 'true';
-
-/** Email OTP для регистрации/входа владельца. По умолчанию включён. */
+/** Email OTP (legacy). По умолчанию выключен — владелец входит по паролю. */
 export const USE_SUPABASE_EMAIL_OTP =
-  process.env.EXPO_PUBLIC_USE_SUPABASE_EMAIL_OTP !== 'false';
+  process.env.EXPO_PUBLIC_USE_SUPABASE_EMAIL_OTP === 'true';
 
+/** @deprecated SMS OTP всегда через VPS API (lib/authApi). */
 export function usesSupabasePhoneOtp(): boolean {
-  return USE_SUPABASE_PHONE_OTP;
+  return false;
 }
 
 export function usesSupabaseEmailOtp(): boolean {
   return USE_SUPABASE_EMAIL_OTP;
 }
 
-/** @deprecated Владелец использует email OTP */
+/** Владелец: вход по email + пароль (основной режим). */
+export function usesOwnerEmailPassword(): boolean {
+  return !USE_SUPABASE_EMAIL_OTP;
+}
+
+/** @deprecated Владелец не использует phone OTP */
 export function canRegisterOwnerWithoutPhoneOtp(): boolean {
-  return !USE_SUPABASE_PHONE_OTP;
+  return true;
 }
 
 /** Регистрация владельца без email OTP (локальная разработка). */
@@ -75,6 +147,11 @@ export function getOtpCodeLength(): number {
   return 6;
 }
 
+/** Длина SMS-кода (SMS Aero Mobile Auth). */
+export function getPhoneOtpCodeLength(): number {
+  return 4;
+}
+
 async function assertNetworkOnline(): Promise<void> {
   const net = await NetInfo.fetch();
   if (net.isConnected === false) {
@@ -83,14 +160,16 @@ async function assertNetworkOnline(): Promise<void> {
 }
 
 /** Сессия из последнего успешного OTP в этом запуске (до синхронизации клиента). */
-let cachedDirectSession: DirectAuthSession | null = null;
+let cachedDirectSession: AuthSession | null = null;
 
-function cacheDirectAuthSession(session: DirectAuthSession): void {
+function cacheDirectAuthSession(session: AuthSession): void {
   cachedDirectSession = session;
+  cacheMemoryAuthSession(session);
 }
 
 export function clearCachedDirectAuthSession(): void {
   cachedDirectSession = null;
+  clearAuthSessionCache();
 }
 
 /** UUID из кэша OTP (без сети). */
@@ -98,19 +177,18 @@ export function getCachedSessionUserId(): string | null {
   return cachedDirectSession?.userId ?? null;
 }
 
-/** Access token из клиента / кэша / storage (без setSession). */
+/** Access token из кэша OTP / storage (без сетевого getSession на RN). */
 export async function getAuthAccessToken(): Promise<string | null> {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) return session.access_token;
-  } catch {
-    // continue
-  }
   if (cachedDirectSession?.accessToken) return cachedDirectSession.accessToken;
-  const stored = await readStoredAuthSession();
-  return stored?.access_token ?? null;
+
+  const fromStorage = await readStoredAccessToken();
+  if (fromStorage) return fromStorage;
+
+  if (useStorageOnlyAuthClient()) {
+    return null;
+  }
+
+  return null;
 }
 
 /** Verify мог пройти на сервере, а ответ не дошёл — сессия уже в storage. */
@@ -123,40 +201,36 @@ async function recoverUserIdAfterVerifyTimeout(): Promise<string | null> {
   if (stored?.user?.id) {
     return stored.user.id;
   }
-
-  if (!(await ensureSupabaseClientSession())) {
-    return null;
+  if (stored?.access_token) {
+    const userId = parseUserIdFromJwt(stored.access_token);
+    if (userId) return userId;
   }
 
-  try {
-    const {
-      data: { session },
-    } = await withTimeoutReject(supabase.auth.getSession(), 6_000, 'session_read_timeout');
-    return session?.user?.id ?? null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-function assertPhoneOtpAvailable(): void {
-  if (!USE_SUPABASE_PHONE_OTP) {
-    if (DEMO_MODE) {
-      throw new Error(t('alerts.auth.demoSmsDisabled'));
+async function recoverUserIdAfterVerifyWithBackoff(): Promise<string | null> {
+  for (const delayMs of [0, 500, 1500, 2500]) {
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    throw new Error(t('alerts.auth.smsNotConfigured'));
+    const userId = await recoverUserIdAfterVerifyTimeout();
+    if (userId) return userId;
   }
+  return null;
 }
 
-function assertEmailOtpAvailable(): void {
-  if (!USE_SUPABASE_EMAIL_OTP) {
-    if (DEMO_MODE) {
-      throw new Error(t('alerts.auth.demoEmailDisabled'));
-    }
-    throw new Error(t('alerts.auth.emailNotConfigured'));
+function assertEmailOtpAvailable(options?: EmailOtpOptions): void {
+  if (USE_SUPABASE_EMAIL_OTP || options?.forRegistration || options?.forPinReset) {
+    return;
   }
+  if (DEMO_MODE) {
+    throw new Error(t('alerts.auth.demoEmailDisabled'));
+  }
+  throw new Error(t('alerts.auth.emailNotConfigured'));
 }
 
-let phoneOtpInFlight = false;
+let phoneVerifyInFlight = false;
 let emailOtpInFlight = false;
 let emailVerifyInFlight = false;
 
@@ -170,6 +244,7 @@ export interface AuthProfilePayload {
   permissionLevel?: 'full' | 'restricted';
   permissions?: EmployeePermissions;
   status?: 'active' | 'pending' | 'blocked';
+  invitationId?: string;
 }
 
 export function isAuthNetworkOrTimeoutError(error: unknown): boolean {
@@ -177,17 +252,69 @@ export function isAuthNetworkOrTimeoutError(error: unknown): boolean {
     return true;
   }
   if (error instanceof Error) {
-    return isRetryableFetchError(error);
+    if (isRetryableFetchError(error)) {
+      return true;
+    }
+    const lower = error.message.toLowerCase();
+    return (
+      lower.includes('auth_request_timeout') ||
+      lower.includes('response_read_failed') ||
+      lower.includes('verify_email_timeout') ||
+      lower.includes('owner_route_timeout') ||
+      lower.includes('session_persist_timeout')
+    );
   }
   return false;
 }
 
-export function formatSupabaseAuthError(message: string): string {
+export function formatSupabaseAuthError(message: string, errorCode?: string): string {
+  if (errorCode === 'otp_expired') {
+    return t('alerts.auth.otpExpired');
+  }
+  if (errorCode === 'invalid_otp') {
+    return t('alerts.auth.invalidOtpCode');
+  }
+  if (errorCode === 'no_user') {
+    return t('alerts.auth.emailNotFound');
+  }
+  if (errorCode === 'email_not_configured' || errorCode === 'email_delivery_failed') {
+    const lowerDelivery = message.toLowerCase();
+    if (
+      lowerDelivery.includes('non-local sender') ||
+      lowerDelivery.includes('mxs.mail.ru') ||
+      lowerDelivery.includes('mail.ru rejected') ||
+      lowerDelivery.includes('spf/dkim') ||
+      lowerDelivery.includes('delivery_soft_bounced') ||
+      lowerDelivery.includes('delivery_hard_bounced')
+    ) {
+      return t('alerts.network.emailMailRuRejected');
+    }
+    return t('alerts.network.emailFailed');
+  }
+  const lowerMsg = message.toLowerCase();
+  if (
+    lowerMsg.includes('non-local sender') ||
+    lowerMsg.includes('mxs.mail.ru') ||
+    lowerMsg.includes('delivery_soft_bounced') ||
+    lowerMsg.includes('delivery_hard_bounced')
+  ) {
+    return t('alerts.network.emailMailRuRejected');
+  }
+  if (errorCode === 'invalid_credentials') {
+    return t('alerts.auth.invalidCredentials');
+  }
+  if (errorCode === 'validation_failed') {
+    return t('alerts.validation.invalidEmail');
+  }
   const lower = message.toLowerCase();
   if (lower.includes('phone provider') && lower.includes('disabled')) {
     return t('alerts.auth.phoneProviderDisabled');
   }
-  if (lower.includes('error sending confirmation email') || lower.includes('email provider')) {
+  if (
+    lower.includes('error sending confirmation email') ||
+    lower.includes('email provider is disabled') ||
+    lower.includes('email provider not enabled')
+  ) {
     return t('alerts.auth.emailProviderDisabled');
   }
   if (lower.includes('failed to send email') || lower.includes('error sending magic link email')) {
@@ -198,13 +325,24 @@ export function formatSupabaseAuthError(message: string): string {
     lower.includes('failed to reach hook') ||
     lower.includes('hook_timeout')
   ) {
-    return t('alerts.network.serverUnavailable');
+    return lower.includes('sms') || lower.includes('phone')
+      ? t('alerts.auth.smsSendFailed')
+      : t('alerts.network.serverUnavailable');
+  }
+  if (lower.includes('invalid login credentials')) {
+    return t('alerts.auth.invalidCredentials');
+  }
+  if (lower.includes('user already registered')) {
+    return t('alerts.auth.emailAlreadyRegistered');
   }
   if (lower.includes('email logins are disabled')) {
     return t('alerts.auth.emailLoginDisabled');
   }
   if (lower.includes('invalid') && lower.includes('expired')) {
     return t('alerts.auth.invalidOtpCode');
+  }
+  if (lower.includes('verify response missing session')) {
+    return t('alerts.network.verifyFailed');
   }
   if (lower.includes('otp_expired') || (lower.includes('token has expired') && !lower.includes('invalid'))) {
     return t('alerts.auth.otpExpired');
@@ -235,7 +373,11 @@ export function formatSupabaseAuthError(message: string): string {
     lower.includes('session_apply_timeout') ||
     lower.includes('econnreset') ||
     lower.includes('etimedout') ||
-    lower.includes('load failed')
+    lower.includes('load failed') ||
+    lower.includes('bad gateway') ||
+    lower.includes('service unavailable') ||
+    lower.includes('gateway timeout') ||
+    /\bhttp 5\d{2}\b/.test(lower)
   ) {
     return t('alerts.network.serverUnavailable');
   }
@@ -245,12 +387,33 @@ export function formatSupabaseAuthError(message: string): string {
   return message;
 }
 
+/** Сообщение «Сервер временно недоступен» (сеть / таймаут verify). */
+export function isAuthServerUnavailableError(error: unknown): boolean {
+  return resolveAuthUserMessage(error) === t('alerts.network.serverUnavailable');
+}
+
 /** Локализованное сообщение для UI без технических деталей. */
 export function resolveAuthUserMessage(error: unknown, fallbackKey?: string): string {
+  if (error instanceof AuthOtpVerifyError) {
+    return formatSupabaseAuthError(error.message, error.errorCode);
+  }
+  if (error instanceof AuthApiError) {
+    return formatSupabaseAuthError(error.message, error.errorCode);
+  }
   if (isAuthNetworkOrTimeoutError(error)) {
     return t('alerts.network.serverUnavailable');
   }
   if (error instanceof Error) {
+    const localizedAuthErrors = [
+      t('alerts.auth.emailNotConfigured'),
+      t('alerts.auth.demoEmailDisabled'),
+      t('alerts.auth.smsNotConfigured'),
+      t('alerts.auth.demoSmsDisabled'),
+      t('alerts.auth.otpAlreadyInFlight'),
+    ];
+    if (localizedAuthErrors.includes(error.message)) {
+      return error.message;
+    }
     return formatSupabaseAuthError(error.message);
   }
   return fallbackKey ? t(fallbackKey) : t('alerts.network.verifyFailed');
@@ -277,12 +440,20 @@ export function isOtpSendUncertain(error: unknown): boolean {
   return error instanceof AuthRequestTimeoutError || error instanceof NetworkError;
 }
 
-/** Письмо/SMS точно ушли, хотя Supabase вернул ошибку hook timeout. */
+/** Письмо/SMS могли уйти, хотя Supabase вернул ошибку hook / таймаут. */
 export function isOtpSendMaybeDelivered(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes('hook_timeout') ||
-    message.includes('error sending confirmation otp')
+    message.includes('hook timed out') ||
+    message.includes('error sending confirmation otp') ||
+    message.includes('error sending sms otp') ||
+    message.includes('error sending otp') ||
+    message.includes('error sending magic link email') ||
+    message.includes('error sending confirmation email') ||
+    message.includes('unexpected status code returned from hook') ||
+    message.includes('failed to reach hook') ||
+    message.includes('failed to send email')
   );
 }
 export function isSupabaseProviderConfigError(error: unknown): boolean {
@@ -313,101 +484,156 @@ function mapProfileRow(row: Record<string, unknown>): User {
 }
 
 export async function upsertProfile(userId: string, profile: AuthProfilePayload): Promise<void> {
-  const { error } = await supabase.from('profiles').upsert(
-    {
-      id: userId,
-      name: profile.name,
-      phone: profile.phone || '',
-      email: profile.email ? normalizeEmail(profile.email) : null,
-      role: profile.role,
-      pvz_id: profile.pvzId || null,
-      pvz_ids: profile.pvzIds || [],
-      permission_level: profile.permissionLevel || null,
-      permissions: profile.permissions || defaultPermissions,
-      status: profile.status || 'active',
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' }
-  );
-
-  if (error) {
-    throw new Error(error.message);
+  if (__DEV__) {
+    console.warn('[Auth] upsertProfile: Supabase removed, profile kept locally only', userId, profile.role);
   }
+}
+
+async function upsertProfileViaRest(
+  _userId: string,
+  _profile: AuthProfilePayload,
+  _accessToken: string
+): Promise<void> {
+  // no-op — data layer migrated off Supabase
 }
 
 export async function fetchProfileUser(userId: string): Promise<User | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PROFILE_COLUMNS)
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ? mapProfileRow(data as Record<string, unknown>) : null;
+  const usersRaw = await SecureStore.getItemAsync('pvz_users');
+  const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
+  return users.find((u) => u.id === userId) ?? null;
 }
 
-/** Отправить SMS-код сотруднику/админу через Supabase Phone OTP. */
-export async function sendPhoneOtp(cleanPhone: string): Promise<void> {
+/** После phone OTP — профиль сотрудника (локально). */
+async function ensurePhoneProfileAfterOtp(
+  _session: AuthSession,
+  _phoneInput: string
+): Promise<void> {
+  // Phone OTP не поддерживается новым API
+}
+
+/** Финализация profiles сотрудника/админа после SMS OTP. */
+export async function ensureStaffProfileForLogin(profile: AuthProfilePayload): Promise<boolean> {
+  if (!profile.invitationId) return false;
+  try {
+    await acceptStaffInvitationApi({
+      invitationId: profile.invitationId,
+      name: profile.name,
+      role: profile.role === 'admin' ? 'admin' : 'employee',
+      pvzId: profile.pvzId,
+    });
+    return true;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[Auth] ensureStaffProfileForLogin:', error);
+    }
+    return false;
+  }
+}
+
+/** Профиль владельца после OTP. */
+export async function ensureOwnerProfileForLogin(
+  _session: Pick<AuthSession, 'accessToken' | 'userId'>,
+  _email: string,
+): Promise<void> {
+  // Профиль создаётся локально в ownerOps
+}
+
+function isDuplicateProfileError(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw.includes('23505') || raw.toLowerCase().includes('duplicate');
+}
+
+/** Фоновое создание профиля владельца после email OTP — не блокирует навигацию. */
+export function scheduleOwnerProfileSync(
+  _session: Pick<AuthSession, 'accessToken' | 'userId'>,
+  _email: string,
+): void {
+  // no-op
+}
+
+/** Отправить SMS-код сотруднику/админу. */
+let phoneOtpPromise: Promise<void> | null = null;
+
+export async function sendPhoneOtp(
+  cleanPhone: string,
+  role: 'employee' | 'admin' = 'employee'
+): Promise<void> {
   if (DEMO_MODE) {
-    console.info('DEMO MODE: skip phone OTP send');
+    console.info('DEMO MODE: skip SMS OTP send');
     return;
   }
-
-  assertPhoneOtpAvailable();
-
-  if (phoneOtpInFlight) {
-    throw new Error(t('alerts.auth.otpAlreadyInFlight'));
+  if (phoneOtpPromise) {
+    return phoneOtpPromise;
   }
-
-  phoneOtpInFlight = true;
-  try {
-    await assertNetworkOnline();
-    await directSendPhoneOtp(cleanPhone);
-  } catch (error: unknown) {
-    if (isOtpSendMaybeDelivered(error)) {
-      throw error;
-    }
-    throw new Error(resolveAuthUserMessage(error));
-  } finally {
-    phoneOtpInFlight = false;
-  }
+  phoneOtpPromise = apiSendSmsOtp(cleanPhone, role).finally(() => {
+    phoneOtpPromise = null;
+  });
+  return phoneOtpPromise;
 }
 
-/** Подтвердить код из SMS. Создаёт Supabase-сессию. */
-export async function verifyPhoneOtp(cleanPhone: string, token: string): Promise<string> {
+/** Подтвердить код из SMS. */
+export async function verifyPhoneOtp(
+  cleanPhone: string,
+  token: string,
+  role: 'employee' | 'admin' = 'employee'
+): Promise<string> {
   if (DEMO_MODE && token === DEMO_OTP_CODE) {
-    console.info('DEMO MODE: bypass');
     return DEMO_BYPASS_USER_ID;
   }
-
-  assertPhoneOtpAvailable();
-
+  if (phoneVerifyInFlight) {
+    throw new Error(t('alerts.network.verifyFailed'));
+  }
+  phoneVerifyInFlight = true;
   try {
-    const session = await directVerifyPhoneOtp(cleanPhone, token);
-    cacheDirectAuthSession(session);
-    await applyDirectSession(session);
-    void ensureSupabaseClientSession();
+    const session = await verifyPhoneOtpSession(cleanPhone, token, role);
     return session.userId;
-  } catch (error: unknown) {
-    const recoveredUserId = await recoverUserIdAfterVerifyTimeout();
-    if (recoveredUserId) {
-      return recoveredUserId;
-    }
-    throw new Error(resolveAuthUserMessage(error));
+  } finally {
+    phoneVerifyInFlight = false;
   }
 }
 
-/** Отправить код на email владельца через Supabase Email OTP. */
-export async function sendEmailOtp(email: string): Promise<void> {
+/** Подтвердить SMS и вернуть сессию с приглашениями. */
+export async function verifyPhoneOtpSession(
+  cleanPhone: string,
+  token: string,
+  role: 'employee' | 'admin' = 'employee'
+): Promise<StaffAuthSession> {
+  if (DEMO_MODE && token === DEMO_OTP_CODE) {
+    return {
+      userId: DEMO_BYPASS_USER_ID,
+      accessToken: 'demo-token',
+    };
+  }
+  const session = await apiVerifySmsOtp(cleanPhone, token, role);
+  await persistAuthSession(session);
+  return session;
+}
+
+/** Прогрев Auth до первого OTP сотрудника. */
+export function prefetchEmployeePhoneAuth(): void {
+  void pingApiHealth();
+}
+
+/** Прогрев Auth до первого входа владельца. */
+export function prefetchOwnerEmailAuth(): void {
+  void pingApiHealth();
+}
+
+export type EmailOtpOptions = {
+  forRegistration?: boolean;
+  /** Сброс PIN — OTP разрешён даже при входе по паролю/PIN */
+  forPinReset?: boolean;
+};
+
+/** Отправить код на email владельца. */
+export async function sendEmailOtp(
+  email: string,
+  _options?: EmailOtpOptions
+): Promise<void> {
   if (DEMO_MODE) {
     console.info('DEMO MODE: skip email OTP send');
     return;
   }
-
-  assertEmailOtpAvailable();
 
   if (emailOtpInFlight) {
     throw new Error(t('alerts.auth.otpAlreadyInFlight'));
@@ -416,7 +642,9 @@ export async function sendEmailOtp(email: string): Promise<void> {
   emailOtpInFlight = true;
   try {
     await assertNetworkOnline();
-    await directSendEmailOtp(email);
+    await apiSendOtp(email, {
+      purpose: _options?.forPinReset ? 'pin_reset' : undefined,
+    });
   } catch (error: unknown) {
     if (isOtpSendMaybeDelivered(error)) {
       throw error;
@@ -433,42 +661,40 @@ export interface VerifiedOtpSession {
   accessToken: string;
 }
 
-async function recoverOtpSessionAfterVerifyTimeout(): Promise<VerifiedOtpSession | null> {
-  const userId = await recoverUserIdAfterVerifyTimeout();
-  if (!userId) return null;
-  const accessToken = (await getAuthAccessToken()) ?? '';
-  if (!accessToken) return null;
-  return { userId, accessToken };
-}
-
-/** Подтвердить код из email. Создаёт Supabase-сессию владельца. */
-export async function verifyEmailOtp(email: string, token: string): Promise<VerifiedOtpSession> {
+/** Подтвердить код из email. */
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+  _options?: EmailOtpOptions
+): Promise<VerifiedOtpSession> {
   if (DEMO_MODE && token === DEMO_OTP_CODE) {
-    console.info('DEMO MODE: bypass');
     return { userId: DEMO_BYPASS_USER_ID, accessToken: '' };
   }
 
-  assertEmailOtpAvailable();
-
   if (emailVerifyInFlight) {
-    const recovered = await recoverOtpSessionAfterVerifyTimeout();
-    if (recovered) {
-      return recovered;
-    }
     throw new Error(t('alerts.auth.otpAlreadyInFlight'));
   }
 
   emailVerifyInFlight = true;
   try {
-    const session = await directVerifyEmailOtp(email, token);
+    void pingApiHealth();
+    const session = await apiVerifyOtp(email, token);
     cacheDirectAuthSession(session);
-    await applyDirectSession(session);
-    void ensureSupabaseClientSession();
+    try {
+      await withTimeoutReject(
+        persistAuthSession(session, email),
+        4_000,
+        'persist_session_timeout'
+      );
+    } catch (persistError) {
+      if (__DEV__) {
+        console.warn('[Auth] persistAuthSession failed:', persistError);
+      }
+    }
     return { userId: session.userId, accessToken: session.accessToken };
   } catch (error: unknown) {
-    const recovered = await recoverOtpSessionAfterVerifyTimeout();
-    if (recovered) {
-      return recovered;
+    if (error instanceof AuthApiError) {
+      throw new AuthOtpVerifyError(error.message, error.errorCode, error.httpStatus);
     }
     throw new Error(resolveAuthUserMessage(error));
   } finally {
@@ -476,21 +702,107 @@ export async function verifyEmailOtp(email: string, token: string): Promise<Veri
   }
 }
 
+/** Вход владельца по email и PIN через новый API. */
+export async function signInWithEmailPin(
+  email: string,
+  pin: string
+): Promise<VerifiedOtpSession> {
+  await assertNetworkOnline();
+  const session = await apiLogin(email, pin);
+  cacheDirectAuthSession(session);
+  await persistAuthSession(session, email);
+  return { userId: session.userId, accessToken: session.accessToken };
+}
+
+/** Установить PIN на сервере после OTP. */
+export async function setOwnerPinOnServer(
+  pin: string,
+  accessToken?: string | null
+): Promise<void> {
+  const token = accessToken ?? cachedDirectSession?.accessToken ?? (await getAuthAccessToken());
+  if (!token) {
+    throw new Error(t('alerts.auth.supabaseNoUserId'));
+  }
+  await apiSetPin(pin, token);
+}
+
+/** Сброс PIN на сервере через OTP. */
+export async function resetOwnerPinOnServer(
+  email: string,
+  code: string,
+  pin: string,
+  accessToken?: string | null
+): Promise<void> {
+  const token = accessToken ?? cachedDirectSession?.accessToken ?? (await getAuthAccessToken());
+  if (!token) {
+    throw new Error(t('alerts.auth.supabaseNoUserId'));
+  }
+  await apiResetPin(email, code, pin, token);
+}
+
+async function persistOwnerEmailAuthSession(
+  session: AuthSession,
+  email: string
+): Promise<void> {
+  cacheDirectAuthSession(session);
+  try {
+    await persistAuthSession(session, email);
+  } catch (persistError) {
+    if (__DEV__) {
+      console.warn('[Auth] persistAuthSession failed:', persistError);
+    }
+  }
+  await ensureOwnerProfileForLogin(session, email);
+}
+
+/** @deprecated Используйте signInWithEmailPin */
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<VerifiedOtpSession> {
+  return signInWithEmailPin(email, password);
+}
+
+/** Регистрация владельца — через OTP + set-pin. */
+export async function signUpWithEmail(
+  email: string,
+  _password: string,
+  _userData?: OwnerEmailAuthUserData
+): Promise<VerifiedOtpSession> {
+  throw new Error(t('alerts.auth.emailNotConfigured'));
+}
+
+export async function setOwnerPasswordAfterOtp(
+  pin: string,
+  accessToken?: string | null,
+): Promise<void> {
+  await setOwnerPinOnServer(pin, accessToken);
+}
+
+export async function resetPasswordForEmail(email: string): Promise<void> {
+  await sendEmailOtp(email, { forPinReset: true });
+}
+
+export type OwnerEmailAuthUserData = {
+  name?: string;
+};
+
 /**
- * Привязать активную Supabase-сессию к профилю приложения.
- * Вызывается после успешного OTP и локального выбора роли/ПВЗ.
+ * Привязать активную сессию к профилю приложения.
  */
 export async function linkSupabaseProfile(profile: AuthProfilePayload): Promise<string | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.user?.id) {
-    return null;
+  const accessToken = await getAuthAccessToken();
+  let userId = getCachedSessionUserId();
+  if (!userId && accessToken) {
+    userId = parseUserIdFromJwt(accessToken);
   }
 
-  await upsertProfile(session.user.id, profile);
-  return session.user.id;
+  if (userId && accessToken) {
+    await upsertProfileViaRest(userId, profile, accessToken);
+    return userId;
+  }
+
+  return userId;
 }
 
 /** Перенос локального id на UUID Supabase (смены, ПВЗ, pvz_users) с откатом при ошибке. */
@@ -578,38 +890,23 @@ export async function migrateLocalUserId(oldId: string, newId: string, role: Use
   }
 }
 
-/** UUID текущего пользователя Supabase Auth (после email/phone OTP). */
+/** UUID текущего пользователя (после email OTP / login). */
 export async function getSupabaseSessionUserId(): Promise<string | null> {
   const cached = getCachedSessionUserId();
   if (cached) return cached;
 
   const stored = await readStoredAuthSession();
   if (stored?.user?.id) return stored.user.id;
-
-  if (!(await ensureSupabaseClientSession())) {
-    return null;
+  if (stored?.access_token) {
+    const userId = parseUserIdFromJwt(stored.access_token);
+    if (userId) return userId;
   }
 
-  try {
-    const {
-      data: { session },
-    } = await withTimeoutReject(supabase.auth.getSession(), 4_000, 'session_read_timeout');
-    return session?.user?.id ?? null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-/** Быстрая проверка: есть JWT (без setSession). */
+/** Быстрая проверка: есть JWT. */
 export async function hasSupabaseSession(): Promise<boolean> {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) return true;
-  } catch {
-    // continue
-  }
   return hasStoredAuthTokens();
 }
 
@@ -622,150 +919,83 @@ export async function hasStoredAuthTokens(): Promise<boolean> {
   return Boolean(stored?.access_token || stored?.refresh_token);
 }
 
-type StoredAuthSession = {
-  access_token?: string;
-  refresh_token?: string;
-  user?: { id?: string };
-};
-
-async function readStoredAuthSession(): Promise<StoredAuthSession | null> {
-  const raw = await secureStorageAdapter.getItem(getSupabaseAuthStorageKey());
-  if (!raw) return null;
-
-  const parsed = safeParseJson<StoredAuthSession>(raw, {});
-  if (!parsed.access_token && !parsed.refresh_token) return null;
-  return parsed;
-}
-
-async function applySessionTokens(accessToken: string, refreshToken: string): Promise<boolean> {
+function parseUserIdFromJwt(accessToken: string): string | null {
   try {
-    const { data, error } = await withTimeoutReject(
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      }),
-      5_000,
-      'session_apply_timeout'
-    );
-    return !error && Boolean(data.session?.access_token);
+    const payloadPart = accessToken.split('.')[1];
+    if (!payloadPart) return null;
+    const payload = JSON.parse(atob(payloadPart)) as { sub?: string; id?: string };
+    return payload.sub ?? payload.id ?? null;
   } catch {
-    return false;
+    return null;
   }
 }
+
+const SESSION_RESTORE_TIMEOUT_MS = 10_000;
+const SESSION_READ_TIMEOUT_MS = 2_500;
+const SESSION_PERSIST_TIMEOUT_MS = 8_000;
+const PROFILE_REST_TIMEOUT_MS = 5_000;
+const STAFF_PROFILE_RPC_TIMEOUT_MS = 10_000;
 
 let clientSessionRestoreInFlight: Promise<boolean> | null = null;
 
-async function restoreSupabaseClientSession(): Promise<boolean> {
-  try {
-    const {
-      data: { session: activeSession },
-    } = await supabase.auth.getSession();
-    if (activeSession?.access_token) return true;
-  } catch {
-    // continue with restore
-  }
-
-  if (cachedDirectSession?.accessToken && cachedDirectSession.refreshToken) {
-    if (
-      await applySessionTokens(cachedDirectSession.accessToken, cachedDirectSession.refreshToken)
-    ) {
-      return true;
-    }
-  }
-
-  const stored = await readStoredAuthSession();
-  if (!stored) return false;
-
-  if (stored.access_token && stored.refresh_token) {
-    if (await applySessionTokens(stored.access_token, stored.refresh_token)) {
-      return true;
-    }
-  }
-
-  if (!stored.refresh_token) return false;
-
-  try {
-    const { data, error } = await withTimeoutReject(
-      supabase.auth.refreshSession({ refresh_token: stored.refresh_token }),
-      8_000,
-      'session_refresh_timeout'
-    );
-    return !error && Boolean(data.session?.access_token);
-  } catch {
-    return false;
-  }
+export function suspendAuthClientNetworkSync(): void {
+  gateSuspendAuthClientNetworkSync();
 }
 
-/** Синхронизирует JWT в Supabase-клиенте (дедупликация параллельных вызовов). */
-export async function ensureSupabaseClientSession(): Promise<boolean> {
-  try {
-    const {
-      data: { session: activeSession },
-    } = await supabase.auth.getSession();
-    if (activeSession?.access_token) return true;
-  } catch {
-    // continue with restore
-  }
+export function resumeAuthClientNetworkSync(_options?: { warm?: boolean }): void {
+  gateResumeAuthClientNetworkSync();
+}
 
-  if (clientSessionRestoreInFlight) {
-    return clientSessionRestoreInFlight;
-  }
+async function restoreAuthClientSession(): Promise<boolean> {
+  if (cachedDirectSession?.accessToken) return true;
+  return hasStoredAccessToken();
+}
 
-  clientSessionRestoreInFlight = restoreSupabaseClientSession().finally(() => {
+function scheduleClientSessionRestore(): void {
+  if (clientSessionRestoreInFlight) return;
+  clientSessionRestoreInFlight = restoreAuthClientSession().finally(() => {
     clientSessionRestoreInFlight = null;
   });
-  return clientSessionRestoreInFlight;
 }
 
-/** setSession в фоне после чтения по REST. */
+async function hasAuthTokensAvailable(): Promise<boolean> {
+  if (cachedDirectSession?.accessToken) return true;
+  return hasStoredAccessToken();
+}
+
+/** Проверка JWT в storage. */
+export async function ensureSupabaseClientSession(): Promise<boolean> {
+  return hasAuthTokensAvailable();
+}
+
 export function warmSupabaseClientSession(): void {
-  void ensureSupabaseClientSession();
+  scheduleClientSessionRestore();
 }
 
 /**
- * JWT для Edge Functions: клиент → кэш OTP → storage.
- * Не ждёт supabase.auth.setSession (важно для оплаты после входа по PIN).
+ * JWT: кэш OTP → storage.
  */
 export async function resolveAuthAccessToken(): Promise<string | null> {
-  const existing = await getAuthAccessToken();
-  if (existing) {
-    warmSupabaseClientSession();
-    return existing;
-  }
-
-  if (await ensureSupabaseClientSession()) {
-    return getAuthAccessToken();
-  }
-
-  return null;
+  return getAuthAccessToken();
 }
 
 /** @deprecated Используйте ensureSupabaseClientSession() */
 export async function ensureSupabaseSessionFromStorage(): Promise<boolean> {
-  const hadStored = await hasStoredAuthTokens();
-  const restored = await ensureSupabaseClientSession();
-  if (!restored && __DEV__ && hadStored) {
-    console.warn('[Auth] JWT в storage, но supabase.auth.setSession не удался');
-  }
-  return restored;
+  return ensureSupabaseClientSession();
 }
 
 export async function restoreSupabaseSession(): Promise<User | null> {
+  const accessToken = await getAuthAccessToken();
+  const userId =
+    getCachedSessionUserId() ?? (accessToken ? parseUserIdFromJwt(accessToken) : null);
+  if (!userId) return null;
+
   try {
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession();
-
-    if (error || !session?.user?.id) {
-      return null;
-    }
-
-    return await fetchProfileUser(session.user.id);
+    return await fetchProfileUser(userId);
   } catch (error) {
     if (__DEV__) {
       const message = error instanceof Error ? error.message : String(error);
-      console.warn('[Auth] restoreSupabaseSession:', message);
+      console.warn('[Auth] restoreSupabaseSession profile:', message);
     }
     return null;
   }
@@ -773,23 +1003,11 @@ export async function restoreSupabaseSession(): Promise<User | null> {
 
 export async function signOutSupabase(): Promise<void> {
   clearCachedDirectAuthSession();
-  await supabase.auth.signOut();
+  await clearAuthSession();
 }
 
-export function subscribeToAuthChanges(onChange: () => void): () => void {
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (!session) return;
-    try {
-      onChange();
-    } catch (error) {
-      if (__DEV__) {
-        console.warn('[Auth] onAuthStateChange handler:', error);
-      }
-    }
-  });
-  return () => subscription.unsubscribe();
+export function subscribeToAuthChanges(_onChange: () => void): () => void {
+  return () => undefined;
 }
 
 export { deleteUserAccount, AccountDeletionError } from './accountDeletionService';

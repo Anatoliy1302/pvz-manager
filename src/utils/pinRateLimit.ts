@@ -2,8 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import { toSecureStoreKeySuffix } from './loginIdentifier';
 import { safeParseJson } from './safeJson';
 
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 30_000;
+const MAX_ATTEMPTS = 3;
+const LOCKOUT_MS = 5 * 60_000;
 
 interface PinAttemptRecord {
   failures: number;

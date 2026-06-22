@@ -93,6 +93,9 @@ export default function EmployeeScheduleScreen({ navigation }: any) {
     if (!user?.id) return;
 
     try {
+      if (pvz?.id) {
+        await DataService.pullPvzScheduleFromServer(pvz.id);
+      }
       const allShifts = await DataService.getShiftsLocal();
       const rangeShifts: EmployeeShift[] = [];
 

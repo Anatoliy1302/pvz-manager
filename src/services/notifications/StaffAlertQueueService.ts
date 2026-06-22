@@ -1,10 +1,21 @@
 import StorageService from '../StorageService';
 import { generateSecureId } from '../../utils/generateSecureId';
 import { safeParseJson } from '../../utils/safeJson';
-import type { StaffAlertQueueItem } from './types';
+import type { NotificationType, StaffAlertQueueItem } from './types';
 import { STAFF_ALERT_QUEUE_KEY } from './types';
-import notificationHistoryService from './NotificationHistoryService';
 import localNotificationService from './LocalNotificationService';
+
+function mapQueueNotificationType(data?: Record<string, unknown>): NotificationType {
+  const raw =
+    (typeof data?.notificationType === 'string' ? data.notificationType : undefined) ||
+    (typeof data?.type === 'string' ? data.type : undefined) ||
+    '';
+  if (raw.includes('swap')) return 'swap';
+  if (raw.includes('schedule')) return 'schedule';
+  if (raw.includes('shift')) return 'shift';
+  if (raw.includes('request') || raw.includes('advance')) return 'request';
+  return 'request';
+}
 
 class StaffAlertQueueService {
   async enqueueStaffAlert(
@@ -42,18 +53,12 @@ class StaffAlertQueueService {
       await StorageService.setItem(STAFF_ALERT_QUEUE_KEY, JSON.stringify(rest));
 
       for (const alert of mine) {
-        await notificationHistoryService.saveToHistory(
-          alert.title,
-          alert.message,
-          'request',
-          alert.data,
-          userId
-        );
+        const notificationType = mapQueueNotificationType(alert.data);
         await localNotificationService.show({
           title: alert.title,
           body: alert.message,
           data: alert.data,
-          notificationType: 'request',
+          notificationType,
           saveToHistory: false,
           userId,
         });

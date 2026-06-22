@@ -40,16 +40,18 @@ export type { NotificationRecord } from './notifications/types';
 
 class NotificationService {
   private currentUserId: string | undefined;
+  private currentUserRole: string | undefined;
 
   setCurrentUserRole(role?: string): void {
+    this.currentUserRole = role;
     pushTokenService.setCurrentUser(this.currentUserId, role);
     localNotificationService.setCurrentUser(this.currentUserId, role);
   }
 
   setCurrentUserId(userId?: string): void {
     this.currentUserId = userId;
-    pushTokenService.setCurrentUser(userId, undefined);
-    localNotificationService.setCurrentUser(userId, undefined);
+    pushTokenService.setCurrentUser(userId, this.currentUserRole);
+    localNotificationService.setCurrentUser(userId, this.currentUserRole);
   }
 
   async applyUserPreferences(): Promise<void> {
@@ -114,28 +116,36 @@ class NotificationService {
     message: string;
     type: NotificationType;
     data: Record<string, unknown>;
-    enqueue?: boolean;
     local?: boolean;
   }): Promise<void> {
-    const { recipientUserId, title, message, type, data, enqueue = true, local = false } = params;
+    const { recipientUserId, title, message, type, data, local = false } = params;
 
-    await notificationHistoryService.saveToHistory(title, message, type, data, recipientUserId);
-    if (enqueue) {
-      await staffAlertQueueService.enqueueStaffAlert(recipientUserId, title, message, data);
-    }
+    const record = await notificationHistoryService.saveToHistory(
+      title,
+      message,
+      type,
+      data,
+      recipientUserId
+    );
+    const deliveryData = {
+      ...data,
+      notificationId: record?.id,
+      notificationType: type,
+      remotePush: true,
+    };
 
     if (local || recipientUserId === this.currentUserId) {
       await localNotificationService.show({
         title,
         body: message,
-        data,
+        data: deliveryData,
         notificationType: type,
         saveToHistory: false,
         userId: recipientUserId,
       });
     }
 
-    await pushDeliveryService.sendToUser(recipientUserId, title, message, data);
+    await pushDeliveryService.sendToUser(recipientUserId, title, message, deliveryData);
 
     DataService.emitChange('notifications');
     DataService.emitChange(`notifications_${recipientUserId}`);
@@ -562,21 +572,29 @@ class NotificationService {
     title: string;
     message: string;
     data: Record<string, unknown>;
-    enqueue?: boolean;
     local?: boolean;
   }): Promise<void> {
-    const { recipientUserId, title, message, data, enqueue = true, local = false } = params;
+    const { recipientUserId, title, message, data, local = false } = params;
 
-    await notificationHistoryService.saveToHistory(title, message, 'system', data, recipientUserId);
-    if (enqueue) {
-      await staffAlertQueueService.enqueueStaffAlert(recipientUserId, title, message, data);
-    }
+    const record = await notificationHistoryService.saveToHistory(
+      title,
+      message,
+      'system',
+      data,
+      recipientUserId
+    );
+    const deliveryData = {
+      ...data,
+      notificationId: record?.id,
+      notificationType: 'system',
+      remotePush: true,
+    };
 
     if (local || recipientUserId === this.currentUserId) {
       await localNotificationService.show({
         title,
         body: message,
-        data,
+        data: deliveryData,
         notificationType: 'system',
         settingsCategory: 'chat',
         saveToHistory: false,
@@ -584,7 +602,7 @@ class NotificationService {
       });
     }
 
-    await pushDeliveryService.sendToUser(recipientUserId, title, message, data);
+    await pushDeliveryService.sendToUser(recipientUserId, title, message, deliveryData);
 
     DataService.emitChange('notifications');
     DataService.emitChange(`notifications_${recipientUserId}`);
@@ -613,7 +631,6 @@ class NotificationService {
       title,
       message: body,
       data,
-      enqueue: false,
       local: recipientUserId === this.currentUserId,
     });
   }

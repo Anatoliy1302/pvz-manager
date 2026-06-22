@@ -15,7 +15,6 @@ import { Bell, Moon, Volume2, Vibrate, Lock, ChevronRight, Trash2 } from 'lucide
 import { useTheme } from '../../context/ThemeContext';
 import LanguagePicker from '../../components/common/LanguagePicker';
 import { useNotificationSettings } from '../../hooks/useNotificationSettings';
-import { useDeleteAccountPrompt } from '../../hooks/useDeleteAccountPrompt';
 import { useAuth } from '../../context/AuthContext';
 import {
   getNotificationSettingsKey,
@@ -35,7 +34,6 @@ export default function SettingsScreen({ navigation }: any) {
   const { t } = useTranslation();
   const { colors, theme, toggleTheme } = useTheme();
   const { user } = useAuth();
-  const { promptDeleteAccount, deletingAccount } = useDeleteAccountPrompt();
   const settingsKey = getNotificationSettingsKey(user?.id, user?.role);
   const {
     pushEnabled,
@@ -136,18 +134,13 @@ export default function SettingsScreen({ navigation }: any) {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.dangerItem}
-            onPress={promptDeleteAccount}
-            disabled={deletingAccount}
+            onPress={() => navigation.navigate('DeleteAccount')}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={t('settings.security.deleteAccount')}
           >
             <View style={styles.settingLeft}>
-              {deletingAccount ? (
-                <ActivityIndicator size="small" color="#E53935" />
-              ) : (
-                <Trash2 size={20} color="#E53935" />
-              )}
+              <Trash2 size={20} color="#E53935" />
               <View style={styles.dangerTextBlock}>
                 <Text style={styles.dangerText}>{t('settings.security.deleteAccount')}</Text>
                 <Text style={styles.dangerHint}>{t('settings.security.deleteAccountDesc')}</Text>

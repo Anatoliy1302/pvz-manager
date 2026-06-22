@@ -13,6 +13,15 @@ import { readUserChats } from './chatDataService';
 import { dataEventBus } from './dataEventBus';
 import { Correction, Overtime } from './dataTypes';
 import { getShiftsHistory } from './shiftDataService';
+import { queueSnapshotPatch } from '../../../lib/syncPersistence';
+
+async function syncEmployeeExtrasPatch(
+  employeeId: string,
+  key: 'corrections_by_employee' | 'overtime_by_employee',
+  items: unknown[]
+): Promise<void> {
+  queueSnapshotPatch({ [key]: { [employeeId]: items } });
+}
 
 /** Ключи настроек приложения — не удаляем при выходе */
 const PRESERVED_STORAGE_KEYS = new Set(['onboarding_completed', 'app_theme']);
@@ -157,6 +166,7 @@ export async function addCorrection(employeeId: string, correction: Correction):
   corrections.push(correction);
   await SecureStore.setItemAsync(`corrections_${employeeId}`, JSON.stringify(corrections));
   dataEventBus.notify(`corrections_${employeeId}`);
+  void syncEmployeeExtrasPatch(employeeId, 'corrections_by_employee', corrections);
 }
 
 export async function getOvertimes(employeeId: string): Promise<Overtime[]> {
@@ -169,6 +179,7 @@ export async function addOvertime(employeeId: string, overtime: Overtime): Promi
   overtimes.push(overtime);
   await SecureStore.setItemAsync(`overtime_${employeeId}`, JSON.stringify(overtimes));
   dataEventBus.notify(`overtime_${employeeId}`);
+  void syncEmployeeExtrasPatch(employeeId, 'overtime_by_employee', overtimes);
 }
 
 export async function updateOvertime(
@@ -183,6 +194,7 @@ export async function updateOvertime(
     overtimes[index].status = status;
     await SecureStore.setItemAsync(`overtime_${employeeId}`, JSON.stringify(overtimes));
     dataEventBus.notify(`overtime_${employeeId}`);
+    void syncEmployeeExtrasPatch(employeeId, 'overtime_by_employee', overtimes);
   }
 }
 

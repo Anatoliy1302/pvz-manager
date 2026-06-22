@@ -22,6 +22,7 @@ import { colors } from '../../constants/colors';
 import { calculatePvzSalaryOverview } from '../../services/PaymentService';
 import DataService from '../../services/DataService';
 import { getMonthRange, toDateKey } from '../../utils/dateHelpers';
+import { User } from '../../types/user';
 import {
   Wallet,
   ChevronLeft,
@@ -42,6 +43,12 @@ interface EmployeeSalary {
   earned: number;
   paid: number;
   balance: number;
+}
+
+function employeeWorksAtPvz(user: User, pvzId: string): boolean {
+  if (!pvzId) return true;
+  if (user.pvzId === pvzId) return true;
+  return user.pvzIds?.includes(pvzId) ?? false;
 }
 
 export default function SalaryScreen({ navigation }: any) {
@@ -65,13 +72,19 @@ export default function SalaryScreen({ navigation }: any) {
     if (!pvz?.id) return;
     setLoading(true);
     try {
+      const { pullPvzOperationalData } = await import('../../services/data/pvzDataPull');
+      await pullPvzOperationalData(pvz.id);
+
       const { start, end } = getMonthRange(selectedMonth.getFullYear(), selectedMonth.getMonth());
       const startStr = toDateKey(start);
       const endStr = toDateKey(end);
 
       const users = await DataService.getUsers();
       const employeesList = users.filter(
-        (u) => u.role !== 'owner' && u.status === 'active'
+        (u) =>
+          u.role !== 'owner' &&
+          u.status === 'active' &&
+          employeeWorksAtPvz(u, pvz.id)
       );
       const overview = await calculatePvzSalaryOverview(pvz.id, startStr, endStr);
       const overviewById = new Map(overview.map((row) => [row.employeeId, row]));

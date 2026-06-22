@@ -25,6 +25,8 @@ import { User } from '../../types/user';
 import { calculatePvzSalaryOverview } from '../../services/PaymentService';
 import DataService from '../../services/DataService';
 import { formatHours, toDateKey } from '../../utils/dateHelpers';
+import { isSamePvz } from '../../utils/supabaseHelpers';
+import { Shift } from '../../types/user';
 import {
   Users,
   Calendar,
@@ -96,10 +98,18 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
     if (!pvzId) return;
 
     try {
+      const { pullPvzOperationalData } = await import('../../services/data/pvzDataPull');
+      await pullPvzOperationalData(pvzId);
+
       const users = await DataService.getUsers();
       const shifts = await DataService.getShiftsLocal();
 
-      const filteredShifts = shifts.filter((s) => s.pvzId === pvzId);
+      const filteredShifts: Shift[] = [];
+      for (const shift of shifts) {
+        if (await isSamePvz(shift.pvzId, pvzId)) {
+          filteredShifts.push(shift);
+        }
+      }
       const filteredUsers = users.filter(
         (u) => u.role !== 'owner' && u.status === 'active' && userWorksAtPvz(u, pvzId)
       );
@@ -178,7 +188,8 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
         const stats = employeeStatsMap[row.employeeId];
         if (!stats) continue;
         stats.totalEarned = row.accruals.netEarned;
-        stats.totalPending = Math.max(0, row.accruals.netEarned - stats.totalPaid);
+        stats.totalPaid = row.accruals.totalPaid;
+        stats.totalPending = row.accruals.balance;
       }
 
       const sorted = Object.values(employeeStatsMap).sort((a, b) => b.totalHours - a.totalHours);
@@ -204,8 +215,8 @@ export default function OwnerAnalyticsScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      if (pvz?.id) setSelectedPvzId(pvz.id);
-    }, [pvz?.id])
+      if (pvz?.id && !selectedPvzId) setSelectedPvzId(pvz.id);
+    }, [pvz?.id, selectedPvzId])
   );
 
   useFocusEffect(

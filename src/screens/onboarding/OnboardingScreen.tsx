@@ -9,6 +9,7 @@ import {
   View,
   ViewToken,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as SecureStore from 'expo-secure-store';

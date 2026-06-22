@@ -1,19 +1,10 @@
+import type { LucideIcon } from 'lucide-react-native';
 import { UserRole } from '../../types/user';
-import { LucideIcon } from 'lucide-react-native';
 
-export type LoginStep =
-  | 'quickLogin'
-  | 'role'
-  | 'email'
-  | 'phone'
-  | 'sms'
-  | 'pin'
-  | 'createPvz'
-  | 'selectPvz';
+/** Режим экрана: вход или регистрация владельца. */
+export type AuthFlowMode = 'login' | 'register';
 
-export type OtpChannel = 'sms' | 'email';
-
-/** Статус доставки OTP на экране ввода кода. */
+export type OtpChannel = 'email' | 'sms';
 export type OtpSendStatus =
   | 'idle'
   | 'sending'
@@ -21,8 +12,6 @@ export type OtpSendStatus =
   | 'uncertain'
   | 'rate_limited'
   | 'failed';
-
-export type PinMode = 'setup' | 'entry';
 
 export interface LoginRoleOption {
   id: UserRole;
@@ -34,7 +23,7 @@ export interface LoginRoleOption {
 export interface LoginPvzItem {
   id: string;
   name: string;
-  address: string;
+  address?: string;
 }
 
 export interface LoginInvitationItem {
@@ -43,3 +32,19 @@ export interface LoginInvitationItem {
   pvzName: string;
   invitedByName?: string;
 }
+
+/** Шаги входа: роль → (владелец: email/PIN) | (staff: phone/SMS) → выбор ПВЗ. */
+export type LoginStep =
+  | 'role'
+  | 'quick_login'
+  | 'email'
+  | 'phone'
+  | 'sms'
+  | 'select_pvz'
+  | 'pin'
+  | 'otp_reset'
+  | 'register_otp'
+  | 'new_pin'
+  | 'create_pvz';
+
+export type NewPinPhase = 'enter' | 'confirm';

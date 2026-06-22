@@ -1,13 +1,15 @@
 import * as SecureStore from 'expo-secure-store';
 import { User } from '../../types/user';
 import {
-  fetchInvitationByPhone,
+  checkPendingInvitationForPhone,
+  hasPendingEmployeeInvite,
   fetchInvitationsFromSupabase,
+  fetchPendingInvitationForLogin,
   mergeInvitations,
   upsertInvitationToSupabase,
   updateInvitationStatusInSupabase,
 } from '../SupabaseInvitationService';
-import { hasSupabaseSession } from '../SupabaseAuthService';
+import { hasStoredAuthTokens } from '../SupabaseAuthService';
 import { normalizePhone } from '../../utils/supabaseHelpers';
 import { dataEventBus } from './dataEventBus';
 import { Invitation } from './dataTypes';
@@ -23,10 +25,6 @@ export async function getInvitations(ownerId: string): Promise<Invitation[]> {
   }
 
   const ownerRemote = remote.filter((inv) => inv.invitedBy === ownerId);
-  if (ownerRemote.length === 0) {
-    return local;
-  }
-
   const merged = mergeInvitations(local, ownerRemote).map((inv) => ({
     ...inv,
     pvzName: inv.pvzName ?? '',
@@ -128,15 +126,20 @@ export async function getPendingInvitationsForLoginPhone(
 ): Promise<Invitation[]> {
   const cleanPhone = normalizePhone(phone);
 
-  if (await hasSupabaseSession()) {
-    await refreshInvitationsForLogin();
-    const remote = await fetchInvitationByPhone(cleanPhone);
-    if (remote && remote.status === 'pending' && remote.role === role) {
-      const allRaw = await SecureStore.getItemAsync('all_invitations');
-      const allLocal = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
-      const merged = mergeInvitations(allLocal, [{ ...remote, pvzName: remote.pvzName ?? 'ПВЗ' }]);
-      await SecureStore.setItemAsync('all_invitations', JSON.stringify(merged));
-      dataEventBus.emitChange('all_invitations');
+  if (await hasStoredAuthTokens()) {
+    for (const delayMs of [0, 400, 1200, 2500]) {
+      if (delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+      const remote = await fetchPendingInvitationForLogin(cleanPhone, role);
+      if (remote && remote.status === 'pending' && remote.role === role) {
+        const allRaw = await SecureStore.getItemAsync('all_invitations');
+        const allLocal = safeParseJson<Invitation[]>(allRaw ?? '[]', []);
+        const merged = mergeInvitations(allLocal, [{ ...remote, pvzName: remote.pvzName ?? 'ПВЗ' }]);
+        await SecureStore.setItemAsync('all_invitations', JSON.stringify(merged));
+        dataEventBus.emitChange('all_invitations');
+        break;
+      }
     }
   }
 
@@ -147,6 +150,8 @@ export async function getPendingInvitationsForLoginPhone(
       normalizePhone(inv.phone) === cleanPhone && inv.status === 'pending' && inv.role === role
   );
 }
+
+export { checkPendingInvitationForPhone, hasPendingEmployeeInvite };
 
 export async function refreshInvitationsCache(sessionUser: User): Promise<void> {
   await refreshInvitationsForLogin();

@@ -64,6 +64,8 @@ export async function resolveOwnerPvzsForLogin(
       const migratedLocal = await DataService.getPvzsByOwner(sessionUserId);
       pvzList = mergePvzLists(pvzList, migratedLocal);
     }
+  } else if (sessionUserId) {
+    pvzList = await DataService.getPvzsByOwner(sessionUserId);
   }
 
   if (sessionUserId) {

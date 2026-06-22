@@ -56,7 +56,14 @@ interface ThemeContextData {
   setTheme: (theme: ThemeMode) => void;
 }
 
-const ThemeContext = createContext<ThemeContextData>({} as ThemeContextData);
+const defaultThemeContext: ThemeContextData = {
+  theme: 'light',
+  colors: lightColors,
+  toggleTheme: () => {},
+  setTheme: () => {},
+};
+
+const ThemeContext = createContext<ThemeContextData>(defaultThemeContext);
 
 export const useTheme = () => useContext(ThemeContext);
 

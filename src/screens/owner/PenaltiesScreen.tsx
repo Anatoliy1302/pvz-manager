@@ -20,7 +20,8 @@ import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import DataService from '../../services/DataService';
 import StorageService from '../../services/StorageService';
-import { addPenalty as savePenalty, updateEmployeeBalance } from '../../services/PaymentService';
+import { addPenalty as savePenalty, removePenalty, updateEmployeeBalance } from '../../services/PaymentService';
+import { userBelongsToPvz } from '../../utils/chatHelpers';
 import { ChevronLeft, Plus, X, Check, AlertCircle, User, Calendar, Trash2, RefreshCw } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import EmptyState from '../../components/common/EmptyState';
@@ -59,13 +60,21 @@ export default function PenaltiesScreen({ navigation }: any) {
   const [type, setType] = useState<'fine' | 'bonus'>('fine');
   const [recalculating, setRecalculating] = useState(false);
 
+  const pullRemotePenalties = async () => {
+    if (!pvz?.id) return;
+    const { pullPvzFinanceFromServer } = await import('../../services/data/financeDataService');
+    await pullPvzFinanceFromServer(pvz.id);
+  };
+
   const loadData = async () => {
     if (!pvz?.id) return;
     
     try {
+      await pullRemotePenalties();
+
       const users = await DataService.getUsers();
-      const pvzEmployees = users.filter(u => 
-        u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id
+      const pvzEmployees = users.filter(
+        (u) => u.role !== 'owner' && u.status === 'active' && userBelongsToPvz(u, pvz)
       );
       setEmployees(pvzEmployees);
       
@@ -142,9 +151,7 @@ export default function PenaltiesScreen({ navigation }: any) {
     try {
       await savePenalty(selectedEmployeeId, newPenalty, pvz?.id || employee?.pvzId || '');
       
-      setPenalties(prev => [newPenalty, ...prev]);
-      
-      await syncEmployeeAccruals(selectedEmployeeId);
+      await loadData();
       
       setModalVisible(false);
       setSelectedEmployeeId('');
@@ -179,18 +186,10 @@ export default function PenaltiesScreen({ navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             try {
-              const existingRaw = await StorageService.getItem(`penalties_${penalty.employeeId}`);
-              const existing = safeParseJson<Penalty[]>(existingRaw ?? '[]', []);
-              const filtered = existing.filter((p: any) => p.id !== penalty.id);
-              await StorageService.setItem(`penalties_${penalty.employeeId}`, JSON.stringify(filtered));
-              DataService.emitChange(`penalties_${penalty.employeeId}`);
-              if (pvz?.id) {
-                DataService.emitChange(`penalties_${pvz.id}`);
-              }
+              if (!pvz?.id) return;
+              await removePenalty(penalty.employeeId, penalty.id, pvz.id);
 
-              setPenalties(prev => prev.filter(p => p.id !== penalty.id));
-              
-              await syncEmployeeAccruals(penalty.employeeId);
+              setPenalties((prev) => prev.filter((p) => p.id !== penalty.id));
               
               showSuccess(t('alerts.success.penaltyDeleted'));
             } catch (error) {

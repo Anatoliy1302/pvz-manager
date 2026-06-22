@@ -4,8 +4,15 @@ import { Shift, User } from '../types/user';
 import DataService from '../services/DataService';
 import { SalaryFormula, ShiftCalculation, ShiftStats, EmployeeSalarySettings } from '../types/salary';
 import { getFormulaForEmployee, getEmployeeSalarySettings, saveShiftCalculation } from '../services/SalaryFormulaService';
+import {
+  calculateBaseEarningsForFormula,
+  calculateGoodsBonusAmount,
+  calculateTotalHours,
+} from './salaryFormulaHelpers';
 import { generateSecureId } from './generateSecureId';
 import { safeParseJson } from './safeJson';
+
+export { calculateTotalHours };
 
 async function getShiftCalculationLocal(shiftId: string): Promise<ShiftCalculation | null> {
   try {
@@ -54,25 +61,6 @@ async function getEmployeePenaltiesForDate(employeeId: string, date: string): Pr
     console.error('Ошибка загрузки штрафов:', error);
     return { totalFines: 0, totalBonuses: 0 };
   }
-}
-
-export function calculateTotalHours(startTime: string, endTime: string): number {
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-  
-  let hours = endHour - startHour;
-  let minutes = endMinute - startMinute;
-  
-  if (minutes < 0) {
-    hours--;
-    minutes += 60;
-  }
-  
-  if (hours < 0) {
-    hours += 24;
-  }
-  
-  return Number((hours + minutes / 60).toFixed(2));
 }
 
 function parseTimeToMinutes(time: string): number {
@@ -128,53 +116,6 @@ function getRateByEmployeesCount(formula: SalaryFormula, employeesCount: number)
   if (employeesCount === 2) return formula.rate2Employees;
   if (employeesCount === 3) return formula.rate3Employees;
   return formula.rate4Employees;
-}
-
-function calculateBaseEarnings(
-  formula: SalaryFormula,
-  rate: number,
-  hours: number,
-  shift: Shift
-): { earnings: number; calculation: string } {
-  let earnings = 0;
-  let calculation = '';
-  
-  if (formula.payType === 'fixed_shift') {
-    earnings = rate;
-    calculation = `Фиксированная ставка: ${rate} ₽`;
-  } else {
-    earnings = rate * hours;
-    calculation = `${rate} ₽/ч × ${hours} ч = ${earnings} ₽`;
-  }
-  
-  return { earnings, calculation };
-}
-
-function calculateGoodsBonus(
-  bonusConfig: { enabled: boolean; perItem?: number; threshold: number } | undefined,
-  goodsCount: number,
-  bonusName: string
-): { bonus: number; calculation: string } {
-  if (!bonusConfig?.enabled || !goodsCount) {
-    return { bonus: 0, calculation: '' };
-  }
-  
-  const threshold = bonusConfig.threshold || 0;
-  const count = Math.max(0, goodsCount - threshold);
-  
-  if (count === 0) {
-    return { bonus: 0, calculation: '' };
-  }
-  
-  let bonus = 0;
-  let calculation = '';
-  
-  if (bonusConfig.perItem) {
-    bonus = count * bonusConfig.perItem;
-    calculation = `${bonusName}: ${count} шт × ${bonusConfig.perItem} ₽ = ${bonus} ₽`;
-  }
-  
-  return { bonus, calculation };
 }
 
 function calculateSeniorityBonus(
@@ -235,7 +176,7 @@ export async function calculateAdvancedShiftEarnings(
     throw new Error('Формула расчёта не найдена');
   }
   
-  const employeeSettings = await getEmployeeSalarySettings(employee.id);
+  const employeeSettings = await getEmployeeSalarySettings(employee.id, pvzId);
   
   const employeesOnShift = stats?.employeesOnShift || await getEmployeesOnShift(shift.id, pvzId);
   
@@ -255,20 +196,27 @@ export async function calculateAdvancedShiftEarnings(
     hoursCalculationNote = shift.actualHours ? `Фактические часы: ${actualHours} ч` : `Плановые часы: ${actualHours} ч`;
   }
   
-  const { earnings: baseEarnings, calculation: baseCalc } = calculateBaseEarnings(formula, baseRate, actualHours, shift);
+  const { earnings: baseEarnings, calculation: baseCalc } = calculateBaseEarningsForFormula(
+    formula,
+    baseRate,
+    actualHours,
+    shift
+  );
   
   const goodsIssuedCount = stats?.goodsIssuedCount || 0;
   const goodsReceivedCount = stats?.goodsReceivedCount || 0;
   
-  const { bonus: goodsIssuedBonus, calculation: goodsIssuedCalc } = calculateGoodsBonus(
+  const { bonus: goodsIssuedBonus, calculation: goodsIssuedCalc } = calculateGoodsBonusAmount(
     formula.goodsIssuedBonus,
     goodsIssuedCount,
+    stats?.goodsIssuedValue,
     'Премия за выданные товары'
   );
   
-  const { bonus: goodsReceivedBonus, calculation: goodsReceivedCalc } = calculateGoodsBonus(
+  const { bonus: goodsReceivedBonus, calculation: goodsReceivedCalc } = calculateGoodsBonusAmount(
     formula.goodsReceivedBonus,
     goodsReceivedCount,
+    stats?.goodsReceivedValue,
     'Премия за принятые товары'
   );
   

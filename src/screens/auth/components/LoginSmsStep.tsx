@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { getOtpCodeLength, DEMO_MODE, DEMO_OTP_CODE } from '../../../services/SupabaseAuthService';
+import { getPhoneOtpCodeLength, DEMO_MODE, DEMO_OTP_CODE } from '../../../services/SupabaseAuthService';
 import { colors } from '../../../constants/colors';
 import LoginContinueButton from './LoginContinueButton';
 import LoginStepBackButton from './LoginStepBackButton';
@@ -93,7 +93,7 @@ function OtpDeliveryCard({
             </Text>
           ) : null}
           <Text style={[loginStyles.otpDeliveryHint, { color: screen.textSecondary }]}>
-            {t('auth.otpDelivery.useLatest')}
+            {isEmail ? t('auth.otpDelivery.useLatest') : t('auth.otpDelivery.useLatestSms')}
           </Text>
         </>
       ) : null}
@@ -124,7 +124,7 @@ export default function LoginSmsStep({
 }: LoginSmsStepProps) {
   const { t } = useTranslation();
   const { styles: loginStyles, ui, screen } = useLoginStyles();
-  const otpLength = getOtpCodeLength();
+  const otpLength = getPhoneOtpCodeLength();
   const isComplete = smsCode.length === otpLength;
   const isEmail = otpChannel === 'email';
   const showDemoHint = DEMO_MODE && !isEmail && otpSendStatus !== 'idle' && otpSendStatus !== 'failed';
@@ -192,7 +192,7 @@ export default function LoginSmsStep({
 
       <LoginContinueButton
         label={loading ? t('common.loading.checking') : t('common.actions.confirm')}
-        enabled={isComplete && otpSendStatus !== 'rate_limited' && otpSendStatus !== 'sending'}
+        enabled={isComplete && otpSendStatus !== 'rate_limited'}
         loading={loading}
         onPress={() => onVerify()}
       />

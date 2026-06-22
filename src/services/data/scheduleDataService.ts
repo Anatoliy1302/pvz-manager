@@ -8,11 +8,16 @@ import {
   ScheduleAssignment,
 } from '../../utils/scheduleHelpers';
 import { generateUuid, isSamePvz } from '../../utils/supabaseHelpers';
+import { getToken } from '../../../lib/authSessionStore';
+import * as scheduleApi from '../../../lib/scheduleService';
 import { dataEventBus } from './dataEventBus';
 import { ShiftRequest } from './dataTypes';
-import { addShift, getShifts } from './shiftDataService';
+import { addShift, getShifts, mergePvzShiftsFromRemote, readLocalShifts } from './shiftDataService';
 import { updateShiftRequest } from './shiftRequestDataService';
 import { safeParseJson } from '../../utils/safeJson';
+import { syncScheduleToServer } from '../../../lib/syncPersistence';
+
+type SaveOptions = { skipSync?: boolean };
 
 export async function getScheduleAssignments(pvzId: string): Promise<ScheduleAssignment[]> {
   const stored = await SecureStore.getItemAsync(getScheduleAssignmentsKey(pvzId));
@@ -21,10 +26,56 @@ export async function getScheduleAssignments(pvzId: string): Promise<ScheduleAss
 
 export async function saveScheduleAssignments(
   pvzId: string,
-  assignments: ScheduleAssignment[]
+  assignments: ScheduleAssignment[],
+  options?: SaveOptions
 ): Promise<void> {
   await SecureStore.setItemAsync(getScheduleAssignmentsKey(pvzId), JSON.stringify(assignments));
   dataEventBus.emitChange(`schedule_assignments_${pvzId}`);
+  if (!options?.skipSync) {
+    void syncScheduleToServer(pvzId, assignments);
+    void pushPvzScheduleBundle(pvzId);
+  }
+}
+
+/** Push assignments + PVZ shifts to owner snapshot (canonical for all devices). */
+export async function pushPvzScheduleBundle(pvzId: string): Promise<void> {
+  if (!(await getToken())) return;
+  try {
+    const assignments = await getScheduleAssignments(pvzId);
+    const allShifts = await readLocalShifts();
+    const pvzShifts: Shift[] = [];
+    for (const shift of allShifts) {
+      if (await isSamePvz(shift.pvzId, pvzId)) {
+        pvzShifts.push(shift);
+      }
+    }
+    await scheduleApi.updatePvzSchedule(pvzId, { assignments, shifts: pvzShifts });
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[Schedule] pushPvzScheduleBundle:', error);
+    }
+  }
+}
+
+/** Pull shared schedule from owner snapshot (employees + owner multi-device). */
+export async function pullPvzScheduleFromServer(pvzId: string): Promise<void> {
+  if (!(await getToken())) return;
+
+  try {
+    const remote = await scheduleApi.fetchPvzSchedule(pvzId);
+
+    if (Array.isArray(remote.assignments)) {
+      await saveScheduleAssignments(pvzId, remote.assignments, { skipSync: true });
+    }
+
+    if (Array.isArray(remote.shifts) && remote.shifts.length > 0) {
+      await mergePvzShiftsFromRemote(pvzId, remote.shifts);
+    }
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('[Schedule] pullPvzScheduleFromServer:', error);
+    }
+  }
 }
 
 export async function upsertScheduleAssignment(

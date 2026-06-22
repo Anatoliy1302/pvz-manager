@@ -1,16 +1,17 @@
 {
   "mcpServers": {
     "supabase": {
-      "command": "python",
-      "args": [
-        "-m",
-        "supabase_mcp_server",
-        "--project-ref",
-        "YOUR_PROJECT_REF",
-        "--read-only"
-      ],
+      "command": "C:\\Users\\Admin\\AppData\\Local\\Programs\\Python\\Python314\\Scripts\\supabase-mcp-server.exe",
+      "envFile": "c:\\pvz\\.env",
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_YOUR_PERSONAL_ACCESS_TOKEN"
+        "SUPABASE_PROJECT_REF": "wygpcndnlxfzbbuogqrt",
+        "SUPABASE_REGION": "eu-north-1"
+      }
+    },
+    "merlin": {
+      "command": "C:\\Users\\Admin\\AppData\\Roaming\\npm\\merlin-brain.cmd",
+      "env": {
+        "MERLIN_API_KEY": "your-merlin-api-key"
       }
     }
   }

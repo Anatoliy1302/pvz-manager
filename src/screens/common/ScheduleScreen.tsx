@@ -159,7 +159,10 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
       if (stored) {
         const all = safeParseJson<User[]>(stored, []);
         const filtered = all.filter(
-          (u) => u.role !== 'owner' && u.status === 'active' && u.pvzId === pvz.id
+          (u) =>
+            u.role !== 'owner' &&
+            u.status === 'active' &&
+            (u.pvzId === pvz.id || (u.role === 'admin' && u.pvzIds?.includes(pvz.id)))
         );
         setEmployees(filtered as Employee[]);
       }
@@ -171,6 +174,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
   const loadAssignments = async () => {
     if (!pvz?.id) return;
     try {
+      await DataService.pullPvzScheduleFromServer(pvz.id);
       const allAssignments = await DataService.syncScheduleFromShifts(pvz.id);
       const allShifts = await DataService.getShiftsLocal();
 
@@ -268,17 +272,8 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
       newAssignments.push(newAssignment);
     }
 
-    const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    let all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
-
-    if (existing) {
-      const idx = all.findIndex((a: ShiftAssignment) => a.id === existing.id);
-      if (idx !== -1) all[idx] = newAssignment;
-    } else {
-      all.push(newAssignment);
-    }
-
-    await SecureStore.setItemAsync(`schedule_assignments_${pvz?.id}`, JSON.stringify(all));
+    if (!pvz?.id) return;
+    await DataService.saveScheduleAssignments(pvz.id, newAssignments);
 
     const shiftForDashboard = {
       id: newAssignment.id,
@@ -324,15 +319,12 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
       (a) => a.employeeId === selectedCell.employeeId && a.date === selectedCell.date
     );
 
-    if (!deletedShift) return;
+    if (!deletedShift || !pvz?.id) return;
 
-    const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    const all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
-    const newAll = all.filter(
-      (a: ShiftAssignment) =>
-        !(a.employeeId === selectedCell.employeeId && a.date === selectedCell.date)
+    const newAll = assignments.filter(
+      (a) => !(a.employeeId === selectedCell.employeeId && a.date === selectedCell.date)
     );
-    await SecureStore.setItemAsync(`schedule_assignments_${pvz?.id}`, JSON.stringify(newAll));
+    await DataService.saveScheduleAssignments(pvz.id, newAll);
 
     await DataService.deleteShift(deletedShift.id);
 
@@ -350,13 +342,12 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
   };
 
   const copySchedule = async () => {
-    if (!copyFromDate || !copyToDate) return;
+    if (!copyFromDate || !copyToDate || !pvz?.id) return;
 
-    const allAssignments = await SecureStore.getItemAsync(`schedule_assignments_${pvz?.id}`);
-    const all = safeParseJson<ShiftAssignment[]>(allAssignments ?? '[]', []);
+    const all = await DataService.getScheduleAssignments(pvz.id);
 
-    const sourceAssignments = all.filter((a: ShiftAssignment) => a.date === copyFromDate);
-    const withoutTarget = all.filter((a: ShiftAssignment) => a.date !== copyToDate);
+    const sourceAssignments = all.filter((a) => a.date === copyFromDate);
+    const withoutTarget = all.filter((a) => a.date !== copyToDate);
     const copied: ShiftAssignment[] = sourceAssignments.map((a) => ({
       ...a,
       id: generateSecureId(),
@@ -366,7 +357,7 @@ export default function ScheduleScreen({ navigation }: { navigation: { goBack: (
     }));
 
     const newAssignments = [...withoutTarget, ...copied];
-    await SecureStore.setItemAsync(`schedule_assignments_${pvz?.id}`, JSON.stringify(newAssignments));
+    await DataService.saveScheduleAssignments(pvz.id, newAssignments);
 
     const existingShifts = await DataService.getShifts();
     const keptShifts = existingShifts.filter((s) => s.date !== copyToDate);

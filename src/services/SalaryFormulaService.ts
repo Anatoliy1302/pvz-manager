@@ -6,10 +6,12 @@ import {
   fetchEmployeeSalarySettingsFromSupabase,
   fetchPvzSalaryBundleFromSupabase,
   pushPvzSalarySettings,
-  upsertEmployeeSalarySettingsToSupabase,
 } from './SupabaseSalarySettingsService';
+import DataService from './DataService';
 import { generateSecureId } from '../utils/generateSecureId';
 import { safeParseJson } from '../utils/safeJson';
+import { mergeById } from '../utils/supabaseHelpers';
+import { formulaAppliesToEmployee } from '../utils/salaryFormulaHelpers';
 
 // ============ КЛЮЧИ ДЛЯ ХРАНЕНИЯ ============
 
@@ -28,10 +30,8 @@ export async function getFormulas(pvzId: string): Promise<SalaryFormula[]> {
     let formulas = safeParseJson<SalaryFormula[]>(stored ?? '[]', []);
 
     const remoteBundle = await fetchPvzSalaryBundleFromSupabase(pvzId);
-    if (remoteBundle?.formulas?.length) {
-      const remoteIds = new Set(remoteBundle.formulas.map((formula) => formula.id));
-      const localOnly = formulas.filter((formula) => !remoteIds.has(formula.id));
-      formulas = [...remoteBundle.formulas, ...localOnly];
+    if (remoteBundle?.formulas) {
+      formulas = mergeById(formulas, remoteBundle.formulas);
       await SecureStore.setItemAsync(getFormulasKey(pvzId), JSON.stringify(formulas));
     }
     
@@ -64,11 +64,22 @@ export async function getFormulaById(pvzId: string, formulaId: string): Promise<
 }
 
 /**
- * Получить активную формулу ПВЗ по умолчанию
+ * Получить активную формулу ПВЗ по умолчанию (с учётом appliesTo).
  */
-export async function getDefaultFormula(pvzId: string): Promise<SalaryFormula | null> {
+export async function getDefaultFormula(
+  pvzId: string,
+  employee?: User | null
+): Promise<SalaryFormula | null> {
   const formulas = await getFormulas(pvzId);
-  return formulas.find(f => f.isActive) || formulas[0] || null;
+  if (formulas.length === 0) return null;
+
+  const preferred = formulas.find((f) => f.isActive) || formulas[0];
+  if (!employee || formulaAppliesToEmployee(preferred, employee)) {
+    return preferred;
+  }
+
+  const applicable = formulas.find((f) => formulaAppliesToEmployee(f, employee));
+  return applicable ?? preferred;
 }
 
 /**
@@ -86,6 +97,7 @@ export async function saveFormula(pvzId: string, formula: SalaryFormula): Promis
   
   await SecureStore.setItemAsync(getFormulasKey(pvzId), JSON.stringify(formulas));
   await pushPvzSalarySettings(pvzId);
+  DataService.emitChange(`salary_formulas_${pvzId}`);
 }
 
 /**
@@ -93,9 +105,25 @@ export async function saveFormula(pvzId: string, formula: SalaryFormula): Promis
  */
 export async function deleteFormula(pvzId: string, formulaId: string): Promise<void> {
   const formulas = await getFormulas(pvzId);
-  const filtered = formulas.filter(f => f.id !== formulaId);
+  const filtered = formulas.filter((f) => f.id !== formulaId);
+  if (filtered.length === formulas.length) return;
+
+  const users = await DataService.getUsers();
+  for (const user of users) {
+    if (user.role === 'owner') continue;
+    const settings = await getEmployeeSalarySettings(user.id, pvzId);
+    if (settings?.formulaId === formulaId) {
+      await saveEmployeeSalarySettings(user.id, { ...settings, formulaId: null }, pvzId);
+    }
+  }
+
+  if (filtered.length > 0 && !filtered.some((f) => f.isActive)) {
+    filtered[0] = { ...filtered[0], isActive: true };
+  }
+
   await SecureStore.setItemAsync(getFormulasKey(pvzId), JSON.stringify(filtered));
   await pushPvzSalarySettings(pvzId);
+  DataService.emitChange(`salary_formulas_${pvzId}`);
 }
 
 // ============ НАСТРОЙКИ СОТРУДНИКОВ ============
@@ -138,7 +166,7 @@ export async function saveEmployeeSalarySettings(
 ): Promise<void> {
   await SecureStore.setItemAsync(getEmployeeSettingsKey(employeeId), JSON.stringify(settings));
   if (pvzId) {
-    await upsertEmployeeSalarySettingsToSupabase(pvzId, settings);
+    await pushPvzSalarySettings(pvzId);
   }
 }
 
@@ -146,14 +174,17 @@ export async function saveEmployeeSalarySettings(
  * Получить формулу для сотрудника
  */
 export async function getFormulaForEmployee(employeeId: string, pvzId: string): Promise<SalaryFormula | null> {
-  const settings = await getEmployeeSalarySettings(employeeId);
-  
-  if (settings && settings.formulaId) {
+  const employee = await DataService.getUserById(employeeId);
+  const settings = await getEmployeeSalarySettings(employeeId, pvzId);
+
+  if (settings?.formulaId) {
     const formula = await getFormulaById(pvzId, settings.formulaId);
-    if (formula) return formula;
+    if (formula && (!employee || formulaAppliesToEmployee(formula, employee))) {
+      return formula;
+    }
   }
-  
-  return await getDefaultFormula(pvzId);
+
+  return getDefaultFormula(pvzId, employee);
 }
 
 // ============ РАСЧЁТЫ СМЕН ============

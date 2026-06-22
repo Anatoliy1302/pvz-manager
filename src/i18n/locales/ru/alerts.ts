@@ -4,6 +4,7 @@ export default {
     invalidEmail: 'Введите корректный email',
     invalidOtp: 'Введите {{length}}-значный код из SMS',
     invalidPin: 'PIN-код должен быть не менее 4 цифр',
+    invalidPassword: 'Пароль должен быть не менее 6 символов',
     wrongPin: 'Неверный PIN-код',
     fillAll: 'Заполните все поля',
     pinLength: 'PIN-код должен содержать {{length}} цифры',
@@ -60,6 +61,7 @@ export default {
     phoneNotFound: 'Номера нет в базе. Обратитесь к владельцу ПВЗ',
     emailNotFound: 'Аккаунт владельца с таким email не найден',
     linkProfileFailed: 'Не удалось привязать профиль к Supabase',
+    profileSyncFailed: 'Не удалось создать профиль владельца. Попробуйте войти снова.',
     supabaseNoUserId: 'Supabase не вернул ID пользователя после проверки SMS',
     smsNotConfigured: 'Вход по SMS не настроен. Укажите EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true и настройте Phone provider в Supabase.',
     emailNotConfigured: 'Вход по email не настроен. Включите Email provider в Supabase Dashboard.',
@@ -71,7 +73,15 @@ export default {
     emailSendFailed: 'Письмо не отправлено. Проверьте SMTP NotiSend (API-ключ) и домен pvzpersonal.ru.',
     otpExpired: 'Код истёк или устарел. Запросите новый и введите последний полученный код.',
     otpAlreadyInFlight: 'Запрос уже выполняется. Подождите.',
-    invalidOtpCode: 'Неверный код. Введите 6 цифр из последнего письма (не из старых).',
+    invalidOtpCode: 'Неверный код. Введите 6 цифр из последнего SMS или письма.',
+    invalidCredentials: 'Неверный email или пароль',
+    weakPassword: 'Пароль должен быть не менее 6 символов',
+    emailAlreadyRegistered:
+      'Этот email уже зарегистрирован в облаке. Войдите с PIN или подтвердите email через «Забыли PIN?» и удалите аккаунт снова.',
+    passwordResetFailed: 'Не удалось отправить письмо для сброса пароля',
+    deleteAccountReauthRequired:
+      'Введите PIN на экране удаления аккаунта.',
+    deleteAccountReauthTitle: 'Нужно подтвердить email',
     smsSendFailed: 'SMS не отправлено. Подождите минуту и не запрашивайте код повторно, если SMS уже пришло.',
     rateLimit: 'Слишком много запросов. Подождите несколько минут и запросите код снова.',
   },
@@ -79,6 +89,8 @@ export default {
     noInternet: 'Нет интернета',
     smsFailed: 'Не удалось отправить SMS-код',
     emailFailed: 'Не удалось отправить код на email',
+    emailMailRuRejected:
+      'Mail.ru отклонил письмо: домен noreply@pvzpersonal.ru не подтверждён. Нужны DNS-записи SPF и DKIM на @ (см. NotiSend → Домены). Временно используйте Gmail или Yandex.',
     serverUnavailable: 'Сервер временно недоступен. Попробуйте позже.',
     supabaseUnreachable:
       'Нет связи с {{host}}. Проверьте интернет, попробуйте мобильную сеть или VPN. На iPhone откройте {{host}} в Safari. Перезапустите Metro: npx expo start -c.',

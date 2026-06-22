@@ -9,25 +9,15 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { loadAccessToken } from './loadAccessToken.mjs';
 
 const PROJECT_REF = 'wygpcndnlxfzbbuogqrt';
 const OTP_LENGTH = 6;
 
-function loadAccessToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) {
-    return process.env.SUPABASE_ACCESS_TOKEN.trim();
-  }
-
-  const mcpPath = path.resolve(process.cwd(), '.cursor/mcp.json');
-  if (fs.existsSync(mcpPath)) {
-    const mcp = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
-    const token = mcp?.mcpServers?.supabase?.env?.SUPABASE_ACCESS_TOKEN;
-    if (token) return token.trim();
-  }
-
-  throw new Error(
-    'SUPABASE_ACCESS_TOKEN не найден. Задайте переменную окружения или настройте .cursor/mcp.json'
-  );
+const token = loadAccessToken();
+if (!token) {
+  console.error('SUPABASE_ACCESS_TOKEN не найден в .env');
+  process.exit(1);
 }
 
 function loadTemplate(relativePath) {
@@ -46,7 +36,6 @@ function assertOtpOnlyTemplate(html, label) {
   }
 }
 
-const token = loadAccessToken();
 const magicLinkContent = loadTemplate('supabase/templates/magic-link-otp.html');
 const confirmationContent = loadTemplate('supabase/templates/confirmation-otp.html');
 assertOtpOnlyTemplate(magicLinkContent, 'magic_link');

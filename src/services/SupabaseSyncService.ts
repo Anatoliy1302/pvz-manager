@@ -1,8 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { User, Shift, Pvz } from '../types/user';
-import { resolvePvzId } from '../utils/supabaseHelpers';
 import DataService from './DataService';
-import { ensureSupabaseClientSession } from './SupabaseAuthService';
+import { getToken } from '../../lib/authSessionStore';
+import { pushSync, pullSync } from '../../lib/syncService';
 import { ensurePvzSynced } from './SupabasePvzService';
 import { upsertShiftToSupabase } from './SupabaseShiftService';
 import {
@@ -17,13 +17,9 @@ import {
   upsertShiftRequestToSupabase,
 } from './SupabaseShiftRequestService';
 import {
-  fetchPaymentsFromSupabase,
-  mergePayments,
   upsertPaymentToSupabase,
 } from './SupabasePaymentService';
 import {
-  fetchPenaltiesFromSupabase,
-  mergePenalties,
   upsertPenaltyToSupabase,
   SyncPenalty,
 } from './SupabasePenaltyService';
@@ -32,8 +28,6 @@ import {
   mergeNotifications,
 } from './SupabaseNotificationService';
 import {
-  fetchAdvanceRequestsFromSupabase,
-  mergeAdvanceRequests,
   upsertAdvanceRequestToSupabase,
 } from './SupabaseAdvanceRequestService';
 import { syncPvzSalarySettings } from './SupabaseSalarySettingsService';
@@ -46,6 +40,7 @@ import { Payment, AdvanceRequest } from '../types/payment';
 import { safeParseJson } from '../utils/safeJson';
 import type { NotificationRecord } from './NotificationService';
 import type { ShiftRequest } from './data/dataTypes';
+import { rebuildPendingEmployeesFromInvitations, pushPendingInvitationsToApi } from '../context/auth/employeeOps';
 
 export interface SyncResult {
   success: boolean;
@@ -64,12 +59,115 @@ async function runStep(label: string, fn: () => Promise<string | null | void>): 
   }
 }
 
-/** Синхронизация локальных данных в Supabase после входа. */
+/** Синхронизация локальных данных с API после входа. */
 export async function syncSupabaseOnLogin(sessionUser: User): Promise<SyncResult> {
   const errors: string[] = [];
 
-  if (!(await ensureSupabaseClientSession())) {
+  if (!(await getToken())) {
     return { success: true, errors: [] };
+  }
+
+  try {
+    const remote = await pullSync();
+
+    if (remote.snapshot && typeof remote.snapshot === 'object') {
+      const { hydrateLocalFromSnapshot } = await import('../../lib/syncPersistence');
+      await hydrateLocalFromSnapshot(remote.snapshot as Record<string, unknown>);
+    }
+
+    const pvzListAfterHydrate =
+      sessionUser.role === 'owner'
+        ? await DataService.getPvzsByOwner(sessionUser.id)
+        : await DataService.getPvzs();
+    const { pullPvzScheduleFromServer } = await import('./data/scheduleDataService');
+    const { pullPvzSalaryFromServer } = await import('./SupabaseSalarySettingsService');
+    const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+    await Promise.all(
+      pvzListAfterHydrate.map(async (p) => {
+        await pullPvzScheduleFromServer(p.id);
+        await pullPvzSalaryFromServer(p.id);
+        await pullPvzFinanceFromServer(p.id);
+      })
+    );
+
+    if (Array.isArray(remote.pvz)) {
+      for (const raw of remote.pvz as Array<Record<string, unknown>>) {
+        const item: Pvz = {
+          id: String(raw.id),
+          name: String(raw.name ?? ''),
+          address: String(raw.address ?? ''),
+          workStart: String(raw.work_start ?? raw.workStart ?? '09:00'),
+          workEnd: String(raw.work_end ?? raw.workEnd ?? '21:00'),
+          workingHours: String(raw.working_hours ?? raw.workingHours ?? '09:00 - 21:00'),
+          phone: String(raw.phone ?? ''),
+          ownerId: String(raw.owner_id ?? raw.ownerId ?? sessionUser.id),
+          ownerInn: raw.owner_inn ? String(raw.owner_inn) : undefined,
+        };
+        await DataService.savePvz(item);
+      }
+    }
+    if (Array.isArray(remote.shifts) && remote.shifts.length > 0) {
+      const localShifts = safeParseJson<Shift[]>(
+        (await SecureStore.getItemAsync('shifts')) ?? '[]',
+        []
+      );
+      const remoteShifts = (remote.shifts as Array<Record<string, unknown>>).map((row) => {
+        if (row.employeeId && row.startTime) return row as Shift;
+        const startIso = String(row.start_time ?? '');
+        return {
+          id: String(row.id),
+          employeeId: String(row.user_id ?? row.employeeId ?? ''),
+          employeeName: String(row.employee_name ?? row.employeeName ?? ''),
+          date: String(row.date ?? startIso.slice(0, 10)),
+          startTime: row.startTime ? String(row.startTime) : startIso.slice(11, 16),
+          endTime: row.end_time ? String(row.end_time).slice(11, 16) : '',
+          status: (row.status as Shift['status']) || 'planned',
+          paymentStatus: (row.payment_status as Shift['paymentStatus']) || 'pending',
+          shiftType: row.shift_type as Shift['shiftType'],
+          totalHours: row.total_hours != null ? Number(row.total_hours) : undefined,
+          earnings: row.earnings != null ? Number(row.earnings) : undefined,
+          pvzId: String(row.pvz_id ?? row.pvzId ?? ''),
+        } satisfies Shift;
+      });
+      const byId = new Map<string, Shift>();
+      for (const shift of localShifts) byId.set(shift.id, shift);
+      for (const shift of remoteShifts) byId.set(shift.id, shift);
+      await SecureStore.setItemAsync('shifts', JSON.stringify([...byId.values()]));
+      DataService.emitChange?.('shifts');
+    }
+
+    const localPvz =
+      sessionUser.role === 'owner'
+        ? await DataService.getPvzsByOwner(sessionUser.id)
+        : await DataService.getPvzs();
+    const localShifts = safeParseJson<Shift[]>(
+      (await SecureStore.getItemAsync('shifts')) ?? '[]',
+      []
+    );
+
+    const { collectLocalSnapshotPayload } = await import('../../lib/syncPersistence');
+    const { mergeDeepSnapshot } = await import('../../lib/snapshotMerge');
+    const snapshotPayload = await import('../../lib/snapshotSync').then((m) =>
+      m.readSnapshotPayload()
+    );
+    const localPayload = await collectLocalSnapshotPayload(sessionUser);
+    const pushResult = await pushSync(
+      mergeDeepSnapshot(snapshotPayload, {
+        ...localPayload,
+        pvz: localPvz,
+        shifts: localShifts,
+      })
+    );
+    if (pushResult.errors?.length) {
+      errors.push(...pushResult.errors);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(message);
+  }
+
+  if (!(await getToken())) {
+    return { success: errors.length === 0, errors };
   }
 
   const steps: Array<[string, () => Promise<string | null | void>]> = [
@@ -135,7 +233,11 @@ async function syncShiftsUp(): Promise<void> {
   if (!localShifts) return;
 
   const shifts = safeParseJson<Shift[]>(localShifts, []);
-  await Promise.all(shifts.map((shift) => upsertShiftToSupabase(shift)));
+  await Promise.all(
+    shifts
+      .filter((shift) => shift.status !== 'planned')
+      .map((shift) => upsertShiftToSupabase(shift))
+  );
 }
 
 async function syncProfiles(sessionUser: User): Promise<string | null> {
@@ -166,6 +268,10 @@ async function refreshCaches(sessionUser: User): Promise<void> {
 }
 
 async function syncInvitations(sessionUser: User): Promise<void> {
+  if (sessionUser.role === 'owner' || sessionUser.role === 'admin') {
+    await pushPendingInvitationsToApi(sessionUser.id);
+  }
+
   const allInvitationsRaw = await SecureStore.getItemAsync('all_invitations');
   let allInvitations = safeParseJson<SyncInvitation[]>(allInvitationsRaw ?? '[]', []);
 
@@ -198,6 +304,7 @@ async function syncInvitations(sessionUser: User): Promise<void> {
         JSON.stringify(ownerInvitations)
       );
       DataService.emitChange(`invitations_${sessionUser.id}`);
+      await rebuildPendingEmployeesFromInvitations(sessionUser.id);
     }
   } else if (allInvitations.length > 0) {
     await SecureStore.setItemAsync('all_invitations', JSON.stringify(allInvitations));
@@ -236,40 +343,25 @@ async function syncShiftRequests(): Promise<void> {
 }
 
 async function syncPayments(): Promise<void> {
-  const remote = await fetchPaymentsFromSupabase();
-  if (!remote) {
-    throw new Error('Не удалось загрузить выплаты из облака');
-  }
-
   const pvzs = await DataService.getPvzs();
 
   await Promise.all(
     pvzs.map(async (pvz) => {
-      const pvzId = pvz.id;
-      const resolvedPvzId = await resolvePvzId(pvzId);
-      const key = `payments_${pvzId}`;
+      const key = `payments_${pvz.id}`;
       const stored = await StorageService.getItem(key);
       const local = safeParseJson<Payment[]>(stored ?? '[]', []);
 
       await Promise.all(
-        local.map((payment) => upsertPaymentToSupabase({ ...payment, pvzId }))
+        local.map((payment) => upsertPaymentToSupabase({ ...payment, pvzId: pvz.id }))
       );
 
-      const remoteForPvz = remote.filter((p) => p.pvzId === resolvedPvzId || p.pvzId === pvzId);
-      if (remoteForPvz.length === 0 && local.length === 0) return;
-
-      const merged = mergePayments(local, remoteForPvz.map((p) => ({ ...p, pvzId })));
-      await StorageService.setItem(key, JSON.stringify(merged));
+      const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+      await pullPvzFinanceFromServer(pvz.id);
     })
   );
 }
 
 async function syncPenalties(): Promise<void> {
-  const remote = await fetchPenaltiesFromSupabase();
-  if (!remote) {
-    throw new Error('Не удалось загрузить штрафы из облака');
-  }
-
   const users = await DataService.getUsers();
   const employeeIds = users
     .filter((u) => u.role === 'employee' && u.status === 'active')
@@ -288,29 +380,16 @@ async function syncPenalties(): Promise<void> {
           upsertPenaltyToSupabase({ ...penalty, pvzId: penalty.pvzId || pvzId })
         )
       );
-
-      const remoteForEmployee = remote.filter((p) => p.employeeId === employeeId);
-      if (remoteForEmployee.length === 0 && local.length === 0) return;
-
-      const merged = mergePenalties(
-        local,
-        remoteForEmployee.map((p) => ({
-          ...p,
-          employeeName: employee?.name || p.employeeName,
-          pvzId: p.pvzId || pvzId,
-        }))
-      );
-      await StorageService.setItem(key, JSON.stringify(merged));
     })
   );
+
+  const pvzs = await DataService.getPvzs();
+  const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+  await Promise.all(pvzs.map((pvz) => pullPvzFinanceFromServer(pvz.id)));
 }
 
 async function syncAdvanceRequests(): Promise<void> {
   const pvzs = await DataService.getPvzs();
-  const remote = await fetchAdvanceRequestsFromSupabase();
-  if (!remote) {
-    throw new Error('Не удалось загрузить авансы из облака');
-  }
 
   await Promise.all(
     pvzs.map(async (pvz) => {
@@ -332,20 +411,11 @@ async function syncAdvanceRequests(): Promise<void> {
           );
         }
       }
-
-      const resolvedPvzId = await resolvePvzId(pvz.id);
-      const remoteForPvz = remote.filter(
-        (request) => request.pvzId === resolvedPvzId || request.pvzId === pvz.id
-      );
-      if (remoteForPvz.length === 0 && local.length === 0) return;
-
-      const merged = mergeAdvanceRequests(
-        local,
-        remoteForPvz.map((request) => ({ ...request, pvzId: pvz.id }))
-      );
-      await StorageService.setItem(key, JSON.stringify(merged));
     })
   );
+
+  const { pullPvzFinanceFromServer } = await import('./data/financeDataService');
+  await Promise.all(pvzs.map((pvz) => pullPvzFinanceFromServer(pvz.id)));
 }
 
 async function syncSalarySettings(sessionUser: User): Promise<void> {

@@ -1,66 +1,71 @@
 import { Platform } from 'react-native';
 import { setupURLPolyfill } from 'react-native-url-polyfill';
-import { createClient } from '@supabase/supabase-js';
-import {
-  secureStorageAdapter,
-  migrateSupabaseAuthFromAsyncStorage,
-} from '../src/utils/secureStorageAdapter';
-import { directPingAuthHealth } from './supabaseAuthDirect';
-import { supabaseFetch } from './supabaseFetch';
-import {
-  getExpoPublicEnv,
-  requireExpoPublicEnv,
-  isValidSupabasePublishableKey,
-} from './expoPublicEnv';
+import { getApiUrl } from '../config/api';
+import { pingApiHealth } from './authApi';
 
 if (Platform.OS !== 'web') {
   setupURLPolyfill();
 }
 
-const supabaseUrl = requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_URL');
-if (!supabaseUrl.startsWith('https://')) {
-  throw new Error('EXPO_PUBLIC_SUPABASE_URL must use HTTPS in production');
+type QueryResult = { data: unknown; error: null; count?: number | null };
+
+function createQueryBuilder(): Record<string, unknown> {
+  const builder: Record<string, unknown> = {};
+  const chain = () => builder;
+  const emptyResult = async (): Promise<QueryResult> => ({ data: null, error: null });
+  const emptyList = async (): Promise<QueryResult> => ({ data: [], error: null });
+
+  builder.select = chain;
+  builder.insert = chain;
+  builder.update = chain;
+  builder.upsert = chain;
+  builder.delete = chain;
+  builder.eq = chain;
+  builder.neq = chain;
+  builder.in = chain;
+  builder.is = chain;
+  builder.or = chain;
+  builder.order = chain;
+  builder.limit = chain;
+  builder.range = chain;
+  builder.single = emptyResult;
+  builder.maybeSingle = emptyResult;
+  builder.then = (resolve: (value: QueryResult) => void) =>
+    Promise.resolve(emptyList()).then(resolve);
+
+  return builder;
 }
-const supabasePublishableKey = requireExpoPublicEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
 
-if (!isValidSupabasePublishableKey(supabasePublishableKey)) {
-  throw new Error(
-    'Supabase: EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY должен быть sb_publishable_... или legacy anon JWT (eyJ...)'
-  );
-}
-
-const supabaseHost = supabaseUrl.replace(/^https:\/\//, '').split('/')[0];
-
-if (__DEV__) {
-  const envSource = process.env.EXPO_PUBLIC_SUPABASE_URL ? 'process.env' : 'expo.extra';
-  console.info(`[Supabase] Host: ${supabaseHost} (${envSource})`);
-}
-
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+/** Заглушка Supabase-клиента — данные пока локально, auth через custom API. */
+export const supabase = {
   auth: {
-    storage: secureStorageAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+    getSession: async () => ({ data: { session: null }, error: null }),
+    setSession: async () => ({ data: { session: null }, error: null }),
+    refreshSession: async () => ({ data: { session: null }, error: null }),
+    signOut: async () => ({ error: null }),
+    onAuthStateChange: () => ({
+      data: { subscription: { unsubscribe: () => undefined } },
+    }),
   },
-  global: {
-    fetch: supabaseFetch,
-  },
-});
-
-void migrateSupabaseAuthFromAsyncStorage();
+  from: () => createQueryBuilder(),
+  rpc: async () => ({ data: null, error: null }),
+  channel: () => ({
+    on: () => ({ subscribe: () => ({ unsubscribe: () => undefined }) }),
+    subscribe: () => ({ unsubscribe: () => undefined }),
+  }),
+  removeChannel: async () => undefined,
+};
 
 export function getSupabaseProjectHost(): string {
-  return supabaseHost;
+  return getApiUrl().replace(/^https?:\/\//, '').split('/')[0];
 }
 
 export function getSupabaseAuthStorageKey(): string {
-  return `sb-${supabaseHost.split('.')[0]}-auth-token`;
+  return 'pvz_auth_session';
 }
 
-/** Быстрая проверка доступности Supabase Auth (для диагностики сети). */
 export async function pingSupabaseAuth(): Promise<boolean> {
-  return directPingAuthHealth();
+  return pingApiHealth();
 }
 
 export function getSupabaseEnvDiagnostics(): {
@@ -69,8 +74,8 @@ export function getSupabaseEnvDiagnostics(): {
   host: string;
 } {
   return {
-    urlConfigured: Boolean(getExpoPublicEnv('EXPO_PUBLIC_SUPABASE_URL')),
-    keyConfigured: Boolean(getExpoPublicEnv('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY')),
-    host: supabaseHost,
+    urlConfigured: true,
+    keyConfigured: true,
+    host: getSupabaseProjectHost(),
   };
 }

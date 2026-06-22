@@ -25,6 +25,7 @@ import { useScreenToast } from '../../hooks/useScreenToast';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { User } from '../../types/user';
 import { getPvzChatContacts, getRoleLabel } from '../../utils/chatHelpers';
+import { colors } from '../../constants/colors';
 import notificationService from '../../services/NotificationService';
 import {
   Send,

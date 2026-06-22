@@ -1,4 +1,22 @@
 # ──────────────────────────────────────────────
+# Phone OTP для сотрудника / админа (SMS Aero hook)
+# ──────────────────────────────────────────────
+[auth.sms]
+enable_signup = true
+enable_confirmations = false
+max_frequency = "5s"
+
+[auth.hook.send_sms]
+enabled = true
+uri = "https://wygpcndnlxfzbbuogqrt.supabase.co/functions/v1/send-sms"
+secrets = "env(SEND_SMS_HOOK_SECRET)"
+
+[auth.hook.send_email]
+enabled = true
+uri = "https://wygpcndnlxfzbbuogqrt.supabase.co/functions/v1/send-auth-email"
+secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+
+# ──────────────────────────────────────────────
 # Email OTP для владельца
 # ──────────────────────────────────────────────
 [auth.email]

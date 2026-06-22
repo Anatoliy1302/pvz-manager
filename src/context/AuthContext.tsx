@@ -1,5 +1,5 @@
 // src/context/AuthContext.tsx
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { User, UserRole, Pvz } from '../types/user';
 import DataService from '../services/DataService';
@@ -15,6 +15,7 @@ import notificationService from '../services/NotificationService';
 import { stopSupabaseRealtime } from '../services/SupabaseRealtimeService';
 import { withTimeout } from '../utils/withTimeout';
 import subscriptionService, { Subscription } from '../services/subscriptionService';
+import { pushSnapshotBeforeLogout } from '../../lib/syncPersistence';
 import analyticsService from '../services/AnalyticsService';
 import { AnalyticsEvents } from '../services/analytics/events';
 import { clearQueryCache } from '../lib/queryClient';
@@ -48,7 +49,11 @@ import {
   checkOwnerExists,
   registerOwnerAccount,
 } from './auth/ownerOps';
-import { deleteUserAccount, AccountDeletionError } from './accountDeletionService';
+import { deleteUserAccount, AccountDeletionError, type DeleteAccountOptions } from '../services/accountDeletionService';
+import PinService from '../services/PinService';
+import { normalizeEmail } from '../utils/loginIdentifier';
+import { clearOwnerPinLoginSnapshot } from '../utils/ownerPinLoginStore';
+import { clearOrphanedOwnerLocalAuth } from './auth/ownerRegistrationCleanup';
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
@@ -67,6 +72,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     notificationService.setCurrentUserId(undefined);
     notificationService.setCurrentUserRole(undefined);
 
+    if (user) {
+      try {
+        await pushSnapshotBeforeLogout(user);
+      } catch (error) {
+        console.error('signOut: не удалось сохранить данные в облако:', error);
+      }
+    }
+
     try {
       await DataService.clearAllData();
       await subscriptionService.clearCache();
@@ -84,9 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscription(null);
   };
 
-  const deleteAccount = async () => {
+  const deleteAccount = async (options?: DeleteAccountOptions) => {
+    const ownerEmail =
+      user?.role === 'owner' && user.email ? normalizeEmail(user.email) : null;
+
     try {
-      await deleteUserAccount();
+      await deleteUserAccount(options);
     } catch (error) {
       if (error instanceof AccountDeletionError) {
         throw error;
@@ -95,6 +111,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error instanceof Error ? error.message : 'Не удалось удалить аккаунт'
       );
     }
+
+    if (ownerEmail) {
+      try {
+        await PinService.clearPin(ownerEmail);
+        await clearOwnerPinLoginSnapshot(ownerEmail);
+        await clearOrphanedOwnerLocalAuth(ownerEmail);
+      } catch (pinCleanupError) {
+        if (__DEV__) {
+          console.warn('[Auth] deleteAccount pin cleanup:', pinCleanupError);
+        }
+      }
+    }
+
     await signOut();
   };
 
@@ -238,7 +267,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userPvzList = await DataService.getPvzsForAdmin(currentUser);
       }
 
-      setUserPvzs(userPvzList);
+      setUserPvzs((prev) => {
+        if (prev.length === userPvzList.length && prev.every((p, i) => p.id === userPvzList[i]?.id)) {
+          return prev;
+        }
+        return userPvzList;
+      });
       const currentPvz = pvzRef.current;
       if (userPvzList.length > 0 && (!currentPvz || !userPvzList.some((p) => p.id === currentPvz.id))) {
         setPvz(userPvzList[0]);
@@ -255,6 +289,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubscription(sub);
     return sub;
   };
+
+  const handleRefreshUserData = useCallback(async () => {
+    await refreshUserData(pvzRef.current, { setUser, setPvz, setUserPvzs });
+  }, [setUser, setPvz, setUserPvzs]);
 
   return (
     <AuthContext.Provider
@@ -307,7 +345,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await SecureStore.setItemAsync('pvz', JSON.stringify(newPvz));
           }
         },
-        refreshUserData: () => refreshUserData(pvz, setters),
+        refreshUserData: handleRefreshUserData,
         getPendingEmployeesCount: () => getPendingEmployeesCountForUser(user?.id),
         registerOwner: (phone, name, pvzName, address) =>
           registerOwnerAccount(phone, name, pvzName, address, setters),

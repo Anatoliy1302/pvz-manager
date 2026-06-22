@@ -89,6 +89,16 @@ run('npx', [
   '--no-verify-jwt',
 ]);
 
+run('npx', [
+  'supabase',
+  'functions',
+  'deploy',
+  'delete-owner-by-pin',
+  '--project-ref',
+  PROJECT_REF,
+  '--no-verify-jwt',
+]);
+
 console.log('\nPayment functions deployed.');
 console.log(`create-payment:  https://${PROJECT_REF}.supabase.co/functions/v1/create-payment`);
 console.log(`payment-webhook: https://${PROJECT_REF}.supabase.co/functions/v1/payment-webhook`);
@@ -97,5 +107,6 @@ console.log(
 );
 console.log(`cancel-subscription: https://${PROJECT_REF}.supabase.co/functions/v1/cancel-subscription`);
 console.log(`delete-account: https://${PROJECT_REF}.supabase.co/functions/v1/delete-account`);
+console.log(`delete-owner-by-pin: https://${PROJECT_REF}.supabase.co/functions/v1/delete-owner-by-pin`);
 console.log('\nNext: configure YooKassa webhook URL in merchant dashboard.');
 console.log('Set SUBSCRIPTION_CRON_SECRET and schedule daily POST to process-subscription-renewals.');
