@@ -7,6 +7,7 @@ const LEGAL_DIR = path.join(ROOT, 'legal');
 const DOCS_DIR = path.join(ROOT, 'docs');
 
 const FILES = [
+  ['index.html', 'index.html'],
   ['privacy.html', 'privacy/index.html'],
   ['terms.html', 'terms/index.html'],
   ['consent.html', 'consent/index.html'],
