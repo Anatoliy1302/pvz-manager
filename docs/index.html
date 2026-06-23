@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Персонал ПВЗ — мобильное приложение для учёта смен, зарплаты и персонала пунктов выдачи заказов.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pvzpersonal.ru/">
+  <title>Персонал ПВЗ — учёт персонала пунктов выдачи</title>
+  <style>
+    :root { color-scheme: light; --accent: #6C5CE7; --accent-dark: #5a4bd6; --bg: #f7f7fb; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      color: #1a1a1a;
+      line-height: 1.65;
+      font-size: 15px;
+      background: #fff;
+    }
+    .topbar {
+      border-bottom: 1px solid #eee;
+      background: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .topbar-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .logo { font-weight: 700; color: #111; text-decoration: none; font-size: 15px; }
+    .topnav a {
+      color: #555;
+      text-decoration: none;
+      font-size: 14px;
+      margin-left: 16px;
+    }
+    .topnav a:hover { color: var(--accent); }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 56px; }
+    .hero { margin-bottom: 32px; }
+    h1 { font-size: 1.85rem; margin: 0 0 12px; line-height: 1.25; }
+    .lead { font-size: 1.05rem; color: #444; margin: 0 0 20px; }
+    .badge {
+      display: inline-block;
+      background: var(--bg);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    h2 { font-size: 1.1rem; margin: 28px 0 12px; color: #111; }
+    p, li { color: #333; }
+    ul { padding-left: 1.25rem; margin: 8px 0 12px; }
+    li { margin-bottom: 6px; }
+    a { color: var(--accent); }
+    a:hover { color: var(--accent-dark); }
+    .cards { display: grid; gap: 12px; margin: 16px 0; }
+    @media (min-width: 560px) { .cards { grid-template-columns: 1fr 1fr; } }
+    .card {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .card strong { display: block; margin-bottom: 4px; }
+    .features { display: grid; gap: 8px; margin: 12px 0; }
+    .feature {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .feature:last-child { border-bottom: none; }
+    .feature-icon {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cta {
+      margin-top: 28px;
+      padding: 20px;
+      background: var(--bg);
+      border-radius: 12px;
+    }
+    .cta a.button {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 10px 18px;
+      background: var(--accent);
+      color: #fff !important;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .cta a.button:hover { background: var(--accent-dark); }
+    .requisites { list-style: none; padding-left: 0; }
+    .requisites li { margin-bottom: 4px; }
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      font-size: 14px;
+      color: #666;
+    }
+    .links a { margin-right: 16px; display: inline-block; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="logo" href="/">Персонал ПВЗ</a>
+      <nav class="topnav" aria-label="Документы">
+        <a href="/privacy">Конфиденциальность</a>
+        <a href="/terms">Соглашение</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <header class="hero">
+      <span class="badge">pvzpersonal.ru</span>
+      <h1>Персонал ПВЗ</h1>
+      <p class="lead">
+        Мобильное приложение для владельцев и сотрудников пунктов выдачи заказов (ПВЗ):
+        расписание смен, учёт часов, начисления, выплаты, внутренний чат и уведомления.
+      </p>
+    </header>
+
+    <section>
+      <h2>О сервисе</h2>
+      <p>
+        «Персонал ПВЗ» — программный сервис для организации работы персонала ПВЗ.
+        Владелец создаёт точку выдачи, приглашает сотрудников и ведёт учёт смен и начислений.
+        Сотрудники входят в приложение по номеру телефона с подтверждением одноразовым SMS-кодом.
+      </p>
+      <div class="cards">
+        <div class="card">
+          <strong>Владельцам ПВЗ</strong>
+          Расписание, зарплата, аналитика, приглашение сотрудников, управление несколькими точками.
+        </div>
+        <div class="card">
+          <strong>Сотрудникам</strong>
+          Личное расписание, финансы, заявки на смены, чат с коллегами.
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Возможности</h2>
+      <div class="features">
+        <div class="feature">
+          <span class="feature-icon">1</span>
+          <div><strong>Расписание смен</strong> — планирование, обмен сменами, уведомления.</div>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">2</span>
+          <div><strong>Зарплата и выплаты</strong> — начисления, авансы, штрафы и премии.</div>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">3</span>
+          <div><strong>Аналитика</strong> — статистика по точкам и сотрудникам.</div>
+        </div>
+        <div class="feature">
+          <span class="feature-icon">4</span>
+          <div><strong>Чат и уведомления</strong> — связь внутри команды ПВЗ.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Использование SMS</h2>
+      <p>
+        Сервис отправляет SMS с одноразовым кодом подтверждения (OTP) только для входа
+        сотрудников и администраторов по номеру телефона. Рекламные и массовые рассылки не используются.
+        Отправитель: подпись, согласованная в личном кабинете SMS Aero.
+      </p>
+    </section>
+
+    <section>
+      <h2>Оператор сервиса</h2>
+      <ul class="requisites">
+        <li><strong>Наименование:</strong> Индивидуальный предприниматель Кравец Надежда Васильевна</li>
+        <li><strong>ИНН:</strong> 253618566105</li>
+        <li><strong>ОГРНИП:</strong> 325253600052735</li>
+        <li><strong>Адрес:</strong> 690033, Россия, Приморский край, г. Владивосток, ул. Гамарника, д. 7, кв. 19</li>
+        <li><strong>Email:</strong> <a href="mailto:support@pvzpersonal.ru">support@pvzpersonal.ru</a></li>
+        <li><strong>API:</strong> <a href="https://api.pvzpersonal.ru/">api.pvzpersonal.ru</a></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Документы</h2>
+      <p class="links">
+        <a href="/privacy">Политика конфиденциальности</a>
+        <a href="/terms">Пользовательское соглашение</a>
+        <a href="/consent">Согласие на обработку ПДн</a>
+      </p>
+    </section>
+
+    <div class="cta">
+      <strong>Поддержка и подключение</strong>
+      <p style="margin: 8px 0 0;">
+        По вопросам работы сервиса, подключения и сотрудничества напишите на
+        <a href="mailto:support@pvzpersonal.ru">support@pvzpersonal.ru</a>.
+      </p>
+      <a class="button" href="mailto:support@pvzpersonal.ru">Написать в поддержку</a>
+    </div>
+
+    <footer>
+      © 2026 ИП Кравец Н. В. · Приложение «Персонал ПВЗ» ·
+      <a href="mailto:support@pvzpersonal.ru">support@pvzpersonal.ru</a>
+    </footer>
+  </div>
+</body>
+</html>
