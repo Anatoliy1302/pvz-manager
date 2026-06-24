@@ -8,6 +8,7 @@ import LoginContinueButton from './LoginContinueButton';
 import LoginPinInput from './LoginPinInput';
 import LoginStepHeader from './LoginStepHeader';
 import { useLoginStyles } from '../useLoginStyles';
+import LegalConsentCheckbox from '../../../components/legal/LegalConsentCheckbox';
 
 interface LoginQuickLoginStepProps {
   savedProfileName: string;
@@ -17,6 +18,10 @@ interface LoginQuickLoginStepProps {
   loading: boolean;
   titleStyle?: object;
   subtitleStyle?: object;
+  requiresLegalConsent?: boolean;
+  legalAccepted?: boolean;
+  onLegalAcceptedChange?: (checked: boolean) => void;
+  canProceedWithLegal?: boolean;
   onBack: () => void;
   onChangePin: (value: string) => void;
   onSubmit: () => void;
@@ -32,6 +37,10 @@ export default function LoginQuickLoginStep({
   loading,
   titleStyle,
   subtitleStyle,
+  requiresLegalConsent = false,
+  legalAccepted = false,
+  onLegalAcceptedChange,
+  canProceedWithLegal = true,
   onBack,
   onChangePin,
   onSubmit,
@@ -41,6 +50,7 @@ export default function LoginQuickLoginStep({
   const { t } = useTranslation();
   const { styles: loginStyles } = useLoginStyles();
   const isComplete = pinCode.length === 4;
+  const canSubmit = isComplete && canProceedWithLegal;
 
   return (
     <View style={loginStyles.quickLoginStepContainer}>
@@ -69,9 +79,17 @@ export default function LoginQuickLoginStep({
         disabled={loading}
       />
 
+      {requiresLegalConsent && onLegalAcceptedChange ? (
+        <LegalConsentCheckbox
+          checked={legalAccepted}
+          onToggle={onLegalAcceptedChange}
+          style={loginStyles.legalNote}
+        />
+      ) : null}
+
       <LoginContinueButton
         label={loading ? t('common.loading.signingIn') : t('auth.quickLogin.submit')}
-        enabled={isComplete}
+        enabled={canSubmit}
         loading={loading}
         onPress={onSubmit}
       />

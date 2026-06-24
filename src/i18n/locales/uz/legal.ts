@@ -34,7 +34,7 @@ export default {
         title: '4. Ma\'lumotlar qayerda saqlanadi',
         intro: 'Ma\'lumotlar quyidagilarda saqlanishi mumkin:',
         i1: '• qurilmangizda himoyalangan saqlash joyida;',
-        i2: '• Supabase bulut infratuzilmasida (bulutli rejim yoqilgan va telefon orqali kirish bo\'lsa);',
+        i2: '• api.pvzpersonal.ru serverlarida (Rossiya VPS, PostgreSQL) — sinxronizatsiya va masofaviy avtorizatsiya paytida;',
         i3: '• Expo push-bildirishnomalar xizmati serverlarida — faqat bildirishnomalarni yetkazish uchun qurilma tokeni.',
         i4: 'ПВЗ egasi (ish beruvchi) xodimlar boshqaruvi uchun Ilovadan foydalanish doirasida o\'z xodimlarining ish ma\'lumotlariga kirish huquqiga ega.',
       },

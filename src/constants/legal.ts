@@ -26,8 +26,19 @@ export const OPERATOR_BANK = {
 
 export const SUPPORT_EMAIL = 'support@pvzpersonal.ru';
 
-export const LEGAL_DOCUMENTS_UPDATED = '17 июня 2026 г.';
+export const LEGAL_DOCUMENTS_UPDATED = '24 июня 2026 г.';
 export const PRIVACY_POLICY_UPDATED = LEGAL_DOCUMENTS_UPDATED;
+
+/** Machine-readable version for server acceptance records — sync with server/src/legalAcceptance.js */
+export const LEGAL_DOCUMENTS_VERSION = '2026-06-24';
+
+export function getLegalDocumentVersions() {
+  return {
+    privacyVersion: LEGAL_DOCUMENTS_VERSION,
+    termsVersion: LEGAL_DOCUMENTS_VERSION,
+    consentVersion: LEGAL_DOCUMENTS_VERSION,
+  };
+}
 
 export const PRIVACY_POLICY_URL = 'https://pvzpersonal.ru/privacy';
 export const TERMS_OF_USE_URL = 'https://pvzpersonal.ru/terms';

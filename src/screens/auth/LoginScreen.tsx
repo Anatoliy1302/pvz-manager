@@ -681,6 +681,10 @@ export default function LoginScreen(_props: { navigation: unknown }) {
       loading={flow.loading}
       titleStyle={ui.title}
       subtitleStyle={ui.subtitle}
+      requiresLegalConsent={flow.requiresLegalConsent}
+      legalAccepted={flow.legalAccepted}
+      onLegalAcceptedChange={flow.setLegalAccepted}
+      canProceedWithLegal={flow.canProceedWithLegal}
       onChangePin={flow.handlePinChange}
       onSubmit={flow.verifyPin}
       onBack={flow.handleBack}

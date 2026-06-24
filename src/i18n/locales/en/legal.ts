@@ -17,7 +17,7 @@ export default {
         i1: '• identification data: name, phone number, role (owner, administrator, employee);',
         i2: '• work data: shifts, schedule, hours, accruals, payouts, fines and bonuses, shift requests;',
         i3: '• communication data: messages in the PVZ internal chat;',
-        i4: '• technical data: device push token for notifications, session data when signing in via cloud service;',
+        i4: '• technical data: device push token for notifications, session data for remote sign-in;',
         i5: '• at your choice: profile photo, biometric authentication data (Face ID / fingerprint) — on device only for quick sign-in;',
         i6: '• when using geolocation features — coordinates within work shifts (if enabled by the PVZ owner).',
       },
@@ -35,15 +35,15 @@ export default {
         title: '4. Where data is stored',
         intro: 'Data may be stored:',
         i1: '• locally on your device in secure storage;',
-        i2: '• in Supabase cloud infrastructure (when cloud mode is enabled and sign-in is by phone);',
+        i2: '• on api.pvzpersonal.ru servers (VPS in Russia, PostgreSQL) — when syncing and signing in remotely;',
         i3: '• on Expo push notification servers — device token only for delivery.',
-        i4: 'The PVZ owner (employer) has access to employees\' work data within using the App for staff management.',
+        i4: 'Push delivery may involve cross-border transfer of the device token (Art. 12 of Russian Federal Law No. 152-FZ). The PVZ owner has access to employees\' work data for staff management.',
       },
       sharing: {
         title: '5. Third-party sharing',
         p1: 'We do not sell or share personal data with advertising networks.',
         intro: 'Sharing is only possible:',
-        i1: '• with technical partners providing hosting and notification delivery (to the extent necessary for the service);',
+        i1: '• api.pvzpersonal.ru (hosting and API), NotiSend (email codes), SMS Aero (SMS codes), YooKassa (subscription payments), Expo (push);',
         i2: '• as required by applicable law.',
       },
       retention: {
@@ -87,5 +87,10 @@ export default {
     prefix: 'By continuing, you agree to the',
     separator: ', ',
     lastSeparator: ', and ',
+  },
+  consentCheckbox: {
+    label: 'I accept the terms and consent to personal data processing',
+    required: 'You must accept the terms to continue',
+    a11y: 'Consent to Privacy Policy, Terms of Use, and personal data processing',
   },
 } as const;
