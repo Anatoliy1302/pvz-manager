@@ -54,7 +54,14 @@ export default function LoginPinStep({
       />
 
       {pinMode === 'entry' && onForgotPin && (
-        <TouchableOpacity onPress={onForgotPin} disabled={loading} style={{ marginBottom: 12 }}>
+        <TouchableOpacity
+          onPress={onForgotPin}
+          disabled={loading}
+          style={{ marginBottom: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('auth.pin.forgot')}
+          testID="login-forgot-pin"
+        >
           <Text style={{ color: colors.primary, textAlign: 'center', fontSize: 14 }}>
             {t('auth.pin.forgot')}
           </Text>

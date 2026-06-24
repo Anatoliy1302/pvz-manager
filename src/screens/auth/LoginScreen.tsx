@@ -35,6 +35,7 @@ import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useLoginStyles } from './useLoginStyles';
 
 import { useLoginFlow } from './useLoginFlow';
+import { isStaffRole } from '../../types/user';
 
 import LoginLoadingView from './components/LoginLoadingView';
 
@@ -56,7 +57,7 @@ import LanguagePicker from '../../components/common/LanguagePicker';
 
 import AppEnvBanner from '../../components/common/AppEnvBanner';
 
-import GdprConsentBanner from '../../components/legal/GdprConsentBanner';
+import LegalConsentCheckbox from '../../components/legal/LegalConsentCheckbox';
 
 import { colors } from '../../constants/colors';
 
@@ -158,6 +159,10 @@ export default function LoginScreen(_props: { navigation: unknown }) {
 
             placeholderTextColor={colors.grayLighter}
 
+            accessibilityLabel={t('auth.email.placeholder')}
+
+            testID="login-email-input"
+
           />
 
         </View>
@@ -168,6 +173,16 @@ export default function LoginScreen(_props: { navigation: unknown }) {
 
           <Text style={loginStyles.otpErrorText}>{flow.authErrorMessage}</Text>
 
+        ) : null}
+
+
+
+        {flow.requiresLegalConsent ? (
+          <LegalConsentCheckbox
+            checked={flow.legalAccepted}
+            onToggle={flow.setLegalAccepted}
+            style={loginStyles.legalNote}
+          />
         ) : null}
 
 
@@ -188,7 +203,7 @@ export default function LoginScreen(_props: { navigation: unknown }) {
 
           }
 
-          enabled={flow.isValidEmail()}
+          enabled={flow.isValidEmail() && flow.canProceedWithLegal}
 
           loading={flow.loading}
 
@@ -205,6 +220,16 @@ export default function LoginScreen(_props: { navigation: unknown }) {
           disabled={flow.loading}
 
           style={loginStyles.resendButton}
+
+          accessibilityRole="button"
+
+          accessibilityLabel={
+
+            isRegister ? t('auth.login.switchToLogin') : t('auth.login.switchToRegister')
+
+          }
+
+          testID="login-switch-flow"
 
         >
 
@@ -275,6 +300,12 @@ export default function LoginScreen(_props: { navigation: unknown }) {
         disabled={flow.loading}
 
         style={{ marginBottom: 12 }}
+
+        accessibilityRole="button"
+
+        accessibilityLabel={t('auth.pin.forgot')}
+
+        testID="login-forgot-pin"
 
       >
 
@@ -420,6 +451,22 @@ export default function LoginScreen(_props: { navigation: unknown }) {
 
         disabled={flow.loading || flow.otpTimer > 0}
 
+        accessibilityRole="button"
+
+        accessibilityLabel={
+
+          flow.otpTimer > 0
+
+            ? t('auth.otpDelivery.resendAfter', { seconds: flow.otpTimer })
+
+            : t('auth.emailOtp.resend')
+
+        }
+
+        accessibilityState={{ disabled: flow.loading || flow.otpTimer > 0 }}
+
+        testID="login-resend-otp"
+
       >
 
         <Text style={loginStyles.resendText}>
@@ -495,13 +542,9 @@ export default function LoginScreen(_props: { navigation: unknown }) {
               ? t('common.loading.signingIn')
 
               : isConfirm
-
                 ? flow.isRegisterFlow
-
                   ? t('auth.login.savePinAndContinue')
-
                   : t('auth.login.savePinAndEnter')
-
                 : t('common.actions.continue')
 
           }
@@ -576,12 +619,21 @@ export default function LoginScreen(_props: { navigation: unknown }) {
     <LoginPhoneStep
       phone={flow.phone}
       loading={flow.loading}
-      isValid={flow.phone.replace(/\D/g, '').length >= 11}
+      isValid={flow.phone.replace(/\D/g, '').length >= 11 && flow.canProceedWithLegal}
       titleStyle={ui.title}
       subtitleStyle={ui.subtitle}
       inputBackground={ui.input.backgroundColor}
       inputBorder={screen.border}
       textColor={screen.text}
+      legalConsent={
+        flow.requiresLegalConsent ? (
+          <LegalConsentCheckbox
+            checked={flow.legalAccepted}
+            onToggle={flow.setLegalAccepted}
+            style={loginStyles.legalNote}
+          />
+        ) : null
+      }
       onBack={flow.handleBack}
       onChangePhone={flow.handlePhoneChange}
       onContinue={flow.submitPhoneStep}
@@ -624,14 +676,16 @@ export default function LoginScreen(_props: { navigation: unknown }) {
     <LoginQuickLoginStep
       savedProfileName={flow.savedProfileName}
       selectedRole={flow.selectedRole}
-      loginDisplay={flow.loginEmail}
+      loginDisplay={flow.loginDisplay}
       pinCode={flow.pinCode}
       loading={flow.loading}
       titleStyle={ui.title}
       subtitleStyle={ui.subtitle}
       onChangePin={flow.handlePinChange}
       onSubmit={flow.verifyPin}
+      onBack={flow.handleBack}
       onSwitchAccount={flow.switchAccount}
+      onForgotPin={isStaffRole(flow.selectedRole) ? flow.handleStaffForgotPin : undefined}
     />
   );
 
@@ -744,10 +798,6 @@ export default function LoginScreen(_props: { navigation: unknown }) {
           >
 
             {renderStep()}
-
-            {flow.step === 'role' || flow.step === 'email' ? (
-              <GdprConsentBanner style={loginStyles.legalNote} />
-            ) : null}
 
           </ScrollView>
 

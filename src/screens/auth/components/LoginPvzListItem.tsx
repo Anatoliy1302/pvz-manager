@@ -27,6 +27,10 @@ export default function LoginPvzListItem({
         isActive && loginStyles.pvzItemActive,
       ]}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${subtitle}`}
+      accessibilityState={{ selected: isActive }}
+      testID={`login-pvz-item-${name}`}
     >
       <Building2 size={20} color={isActive ? '#FFFFFF' : colors.primary} />
       <View style={loginStyles.pvzItemInfo}>

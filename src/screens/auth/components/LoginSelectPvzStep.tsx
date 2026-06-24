@@ -80,7 +80,13 @@ export default function LoginSelectPvzStep({
       />
 
       {selectedRole === 'owner' && onCreateNew && (
-        <TouchableOpacity onPress={onCreateNew} style={loginStyles.createNewButton}>
+        <TouchableOpacity
+          onPress={onCreateNew}
+          style={loginStyles.createNewButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('auth.pvzSelect.createNew')}
+          testID="login-create-pvz"
+        >
           <Text style={loginStyles.createNewText}>{t('auth.pvzSelect.createNew')}</Text>
         </TouchableOpacity>
       )}

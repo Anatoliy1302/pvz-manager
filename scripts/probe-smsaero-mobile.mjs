@@ -1,7 +1,11 @@
 import crypto from 'crypto';
 
-const clientId = process.env.SMSAERO_CLIENT_ID || '7c1635bd-c077-4bb7-9261-be99df40e5f9';
-const apiSecret = process.env.SMSAERO_SECRET || 'b374e797568a50de4fbe9861c04a6be284eaf2105f8871482595b886a2b030bf';
+const clientId = process.env.SMSAERO_CLIENT_ID;
+const apiSecret = process.env.SMSAERO_SECRET;
+if (!clientId || !apiSecret) {
+  console.error('Set SMSAERO_CLIENT_ID and SMSAERO_SECRET');
+  process.exit(1);
+}
 const fp = 'a3f9c0123456789abcdef0123456789ab';
 const timestamp = String(Math.floor(Date.now() / 1000));
 const signature = crypto.createHmac('sha256', apiSecret).update(clientId + fp + timestamp).digest('hex');

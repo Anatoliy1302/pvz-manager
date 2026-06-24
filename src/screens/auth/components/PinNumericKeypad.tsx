@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Delete } from 'lucide-react-native';
 import { useLoginStyles } from '../useLoginStyles';
 
@@ -20,6 +21,7 @@ export default function PinNumericKeypad({
   onBackspace,
   disabled = false,
 }: PinNumericKeypadProps) {
+  const { t } = useTranslation();
   const { styles: loginStyles, screen } = useLoginStyles();
 
   return (
@@ -38,6 +40,7 @@ export default function PinNumericKeypad({
               onPress={() => onDigit(digit)}
               accessibilityRole="button"
               accessibilityLabel={digit}
+              testID={`login-pin-key-${digit}`}
             >
               <Text style={loginStyles.pinKeypadKeyText}>{digit}</Text>
             </Pressable>
@@ -57,6 +60,7 @@ export default function PinNumericKeypad({
           onPress={() => onDigit('0')}
           accessibilityRole="button"
           accessibilityLabel="0"
+          testID="login-pin-key-0"
         >
           <Text style={loginStyles.pinKeypadKeyText}>0</Text>
         </Pressable>
@@ -70,7 +74,8 @@ export default function PinNumericKeypad({
           disabled={disabled}
           onPress={onBackspace}
           accessibilityRole="button"
-          accessibilityLabel="Backspace"
+          accessibilityLabel={t('auth.pin.backspace')}
+          testID="login-pin-backspace"
         >
           <Delete size={22} color={screen.textSecondary} />
         </Pressable>

@@ -64,8 +64,18 @@ export default function LoginOwnerPasswordStep({
           autoCapitalize="none"
           autoCorrect={false}
           placeholderTextColor={colors.grayLighter}
+          accessibilityLabel={t('auth.email.passwordPlaceholder')}
+          testID="login-owner-password-input"
         />
-        <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => setShowPassword((v) => !v)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            showPassword ? t('auth.email.hidePassword') : t('auth.email.showPassword')
+          }
+          testID="login-toggle-password"
+        >
           <Text style={{ color: colors.primary, fontSize: 13 }}>
             {showPassword ? t('auth.email.hidePassword') : t('auth.email.showPassword')}
           </Text>

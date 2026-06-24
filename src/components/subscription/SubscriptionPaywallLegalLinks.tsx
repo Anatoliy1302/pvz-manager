@@ -20,15 +20,30 @@ export default function SubscriptionPaywallLegalLinks({ textColor }: Subscriptio
         {t('subscription.paywallLegal.label')}
       </Text>
       <Text style={[styles.linksRow, { color: textColor }]}>
-        <Text style={linkStyle} onPress={() => openLegalDocument('terms')}>
+        <Text
+          style={linkStyle}
+          onPress={() => openLegalDocument('terms')}
+          accessibilityRole="link"
+          testID="subscription-terms-link"
+        >
           {t('legal.links.terms')}
         </Text>
         <Text style={[styles.separator, { color: textColor }]}>{t('subscription.paywallLegal.separator')}</Text>
-        <Text style={linkStyle} onPress={() => openLegalDocument('privacy')}>
+        <Text
+          style={linkStyle}
+          onPress={() => openLegalDocument('privacy')}
+          accessibilityRole="link"
+          testID="subscription-privacy-link"
+        >
           {t('legal.links.privacy')}
         </Text>
         <Text style={[styles.separator, { color: textColor }]}>{t('subscription.paywallLegal.separator')}</Text>
-        <Text style={linkStyle} onPress={() => openLegalDocument('terms')}>
+        <Text
+          style={linkStyle}
+          onPress={() => openLegalDocument('terms')}
+          accessibilityRole="link"
+          testID="subscription-eula-link"
+        >
           {t('subscription.paywallLegal.eula')}
         </Text>
       </Text>

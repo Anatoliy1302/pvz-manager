@@ -4,11 +4,8 @@ import { getExpoPublicEnv } from '../lib/expoPublicEnv';
 const DEFAULT_API_URL = 'https://api.pvzpersonal.ru';
 
 export function getApiUrl(): string {
-  return getExpoPublicEnv('EXPO_PUBLIC_API_URL') ?? DEFAULT_API_URL;
+  return (getExpoPublicEnv('EXPO_PUBLIC_API_URL') ?? DEFAULT_API_URL).replace(/\/+$/, '');
 }
-
-/** @deprecated Используйте getApiUrl() — оставлено для совместимости импортов */
-export const API_URL = 'https://api.pvzpersonal.ru';
 
 export const AUTH_STORAGE_KEY = 'pvz_auth_session';
 

@@ -12,11 +12,11 @@ export default {
     },
     admin: {
       title: 'Administrator',
-      description: 'Manage shifts, requests, and the team at the PVZ',
+      description: 'Sign in with phone: SMS on first login, then PIN',
     },
     employee: {
       title: 'Employee',
-      description: 'Sign in with phone number and SMS code from invitation',
+      description: 'Sign in with phone: SMS on first login, then PIN',
     },
   },
   phone: {
@@ -83,12 +83,13 @@ export default {
     biometric: 'Biometrics',
     biometricLogin: 'Sign in with {{label}}',
     forgot: 'Forgot PIN?',
+    backspace: 'Delete digit',
     forgotTitle: 'Reset PIN',
     forgotMessage: 'Your PIN will be removed. SMS verification will be required to sign in again.',
     forgotMessageEmail: 'Your PIN will be removed. Email and password will be required to sign in again.',
     otpSkipped: 'Set a new PIN.',
     forgotConfirm: 'Reset',
-    forgotRequiresOtp: 'Enable SMS sign-in (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true) to reset PIN.',
+    forgotRequiresOtp: 'Enable SMS sign-in (EXPO_PUBLIC_USE_SMS_OTP=true) to reset PIN.',
     locked: 'Too many attempts. Try again in {{seconds}} sec.',
     expoGoHint: 'Face ID is not available in Expo Go. Use PIN or build a standalone app.',
     expoGoDeviceAuthHint:
@@ -154,6 +155,9 @@ export default {
     savePinAndContinue: 'Continue',
     pinProfileMissing:
       'Sign-in data was not found on this device. Tap "Forgot PIN?" and confirm your email with the code.',
+  },
+  staff: {
+    pinNeedsSms: 'Sign in once via SMS — your PIN will be saved for quick login',
   },
   confirmationTitle: 'Confirmation',
   devCodeStub: 'Verification code (stub)',

@@ -12,11 +12,11 @@ export default {
     },
     admin: {
       title: 'Администратор',
-      description: 'Управление сменами, заявками и командой на ПВЗ',
+      description: 'Вход по номеру телефона: SMS при первом входе, далее PIN-код',
     },
     employee: {
       title: 'Сотрудник',
-      description: 'Вход по номеру телефона и SMS-коду из приглашения',
+      description: 'Вход по номеру телефона: SMS при первом входе, далее PIN-код',
     },
   },
   phone: {
@@ -84,12 +84,13 @@ export default {
     biometricLogin: 'Войти через {{label}}',
     orEnterPin: 'или введите PIN',
     forgot: 'Забыли PIN?',
+    backspace: 'Удалить цифру',
     forgotTitle: 'Сброс PIN',
     forgotMessage: 'PIN будет удалён. Для входа потребуется повторная SMS-верификация.',
     forgotMessageEmail: 'PIN будет удалён. Для входа потребуется email и пароль.',
     forgotConfirm: 'Сбросить',
     otpSkipped: 'Установите новый PIN.',
-    forgotRequiresOtp: 'Для сброса PIN включите вход по SMS (EXPO_PUBLIC_USE_SUPABASE_PHONE_OTP=true).',
+    forgotRequiresOtp: 'Для сброса PIN включите вход по SMS (EXPO_PUBLIC_USE_SMS_OTP=true).',
     locked: 'Слишком много попыток. Повторите через {{seconds}} сек.',
     expoGoHint: 'В Expo Go Face ID приложения недоступен. Используйте PIN или соберите standalone-приложение.',
     expoGoDeviceAuthHint:
@@ -155,6 +156,10 @@ export default {
     savePinAndContinue: 'Продолжить',
     pinProfileMissing:
       'Данные входа не найдены на устройстве. Нажмите «Забыли PIN-код?» и подтвердите email кодом.',
+  },
+  staff: {
+    pinNeedsSms:
+      'Войдите один раз по SMS — PIN сохранится на сервере для быстрого входа',
   },
   confirmationTitle: 'Подтверждение',
   devCodeStub: 'Код подтверждения (заглушка)',

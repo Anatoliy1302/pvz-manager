@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { UserRole } from '../../../types/user';
 import { ROLE_LABEL_KEYS } from '../loginConstants';
+import LoginStepBackButton from './LoginStepBackButton';
 import LoginContinueButton from './LoginContinueButton';
 import LoginPinInput from './LoginPinInput';
 import LoginStepHeader from './LoginStepHeader';
@@ -16,9 +17,11 @@ interface LoginQuickLoginStepProps {
   loading: boolean;
   titleStyle?: object;
   subtitleStyle?: object;
+  onBack: () => void;
   onChangePin: (value: string) => void;
   onSubmit: () => void;
   onSwitchAccount: () => void;
+  onForgotPin?: () => void;
 }
 
 export default function LoginQuickLoginStep({
@@ -29,9 +32,11 @@ export default function LoginQuickLoginStep({
   loading,
   titleStyle,
   subtitleStyle,
+  onBack,
   onChangePin,
   onSubmit,
   onSwitchAccount,
+  onForgotPin,
 }: LoginQuickLoginStepProps) {
   const { t } = useTranslation();
   const { styles: loginStyles } = useLoginStyles();
@@ -39,6 +44,8 @@ export default function LoginQuickLoginStep({
 
   return (
     <View style={loginStyles.quickLoginStepContainer}>
+      <LoginStepBackButton onPress={onBack} />
+
       <View style={loginStyles.quickLoginAvatar}>
         <Text style={loginStyles.quickLoginAvatarText}>
           {(savedProfileName || '?').charAt(0).toUpperCase()}
@@ -69,7 +76,26 @@ export default function LoginQuickLoginStep({
         onPress={onSubmit}
       />
 
-      <TouchableOpacity onPress={onSwitchAccount} style={loginStyles.switchAccountButton}>
+      {onForgotPin ? (
+        <TouchableOpacity
+          onPress={onForgotPin}
+          disabled={loading}
+          style={loginStyles.switchAccountButton}
+          accessibilityRole="button"
+          accessibilityLabel={t('auth.pin.forgot')}
+          testID="login-forgot-pin"
+        >
+          <Text style={loginStyles.switchAccountText}>{t('auth.pin.forgot')}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <TouchableOpacity
+        onPress={onSwitchAccount}
+        style={loginStyles.switchAccountButton}
+        accessibilityRole="button"
+        accessibilityLabel={t('auth.quickLogin.switchAccount')}
+        testID="login-switch-account"
+      >
         <Text style={loginStyles.switchAccountText}>{t('auth.quickLogin.switchAccount')}</Text>
       </TouchableOpacity>
     </View>

@@ -110,6 +110,8 @@ export default function LoginEmailStep({
           autoCapitalize="none"
           autoCorrect={false}
           placeholderTextColor={colors.grayLighter}
+          accessibilityLabel={t('auth.email.placeholder')}
+          testID="login-email-input"
         />
       </View>
 
@@ -130,8 +132,18 @@ export default function LoginEmailStep({
             autoCapitalize="none"
             autoCorrect={false}
             placeholderTextColor={colors.grayLighter}
+            accessibilityLabel={t('auth.email.passwordPlaceholder')}
+            testID="login-password-input"
           />
-          <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+          <TouchableOpacity
+            onPress={() => setShowPassword((v) => !v)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              showPassword ? t('auth.email.hidePassword') : t('auth.email.showPassword')
+            }
+            testID="login-toggle-password"
+          >
             <Text style={{ color: colors.primary, fontSize: 13 }}>
               {showPassword ? t('auth.email.hidePassword') : t('auth.email.showPassword')}
             </Text>
@@ -151,7 +163,14 @@ export default function LoginEmailStep({
       />
 
       {authMode === 'login' && !otpEntry ? (
-        <TouchableOpacity style={loginStyles.resendButton} onPress={onForgotPassword} disabled={loading}>
+        <TouchableOpacity
+          style={loginStyles.resendButton}
+          onPress={onForgotPassword}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel={t('auth.email.forgotPassword')}
+          testID="login-forgot-password"
+        >
           <Text style={loginStyles.resendText}>{t('auth.email.forgotPassword')}</Text>
         </TouchableOpacity>
       ) : null}
@@ -161,6 +180,11 @@ export default function LoginEmailStep({
           style={loginStyles.resendButton}
           onPress={onToggleAuthMode}
           disabled={loading}
+          accessibilityRole="button"
+          accessibilityLabel={
+            authMode === 'login' ? t('auth.email.switchToRegister') : t('auth.email.switchToLogin')
+          }
+          testID="login-toggle-auth-mode"
         >
           <Text style={loginStyles.resendText}>
             {authMode === 'login' ? t('auth.email.switchToRegister') : t('auth.email.switchToLogin')}

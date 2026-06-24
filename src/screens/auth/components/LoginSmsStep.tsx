@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { getPhoneOtpCodeLength, DEMO_MODE, DEMO_OTP_CODE } from '../../../services/SupabaseAuthService';
+import { getPhoneOtpCodeLength, DEMO_MODE, DEMO_OTP_CODE } from '../../../services/AuthService';
 import { colors } from '../../../constants/colors';
 import LoginContinueButton from './LoginContinueButton';
 import LoginStepBackButton from './LoginStepBackButton';
@@ -177,6 +177,10 @@ export default function LoginSmsStep({
           autoFocus
           placeholder={'0'.repeat(otpLength)}
           placeholderTextColor={colors.grayLighter}
+          accessibilityLabel={
+            isEmail ? t('auth.emailOtp.title') : t('auth.sms.title')
+          }
+          testID="login-otp-input"
         />
       </View>
 
@@ -201,6 +205,18 @@ export default function LoginSmsStep({
         style={loginStyles.resendButton}
         onPress={onResend}
         disabled={loading || smsTimer > 0 || otpSendStatus === 'rate_limited'}
+        accessibilityRole="button"
+        accessibilityLabel={
+          smsTimer > 0
+            ? t('auth.sms.resendTimer', { seconds: smsTimer })
+            : isEmail
+              ? t('auth.emailOtp.resend')
+              : t('auth.sms.resend')
+        }
+        accessibilityState={{
+          disabled: loading || smsTimer > 0 || otpSendStatus === 'rate_limited',
+        }}
+        testID="login-resend-otp"
       >
         <Text style={[loginStyles.resendText, smsTimer > 0 && loginStyles.resendTextDisabled]}>
           {smsTimer > 0
