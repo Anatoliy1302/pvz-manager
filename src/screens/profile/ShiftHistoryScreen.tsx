@@ -12,14 +12,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import StorageService from '../../services/StorageService';
+import { SecureStoreKeys } from '../../constants/secureStoreKeys';
 import DataService from '../../services/DataService';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
+import EmptyState from '../../components/common/EmptyState';
 import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { syncShiftStatusesInStorage } from '../../services/PaymentService';
-import { isSamePvz } from '../../utils/supabaseHelpers';
+import { isSamePvz, collectEmployeeIdAliases } from '../../utils/apiIdHelpers';
 import {
   calcShiftHours,
   getShiftDisplayStatus,
@@ -49,7 +51,6 @@ const STATUS_COLORS: Record<ShiftDisplayStatus, string> = {
   completed: colors.success,
   paid: '#2196F3',
   planned: colors.warning,
-  active: colors.primary,
 };
 
 function formatShiftDate(dateString: string): string {
@@ -71,7 +72,11 @@ function formatMonthLabel(year: number, month: number): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export default function ShiftHistoryScreen({ navigation }: any) {
+import type { RootStackScreenProps } from '../../navigation/types';
+
+type Props = RootStackScreenProps<'ShiftHistory'>;
+
+export default function ShiftHistoryScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { screen, ui } = useThemedScreen();
@@ -88,12 +93,18 @@ export default function ShiftHistoryScreen({ navigation }: any) {
   const currency = t('common.money.currency');
 
   const loadShifts = async () => {
-    if (!user?.id || !pvzId) return;
+    if (!user?.id || !pvzId) {
+      setShifts([]);
+      setLoading(false);
+      return;
+    }
 
     try {
+      await DataService.pullPvzScheduleFromServer(pvzId);
       await syncShiftStatusesInStorage();
+      const aliases = await collectEmployeeIdAliases(user.id);
       const allShifts = await DataService.getShifts();
-      const historyRaw = await StorageService.getItem('shifts_history');
+      const historyRaw = await StorageService.getItem(SecureStoreKeys.shiftsHistory);
       const historyRecords = safeParseJson<
         Array<{
           id: string;
@@ -113,12 +124,12 @@ export default function ShiftHistoryScreen({ navigation }: any) {
       const seen = new Set<string>();
 
       for (const shift of allShifts) {
-        if (shift.employeeId !== user.id) continue;
+        if (!aliases.has(shift.employeeId)) continue;
         if (!(await isSamePvz(shift.pvzId, pvzId))) continue;
         if (!showAllTime && (shift.date < periodRange.start || shift.date > periodRange.end)) continue;
 
         const status = getShiftDisplayStatus(shift);
-        if (status === 'planned' || status === 'active') continue;
+        if (status === 'planned') continue;
 
         let earnings = shift.earnings || 0;
         if (!earnings) {
@@ -141,7 +152,7 @@ export default function ShiftHistoryScreen({ navigation }: any) {
       }
 
       for (const record of historyRecords) {
-        if (record.employeeId !== user.id) continue;
+        if (!aliases.has(record.employeeId)) continue;
         if (record.pvzId && !(await isSamePvz(record.pvzId, pvzId))) continue;
         if (!showAllTime && (record.date < periodRange.start || record.date > periodRange.end)) continue;
 

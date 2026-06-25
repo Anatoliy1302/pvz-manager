@@ -13,27 +13,34 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Modal,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useModalStyles } from '../../hooks/useModalStyles';
 import { useScreenToast } from '../../hooks/useScreenToast';
-import * as SecureStore from 'expo-secure-store';
+import StorageService from '../../services/StorageService';
+import { SecureStoreKeys } from '../../constants/secureStoreKeys';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
 import { ChevronLeft, Save, User, Phone, AlertCircle, Building2, ChevronDown, X, Shield, UserCog } from 'lucide-react-native';
-import { UserRole, User as StoredUser } from '../../types/user';
+import { UserRole, User as StoredUser, Pvz } from '../../types/user';
 import { safeParseJson } from '../../utils/safeJson';
+import { resolveUserMessage } from '../../utils/appErrors';
 import { useAccessiblePvzs } from '../../hooks/useAccessiblePvzs';
 
-const { height } = Dimensions.get('window');
+import type { DualStackScreenProps } from '../../navigation/types';
 
-export default function EmployeeEditFormScreen({ navigation, route }: any) {
+type Props = DualStackScreenProps<'EmployeeEditForm', 'AdminEmployeeEditForm'>;
+
+export default function EmployeeEditFormScreen({ navigation, route }: Props) {
+  const { height } = useWindowDimensions();
   const { t } = useTranslation();
   const { refreshUserData, user, pvz } = useAuth();
   const { ui } = useThemedScreen();
+  const modal = useModalStyles();
   const { showError, showSuccess } = useScreenToast();
   const { employee, pvzId } = route.params || {};
   
@@ -65,7 +72,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
     
     setLoading(true);
     try {
-      const stored = await SecureStore.getItemAsync('pvz_users');
+      const stored = await StorageService.getItem(SecureStoreKeys.pvzUsers);
       if (stored) {
         const all = safeParseJson<StoredUser[]>(stored, []);
         const userIndex = all.findIndex((u: any) => u.id === employee.id);
@@ -76,7 +83,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
           all[userIndex].role = role;
           all[userIndex].pvzId = selectedPvzId;
           
-          await SecureStore.setItemAsync('pvz_users', JSON.stringify(all));
+          await StorageService.setItem(SecureStoreKeys.pvzUsers, JSON.stringify(all));
           await refreshUserData();
           
           showSuccess(t('alerts.success.employeeUpdated'));
@@ -85,14 +92,14 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
           showError(t('alerts.network.employeeNotFound'));
         }
       }
-    } catch (error: any) {
-      showError(error.message || t('alerts.network.updateEmployeeFailed'));
+    } catch (error: unknown) {
+      showError(resolveUserMessage(error, 'alerts.network.updateEmployeeFailed'));
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedPvz = accessiblePvzs.find(p => p.id === selectedPvzId);
+  const selectedPvz = accessiblePvzs.find((p: Pvz) => p.id === selectedPvzId);
 
   const renderPvzModal = () => (
     <Modal
@@ -101,14 +108,14 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
       animationType="fade"
       onRequestClose={() => setShowPvzModal(false)}
     >
-      <TouchableOpacity 
-        style={styles.modalOverlay} 
-        activeOpacity={1} 
+      <TouchableOpacity
+        style={modal.overlay}
+        activeOpacity={1}
         onPress={() => setShowPvzModal(false)}
       >
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{t('common.pvz.select')}</Text>
+        <View style={[modal.contentLarge, styles.pvzModalContent, { maxHeight: height * 0.6 }]}>
+          <View style={[modal.header, styles.pvzModalHeader]}>
+            <Text style={modal.title}>{t('common.pvz.select')}</Text>
             <TouchableOpacity onPress={() => setShowPvzModal(false)}>
               <X size={22} color={colors.gray} />
             </TouchableOpacity>
@@ -117,7 +124,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
             {accessiblePvzs.length === 0 ? (
               <Text style={styles.modalEmptyText}>{t('screens.employeeForm.noPvzAvailable')}</Text>
             ) : (
-              accessiblePvzs.map((p) => (
+              accessiblePvzs.map((p: Pvz) => (
                 <TouchableOpacity
                   key={p.id}
                   style={[
@@ -268,17 +275,7 @@ export default function EmployeeEditFormScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-  },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   saveButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
   
   keyboardView: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
@@ -373,32 +370,16 @@ const styles = StyleSheet.create({
   },
   warningText: { flex: 1, fontSize: 13, color: colors.warning, lineHeight: 18 },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+  pvzModalContent: {
     width: '85%',
-    maxHeight: height * 0.6,
     overflow: 'hidden',
+    padding: 0,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  pvzModalHeader: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
   },
   modalList: {
     padding: 8,
