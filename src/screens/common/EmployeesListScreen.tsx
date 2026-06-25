@@ -12,22 +12,23 @@ import {
   TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as SecureStore from 'expo-secure-store';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
 import { useScreenRefresh, useScopedInitialLoading } from '../../hooks/useScreenRefresh';
 import StorageService from '../../services/StorageService';
+import { SecureStoreKeys } from '../../constants/secureStoreKeys';
 import { formatPhoneForDisplay } from '../../utils/phoneHelpers';
 import { loadPvzPayrollBundle } from '../../services/PaymentService';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../constants/colors';
-import { User } from '../../types/user';
+import { User, Shift } from '../../types/user';
 import DataService from '../../services/DataService';
 import { safeParseJson } from '../../utils/safeJson';
-import { formatHours } from '../../utils/dateHelpers';
+import { formatHours, toDateKey, getMonthRange } from '../../utils/dateHelpers';
 import { userWorksAtPvz } from '../../utils/pvzUserHelpers';
+import { getShiftStatus } from '../../utils/shiftStatusHelper';
 import {
   Users,
   UserPlus,
@@ -39,21 +40,16 @@ import {
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import { markScreenLoadStart, markScreenLoadEnd } from '../../utils/perfMonitor';
 import { EmployeesListSkeleton } from '../../components/common/Skeleton';
+import EmptyState from '../../components/common/EmptyState';
 import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
+import type { AppNavigationLike, EmployeesListRouteParams } from '../../navigation/types';
+import { navigateEmployeeAddForm, navigateEmployeeEditForm } from '../../navigation/types';
+import { resolveUserMessage } from '../../utils/appErrors';
 
 interface EmployeesListScreenProps {
-  navigation: any;
+  navigation: AppNavigationLike;
   route: {
-    params?: {
-      pvzId?: string;
-      role?: 'owner' | 'admin';
-      canEdit?: boolean;
-      canDelete?: boolean;
-      canAdd?: boolean;
-      showBack?: boolean;
-      addScreenName?: string;
-      editScreenName?: string;
-    };
+    params?: EmployeesListRouteParams;
   };
 }
 
@@ -65,26 +61,55 @@ interface EmployeeWithStats extends User {
 
 export default function EmployeesListScreen({ navigation, route }: EmployeesListScreenProps) {
   const { t } = useTranslation();
-  const { pvz, blockUser, confirmPendingEmployee } = useAuth();
+  const { pvz, user, userPvzs, blockUser, confirmPendingEmployee, hasRole, hasPermission } =
+    useAuth();
   const { ui, screen } = useThemedScreen();
   const { showError, showSuccess } = useScreenToast();
   const {
     pvzId: propPvzId,
-    role = 'admin',
-    canEdit = true,
-    canDelete = true,
-    canAdd = true,
+    role: routeRole,
     showBack = true,
-    addScreenName = role === 'owner' ? 'EmployeeAddForm' : 'AdminEmployeeAddForm',
-    editScreenName = role === 'owner' ? 'EmployeeEditForm' : 'AdminEmployeeEditForm',
+    addScreenName: routeAddScreenName,
+    editScreenName: routeEditScreenName,
   } = route.params || {};
 
-  const isOwner = role === 'owner';
+  const isOwner = hasRole(['owner']);
+  const canManage = isOwner || hasPermission('canManageEmployees');
+  const canEdit = canManage;
+  const canDelete = canManage;
+  const canAdd = canManage;
+  const role = routeRole ?? (isOwner ? 'owner' : 'admin');
+  const addScreenName =
+    routeAddScreenName ?? (isOwner ? 'EmployeeAddForm' : 'AdminEmployeeAddForm');
+  const editScreenName =
+    routeEditScreenName ?? (isOwner ? 'EmployeeEditForm' : 'AdminEmployeeEditForm');
+
+  const allowedPvzIds = useMemo(() => {
+    if (isOwner) {
+      return new Set(userPvzs.map((item) => item.id));
+    }
+    const ids = user?.pvzIds?.length
+      ? user.pvzIds
+      : user?.pvzId
+        ? [user.pvzId]
+        : pvz?.id
+          ? [pvz.id]
+          : [];
+    return new Set(ids);
+  }, [isOwner, userPvzs, user?.pvzIds, user?.pvzId, pvz?.id]);
+
+  const currentPvzId = useMemo(() => {
+    const requested = propPvzId || pvz?.id;
+    if (!requested) return undefined;
+    if (allowedPvzIds.has(requested)) return requested;
+    return allowedPvzIds.values().next().value as string | undefined;
+  }, [propPvzId, pvz?.id, allowedPvzIds]);
+
   const showFinance = isOwner;
 
   const [employees, setEmployees] = useState<EmployeeWithStats[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<EmployeeWithStats[]>([]);
-  const [shifts, setShifts] = useState<any[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'employee' | 'admin'>('all');
@@ -93,21 +118,8 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     Array<{ id: string; name: string; phone: string }>
   >([]);
 
-  const currentPvzId = propPvzId || pvz?.id;
   const [loading, markLoaded] = useScopedInitialLoading(currentPvzId);
-  const todayKey = useMemo(() => new Date().toISOString().split('T')[0], []);
-
-  const loadShifts = async () => {
-    if (!currentPvzId) return;
-    try {
-      const shiftsRaw = await StorageService.getItem('shifts');
-      const allShifts = safeParseJson<unknown[]>(shiftsRaw ?? '[]', []);
-      const pvzShifts = allShifts.filter((s: any) => s.pvzId === currentPvzId);
-      setShifts(pvzShifts);
-    } catch (error) {
-      console.error('Ошибка загрузки смен:', error);
-    }
-  };
+  const todayKey = useMemo(() => toDateKey(new Date()), []);
 
   const loadPendingEmployees = async () => {
     if (!canAdd || !currentPvzId) {
@@ -115,13 +127,14 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
       return;
     }
     try {
-      const pendingRaw = await SecureStore.getItemAsync('pending_employees');
+      const pendingRaw = await StorageService.getItem(SecureStoreKeys.pendingEmployees);
       const pending = safeParseJson<User[]>(pendingRaw ?? '[]', []);
       setPendingEmployees(
         pending.filter((p: { pvzId?: string }) => p.pvzId === currentPvzId)
       );
     } catch (error) {
       console.error('Ошибка загрузки ожидающих сотрудников:', error);
+      showError(resolveUserMessage(error, 'alerts.network.loadEmployeesFailed'));
     }
   };
 
@@ -139,8 +152,8 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
               await loadPendingEmployees();
               await loadEmployees();
               showSuccess(t('alerts.success.employeeConfirmed', { name: emp.name }));
-            } catch (error: any) {
-              showError(error?.message || t('alerts.network.confirmEmployeeFailed'));
+            } catch (error: unknown) {
+              showError(resolveUserMessage(error, 'alerts.network.confirmEmployeeFailed'));
             }
           },
         },
@@ -148,85 +161,112 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     );
   };
 
+  const currentMonthPeriod = useMemo(() => {
+    const now = new Date();
+    return getMonthRange(now.getFullYear(), now.getMonth());
+  }, []);
+
   const loadEmployees = useCallback(async () => {
     if (!currentPvzId) return;
     markScreenLoadStart('EmployeesList');
     try {
-      const stored = await StorageService.getItem('pvz_users');
-      if (stored) {
-        const all = safeParseJson<User[]>(stored, []);
-        const filtered = all.filter(
-          (u: User) =>
-            u.role !== 'owner' &&
-            u.status === 'active' &&
-            userWorksAtPvz(u, currentPvzId)
-        );
-
-        const shiftsRaw = await StorageService.getItem('shifts');
-        const allShifts = safeParseJson<unknown[]>(shiftsRaw ?? '[]', []);
-
-        let payrollMap: Map<string, { lifetimeBalance: number; periodAccruals: { netEarned: number } }> | null =
-          null;
-        if (isOwner && filtered.length > 0) {
-          payrollMap = await loadPvzPayrollBundle(
-            currentPvzId,
-            filtered.map((e) => e.id),
-            '1970-01-01',
-            '2099-12-31'
-          );
-        }
-
-        const employeesWithStats = filtered.map((emp: User) => {
-          const employeeShifts = allShifts.filter(
-            (s: { employeeId?: string; status?: string }) =>
-              s.employeeId === emp.id &&
-              (s.status === 'completed' || s.status === 'paid')
-          );
-          const totalHours = employeeShifts.reduce(
-            (sum: number, s: { totalHours?: number; actualHours?: number }) =>
-              sum + (s.totalHours || s.actualHours || 0),
-            0
-          );
-          const row = payrollMap?.get(emp.id);
-
-          return {
-            ...emp,
-            totalHours: Math.round(totalHours * 10) / 10,
-            totalEarned: row?.periodAccruals.netEarned ?? 0,
-            balance: row?.lifetimeBalance ?? 0,
-          };
-        });
-
-        const onShiftToday = employeesWithStats.filter((emp) =>
-          allShifts.some(
-            (s: any) =>
-              s.employeeId === emp.id &&
-              s.date === todayKey &&
-              s.pvzId === currentPvzId
-          )
-        ).length;
-
-        setEmployees(employeesWithStats);
-        applyFilters(employeesWithStats, searchQuery, roleFilter);
-        setStats({
-          total: employeesWithStats.length,
-          onShiftToday,
-        });
+      const stored = await StorageService.getItem(SecureStoreKeys.pvzUsers);
+      if (!stored) {
+        setEmployees([]);
+        setFilteredEmployees([]);
+        setShifts([]);
+        setStats({ total: 0, onShiftToday: 0 });
+        return;
       }
+
+      const all = safeParseJson<User[]>(stored, []);
+      const filtered = all.filter(
+        (u: User) =>
+          u.role !== 'owner' &&
+          u.status === 'active' &&
+          userWorksAtPvz(u, currentPvzId)
+      );
+
+      const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
+      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
+      const pvzShifts = allShifts.filter((s) => s.pvzId === currentPvzId);
+      setShifts(pvzShifts);
+
+      let payrollMap: Map<string, { lifetimeBalance: number; periodAccruals: { netEarned: number } }> | null =
+        null;
+      if (isOwner && filtered.length > 0) {
+        payrollMap = await loadPvzPayrollBundle(
+          currentPvzId,
+          filtered.map((e) => e.id),
+          currentMonthPeriod.start,
+          currentMonthPeriod.end
+        );
+      }
+
+      const employeesWithStats = filtered.map((emp: User) => {
+        const employeeShifts = pvzShifts.filter(
+          (s) =>
+            s.employeeId === emp.id &&
+            (s.status === 'completed' || s.status === 'paid')
+        );
+        const totalHours = employeeShifts.reduce(
+          (sum, s) => sum + (s.totalHours || s.actualHours || 0),
+          0
+        );
+        const row = payrollMap?.get(emp.id);
+
+        return {
+          ...emp,
+          totalHours: Math.round(totalHours * 10) / 10,
+          totalEarned: row?.periodAccruals.netEarned ?? 0,
+          balance: row?.lifetimeBalance ?? 0,
+        };
+      });
+
+      const onShiftToday = employeesWithStats.filter((emp) =>
+        pvzShifts.some(
+          (s) =>
+            s.employeeId === emp.id &&
+            s.date === todayKey
+        )
+      ).length;
+
+      setEmployees(employeesWithStats);
+      applyFilters(employeesWithStats, searchQuery, roleFilter);
+      setStats({
+        total: employeesWithStats.length,
+        onShiftToday,
+      });
     } catch (error) {
       console.error('Ошибка загрузки сотрудников:', error);
+      showError(resolveUserMessage(error, 'alerts.network.loadEmployeesFailed'));
     } finally {
       markLoaded();
       markScreenLoadEnd('EmployeesList');
     }
-  }, [currentPvzId, isOwner, todayKey, markLoaded]);
+  }, [
+    currentPvzId,
+    isOwner,
+    todayKey,
+    markLoaded,
+    currentMonthPeriod.start,
+    currentMonthPeriod.end,
+    searchQuery,
+    roleFilter,
+    showError,
+  ]);
 
   const refreshList = useCallback(async () => {
-    await Promise.all([loadEmployees(), loadShifts(), loadPendingEmployees()]);
-  }, [loadEmployees, currentPvzId, canAdd]);
+    await Promise.all([loadEmployees(), loadPendingEmployees()]);
+  }, [loadEmployees, canAdd]);
 
   useScreenRefresh(refreshList, [refreshList], {
-    subscribeKeys: ['employee_balance', 'pending_employees', 'pvz_users', 'shifts'],
+    subscribeKeys: [
+      'employee_balance',
+      SecureStoreKeys.pendingEmployees,
+      SecureStoreKeys.pvzUsers,
+      SecureStoreKeys.shifts,
+    ],
   });
 
   const applyFilters = (
@@ -267,30 +307,13 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
       return { text: t('common.shiftStatus.noShift'), color: colors.gray, bg: '#F0F0F0' };
     }
 
-    const now = new Date();
-    const shiftDate = new Date(todayShift.date);
-    const [startHour] = todayShift.startTime.split(':').map(Number);
-    const [endHour] = todayShift.endTime.split(':').map(Number);
+    const { status, paymentStatus } = getShiftStatus(todayShift);
 
-    const shiftStartTime = new Date(shiftDate);
-    shiftStartTime.setHours(startHour, 0, 0);
-    const shiftEndTime = new Date(shiftDate);
-    shiftEndTime.setHours(endHour, 0, 0);
-
-    if (todayShift.paymentStatus === 'paid') {
+    if (status === 'paid' || paymentStatus === 'paid') {
       return { text: t('common.shiftStatus.paid'), color: colors.success, bg: '#E8F5E9' };
     }
-    if (todayShift.status === 'completed') {
+    if (status === 'completed') {
       return { text: t('common.shiftStatus.awaitingPayment'), color: colors.warning, bg: '#FFF3E0' };
-    }
-    if (todayShift.status === 'active') {
-      return { text: t('common.shiftStatus.working'), color: colors.success, bg: '#E8F5E9' };
-    }
-    if (now > shiftEndTime) {
-      return { text: t('common.shiftStatus.finished'), color: colors.warning, bg: '#FFF3E0' };
-    }
-    if (now >= shiftStartTime && now <= shiftEndTime) {
-      return { text: t('common.shiftStatus.canStart'), color: colors.primary, bg: '#E8F0FE' };
     }
     return { text: t('common.shiftStatus.scheduled'), color: colors.gray, bg: '#F5F5F5' };
   };
@@ -315,7 +338,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
   };
 
   const openEditModal = (employee: User) => {
-    navigation.navigate(editScreenName, { employee, pvzId: currentPvzId });
+    navigateEmployeeEditForm(navigation, editScreenName, { employee, pvzId: currentPvzId });
   };
 
   const handleEmployeePress = (item: EmployeeWithStats) => {
@@ -335,90 +358,131 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     setRefreshing(true);
     await DataService.refreshShiftsCache();
     await loadEmployees();
-    await loadShifts();
     await loadPendingEmployees();
     setRefreshing(false);
   };
 
-  const renderEmployee = ({ item }: { item: EmployeeWithStats }) => {
-    const shiftStatus = getTodayShiftStatus(item.id);
-    const pressable = isOwner || canEdit;
+  const renderEmployee = useCallback(
+    ({ item }: { item: EmployeeWithStats }) => {
+      const shiftStatus = getTodayShiftStatus(item.id);
+      const pressable = isOwner || canEdit;
 
-    return (
-      <View style={[styles.employeeCard, ui.card]}>
-        <TouchableOpacity
-          style={styles.employeeInfo}
-          onPress={() => handleEmployeePress(item)}
-          activeOpacity={pressable ? 0.7 : 1}
-          disabled={!pressable}
-        >
-          <Text style={[styles.employeeName, ui.title]}>{item.name}</Text>
-          <Text style={[styles.employeePhone, ui.subtitle]}>{item.phone}</Text>
+      return (
+        <View style={[styles.employeeCard, ui.card]}>
+          <TouchableOpacity
+            style={styles.employeeInfo}
+            onPress={() => handleEmployeePress(item)}
+            activeOpacity={pressable ? 0.7 : 1}
+            disabled={!pressable}
+          >
+            <Text style={[styles.employeeName, ui.title]}>{item.name}</Text>
+            <Text style={[styles.employeePhone, ui.subtitle]}>{item.phone}</Text>
 
-          <View style={styles.statsRow}>
-            <View style={[styles.statChip, { backgroundColor: ui.input.backgroundColor }]}>
-              <Clock size={12} color={colors.primary} />
-              <Text style={[styles.statChipText, ui.subtitle]}>
-                {formatHours(item.totalHours || 0)}
-              </Text>
-            </View>
-            {showFinance && (
-              <>
-                <View style={[styles.statChip, { backgroundColor: ui.input.backgroundColor }]}>
-                  <MoneyIcon size={12} color={colors.success} />
-                  <Text style={[styles.statChipText, ui.subtitle]}>
-                    {item.totalEarned?.toLocaleString() || 0} ₽
-                  </Text>
-                </View>
-                {(item.balance ?? 0) > 0 && (
-                  <View style={[styles.statChip, styles.balanceChip]}>
-                    <Text style={styles.balanceChipText}>
-                      {t('common.money.debtLabel', { amount: (item.balance ?? 0).toLocaleString() })}
+            <View style={styles.statsRow}>
+              <View style={[styles.statChip, { backgroundColor: ui.input.backgroundColor }]}>
+                <Clock size={12} color={colors.primary} />
+                <Text style={[styles.statChipText, ui.subtitle]}>
+                  {formatHours(item.totalHours || 0)}
+                </Text>
+              </View>
+              {showFinance && (
+                <>
+                  <View style={[styles.statChip, { backgroundColor: ui.input.backgroundColor }]}>
+                    <MoneyIcon size={12} color={colors.success} />
+                    <Text style={[styles.statChipText, ui.subtitle]}>
+                      {item.totalEarned?.toLocaleString() || 0} ₽
                     </Text>
                   </View>
-                )}
-              </>
-            )}
-          </View>
+                  {(item.balance ?? 0) > 0 && (
+                    <View style={[styles.statChip, styles.balanceChip]}>
+                      <Text style={styles.balanceChipText}>
+                        {t('common.money.debtLabel', { amount: (item.balance ?? 0).toLocaleString() })}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
 
-          <View
-            style={[
-              styles.roleBadge,
-              item.role === 'admin' ? styles.adminBadge : styles.employeeBadge,
-            ]}
-          >
-            <Text style={[styles.roleText, ui.subtitle]}>
-              {item.role === 'admin' ? t('common.roles.admin') : t('common.roles.employee')}
-            </Text>
-          </View>
-          <View
-            style={[styles.shiftStatusBadge, { backgroundColor: shiftStatus.bg, marginTop: 6 }]}
-          >
-            <Text style={[styles.shiftStatusText, { color: shiftStatus.color }]}>
-              {shiftStatus.text}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        {(canEdit || canDelete) && (
-          <View style={styles.actions}>
-            {canEdit && (
-              <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
-                <Edit2 size={18} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-            {canDelete && (
-              <TouchableOpacity
-                onPress={() => deleteEmployee(item.id, item.name)}
-                style={styles.deleteButton}
-              >
-                <Trash2 size={18} color={colors.danger} />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
+            <View
+              style={[
+                styles.roleBadge,
+                item.role === 'admin' ? styles.adminBadge : styles.employeeBadge,
+              ]}
+            >
+              <Text style={[styles.roleText, ui.subtitle]}>
+                {item.role === 'admin' ? t('common.roles.admin') : t('common.roles.employee')}
+              </Text>
+            </View>
+            <View
+              style={[styles.shiftStatusBadge, { backgroundColor: shiftStatus.bg, marginTop: 6 }]}
+            >
+              <Text style={[styles.shiftStatusText, { color: shiftStatus.color }]}>
+                {shiftStatus.text}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          {(canEdit || canDelete) && (
+            <View style={styles.actions}>
+              {canEdit && (
+                <TouchableOpacity onPress={() => openEditModal(item)} style={styles.editButton}>
+                  <Edit2 size={18} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+              {canDelete && (
+                <TouchableOpacity
+                  onPress={() => deleteEmployee(item.id, item.name)}
+                  style={styles.deleteButton}
+                >
+                  <Trash2 size={18} color={colors.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+      );
+    },
+    [
+      canEdit,
+      canDelete,
+      deleteEmployee,
+      getTodayShiftStatus,
+      handleEmployeePress,
+      isOwner,
+      openEditModal,
+      showFinance,
+      t,
+      ui.card,
+      ui.input.backgroundColor,
+      ui.subtitle,
+      ui.title,
+    ],
+  );
+
+  const listEmptyComponent = useMemo(() => {
+    const isFilteredEmpty = employees.length > 0 && filteredEmployees.length === 0;
+    return (
+      <EmptyState
+        icon={Users}
+        title={t('screens.employees.empty')}
+        description={isFilteredEmpty ? t('screens.employees.searchPlaceholder') : undefined}
+        buttonText={canAdd && !isFilteredEmpty ? t('screens.employees.addButton') : undefined}
+        onButtonPress={
+          canAdd && !isFilteredEmpty
+            ? () => navigateEmployeeAddForm(navigation, addScreenName, { pvzId: currentPvzId })
+            : undefined
+        }
+      />
     );
-  };
+  }, [
+    addScreenName,
+    canAdd,
+    currentPvzId,
+    employees.length,
+    filteredEmployees.length,
+    navigation,
+    t,
+  ]);
 
   const getHeaderTitle = () =>
     isOwner ? t('screens.employees.title') : t('screens.employees.titlePvz');
@@ -489,7 +553,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
       {canAdd && (
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate(addScreenName, { pvzId: currentPvzId })}
+          onPress={() => navigateEmployeeAddForm(navigation, addScreenName, { pvzId: currentPvzId })}
         >
           <LinearGradient
             colors={[colors.primary, colors.primaryDark]}
@@ -540,7 +604,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
     <ThemedSafeAreaView style={styles.container}>
       <ScreenHeader
         title={getHeaderTitle()}
-        onBack={showBack ? () => navigation.goBack() : undefined}
+        onBack={showBack ? () => navigation.goBack?.() : undefined}
       />
 
       {loading ? (
@@ -555,12 +619,7 @@ export default function EmployeesListScreen({ navigation, route }: EmployeesList
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Users size={64} color={colors.grayLighter} />
-            <Text style={[styles.emptyText, ui.subtitle]}>{t('screens.employees.empty')}</Text>
-          </View>
-        }
+        ListEmptyComponent={listEmptyComponent}
         {...FLAT_LIST_PERF}
       />
       )}
