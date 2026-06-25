@@ -1,24 +1,26 @@
 ﻿// src/services/PaymentService.ts
 import StorageService from './StorageService';
+import { SecureStoreKeys } from '../constants/secureStoreKeys';
 import DataService from './DataService';
 import {
-  fetchPaymentsFromSupabase,
+  fetchPaymentsFromRemote,
   mergePayments,
-  upsertPaymentToSupabase,
-} from './SupabasePaymentService';
+  upsertPaymentToRemote,
+} from './PaymentSyncService';
 import {
   mergeAdvanceRequests,
-  upsertAdvanceRequestToSupabase,
-} from './SupabaseAdvanceRequestService';
-import { resolvePvzId, isSamePvz } from '../utils/supabaseHelpers';
+  upsertAdvanceRequestToRemote,
+} from './AdvanceRequestSyncService';
+import { resolvePvzId, getPvzEquivalentIds, collectEmployeeIdAliases } from '../utils/apiIdHelpers';
+import { filterShiftsForEmployee, findEmployeeRecord } from '../utils/employeeShiftFilter';
 import { generateUuidV4 } from '../utils/generateSecureId';
 import { safeParseJson } from '../utils/safeJson';
 import {
   mergePenalties,
-  upsertPenaltyToSupabase,
-  deletePenaltyFromSupabase,
+  upsertPenaltyToRemote,
+  deletePenaltyFromRemote,
   SyncPenalty,
-} from './SupabasePenaltyService';
+} from './PenaltySyncService';
 import { 
   Payment, 
   PaymentType, 
@@ -28,9 +30,9 @@ import {
   EmployeePeriodDetail 
 } from '../types/payment';
 import { Shift, ShiftStatus, User } from '../types/user';
-import { getShiftStatus, isShiftCountableForAccruals } from '../utils/shiftStatusHelper';
+import { isShiftCountableForAccruals, getShiftStatus } from '../utils/shiftStatusHelper';
 
-// ============ ╨Ъ╨Ы╨о╨з╨Ш ╨Ф╨Ы╨п ╨е╨а╨Р╨Э╨Х╨Э╨Ш╨п ============
+// ============ КЛЮЧИ ДЛЯ ХРАНЕНИЯ ============
 
 const getPaymentsKey = (pvzId: string) => `payments_${pvzId}`;
 const getEmployeePaymentsKey = (employeeId: string) => `payments_employee_${employeeId}`;
@@ -38,12 +40,12 @@ const getAdvanceRequestsKey = (pvzId: string) => `advance_requests_${pvzId}`;
 const getEmployeeAdvanceRequestsKey = (employeeId: string) => `advance_requests_employee_${employeeId}`;
 const getBalanceKey = (employeeId: string) => `balance_${employeeId}`;
 
-// ============ ╨Т╨б╨Я╨Ю╨Ь╨Ю╨У╨Р╨в╨Х╨Ы╨м╨Э╨л╨Х ╨д╨г╨Э╨Ъ╨ж╨Ш╨Ш ╨Ф╨Ы╨п ╨и╨в╨а╨Р╨д╨Ю╨Т ============
+// ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ШТРАФОВ ============
 
 export interface PenaltyTotals {
   totalFines: number;
   totalBonuses: number;
-  /** ╨б╤Г╨╝╨╝╨░ ╨║ ╨▓╤Л╤З╨╡╤В╤Г ╨╕╨╖ ╨╜╨░╤З╨╕╤Б╨╗╨╡╨╜╨╕╨╣: ╤И╤В╤А╨░╤Д╤Л тИТ ╨▒╨╛╨╜╤Г╤Б╤Л */
+  /** Сумма к вычету из начислений: штрафы − бонусы */
   netDeduction: number;
 }
 
@@ -61,9 +63,7 @@ export interface AccrualsOptions {
   periodEnd?: string;
 }
 
-/**
- * ╨и╤В╤А╨░╤Д╤Л ╨╕ ╨▒╨╛╨╜╤Г╤Б╤Л ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░ (╨╛╨┐╤Ж╨╕╨╛╨╜╨░╨╗╤М╨╜╨╛ ╨╖╨░ ╨┐╨╡╤А╨╕╨╛╨┤)
- */
+/** Штрафы и бонусы сотрудника (опционально за период) */
 export async function getPenaltyTotals(
   employeeId: string,
   periodStart?: string,
@@ -96,7 +96,7 @@ export async function getPenaltyTotals(
       netDeduction: totalFines - totalBonuses,
     };
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╤И╤В╤А╨░╤Д╨╛╨▓:', error);
+    if (__DEV__) console.error('Ошибка загрузки штрафов:', error);
     return { totalFines: 0, totalBonuses: 0, netDeduction: 0 };
   }
 }
@@ -134,29 +134,8 @@ export async function syncShiftStatusesInStorage(): Promise<void> {
   }
 
   syncShiftStatusesInFlight = (async () => {
-    const shiftsRaw = await StorageService.getItem('shifts');
-    if (!shiftsRaw) return;
-
-    const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-    let updated = false;
-
-    const synced = allShifts.map((shift) => {
-      const computed = getShiftStatus(shift);
-      if (computed.status === 'paid' && shift.status !== 'paid') {
-        updated = true;
-        return { ...shift, status: 'paid' as ShiftStatus, paymentStatus: 'paid' as const };
-      }
-      if (computed.status === 'completed' && shift.status !== 'completed' && shift.status !== 'paid') {
-        updated = true;
-        return { ...shift, status: 'completed' as ShiftStatus };
-      }
-      return shift;
-    });
-
-    if (updated) {
-      await StorageService.setItem('shifts', JSON.stringify(synced));
-      DataService.emitChange('shifts');
-    }
+    const { autoCompleteScheduledShifts } = await import('../utils/advancedPayrollCalculator');
+    await autoCompleteScheduledShifts();
   })();
 
   try {
@@ -181,7 +160,7 @@ function employeeWorksAtPvz(user: User, pvzId: string): boolean {
 
 /**
  * Сводка зарплаты по всем сотрудникам ПВЗ за период — один проход по данным
- * (без N вызовов syncShiftStatuses / fetchPaymentsFromSupabase).
+ * (без N вызовов syncShiftStatuses / fetchPaymentsFromRemote).
  */
 export async function calculatePvzSalaryOverview(
   pvzId: string,
@@ -191,19 +170,17 @@ export async function calculatePvzSalaryOverview(
   await syncShiftStatusesInStorage();
 
   const [usersRaw, shiftsRaw, payments] = await Promise.all([
-    StorageService.getItem('pvz_users'),
-    StorageService.getItem('shifts'),
+    StorageService.getItem(SecureStoreKeys.pvzUsers),
+    StorageService.getItem(SecureStoreKeys.shifts),
     getPayments(pvzId),
   ]);
 
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-  const pvzShifts: Shift[] = [];
-  for (const shift of allShifts) {
-    if (await isSamePvz(shift.pvzId, pvzId)) {
-      pvzShifts.push(shift);
-    }
-  }
+  const equivalentPvzIds = await getPvzEquivalentIds(pvzId);
+  const pvzShifts = allShifts.filter(
+    (shift) => !shift.pvzId || equivalentPvzIds.has(shift.pvzId)
+  );
 
   const employees = users.filter(
     (u) => u.role !== 'owner' && u.status === 'active' && employeeWorksAtPvz(u, pvzId)
@@ -275,9 +252,9 @@ export async function loadPvzPayrollBundle(
   await syncShiftStatusesInStorage();
 
   const [shiftsRaw, paymentsRaw, usersRaw] = await Promise.all([
-    StorageService.getItem('shifts'),
+    StorageService.getItem(SecureStoreKeys.shifts),
     StorageService.getItem(getPaymentsKey(pvzId)),
-    StorageService.getItem('pvz_users'),
+    StorageService.getItem(SecureStoreKeys.pvzUsers),
   ]);
 
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
@@ -372,15 +349,14 @@ export async function calculateEmployeeAccruals(
 
   await syncShiftStatusesInStorage();
 
-  const shiftsRaw = await StorageService.getItem('shifts');
+  const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-  const employeeShifts = filterCountableShifts(
-    allShifts,
-    employeeId,
-    pvzId || undefined,
+  const matchedShifts = await filterShiftsForEmployee(allShifts, employeeId, {
+    pvzId: pvzId || undefined,
     periodStart,
-    periodEnd
-  );
+    periodEnd,
+  });
+  const employeeShifts = matchedShifts.filter(isShiftCountableForAccruals);
 
   const shiftsEarned = employeeShifts.reduce((sum, s) => sum + (s.earnings || 0), 0);
   const { totalFines, totalBonuses, netDeduction } = await getPenaltyTotals(
@@ -411,13 +387,13 @@ export async function calculateEmployeeAccruals(
   };
 }
 
-// ============ ╨Т╨л╨Я╨Ы╨Р╨в╨л ============
+// ============ ВЫПЛАТЫ ============
 
 export async function getPayments(pvzId: string): Promise<Payment[]> {
   try {
     const stored = await StorageService.getItem(getPaymentsKey(pvzId));
     const local = safeParseJson<Payment[]>(stored ?? '[]', []);
-    const remote = await fetchPaymentsFromSupabase();
+    const remote = await fetchPaymentsFromRemote();
 
     if (!remote) {
       return local;
@@ -439,7 +415,7 @@ export async function getPayments(pvzId: string): Promise<Payment[]> {
     await StorageService.setItem(getPaymentsKey(pvzId), JSON.stringify(merged));
     return merged;
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨▓╤Л╨┐╨╗╨░╤В:', error);
+    if (__DEV__) console.error('Ошибка загрузки выплат:', error);
     return [];
   }
 }
@@ -458,28 +434,29 @@ export async function getPaymentsByPeriod(
 
 export async function getEmployeePayments(employeeId: string): Promise<Payment[]> {
   try {
-    const usersRaw = await StorageService.getItem('pvz_users');
+    const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
     const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-    const employee = users.find((user: { id: string; pvzId?: string }) => user.id === employeeId);
+    const employee = await findEmployeeRecord(users, employeeId);
+    const aliases = await collectEmployeeIdAliases(employeeId);
 
     if (employee?.pvzId) {
       const pvzPayments = await getPayments(employee.pvzId);
-      return pvzPayments.filter((payment) => payment.employeeId === employeeId);
+      return pvzPayments.filter((payment) => aliases.has(payment.employeeId));
     }
 
     const stored = await StorageService.getItem(getEmployeePaymentsKey(employeeId));
     return safeParseJson<Payment[]>(stored ?? '[]', []);
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨▓╤Л╨┐╨╗╨░╤В ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░:', error);
+    if (__DEV__) console.error('Ошибка загрузки выплат сотрудника:', error);
     return [];
   }
 }
 
-/** ╨Ю╨▒╨╜╨╛╨▓╨╕╤В╤М ╨╗╨╛╨║╨░╨╗╤М╨╜╤Л╨╣ ╨║╤Н╤И ╨▓╤Л╨┐╨╗╨░╤В ╨┐╨╛ ╨Я╨Т╨Ч (╨┤╨╗╤П Realtime). */
+/** Обновить локальный кэш выплат по ПВЗ (для Realtime). */
 export async function refreshPaymentsCache(pvzId: string): Promise<Payment[]> {
   const stored = await StorageService.getItem(getPaymentsKey(pvzId));
   const local = safeParseJson<Payment[]>(stored ?? '[]', []);
-  const remote = await fetchPaymentsFromSupabase();
+  const remote = await fetchPaymentsFromRemote();
 
   if (!remote) {
     return local;
@@ -531,7 +508,7 @@ export async function addPayment(
     paidAt: new Date().toISOString(),
   };
   
-  const synced = await upsertPaymentToSupabase(newPayment);
+  const synced = await upsertPaymentToRemote(newPayment);
   if (synced) {
     newPayment.id = synced.id;
     if (synced.pvzId) newPayment.pvzId = synced.pvzId;
@@ -550,8 +527,194 @@ export async function addPayment(
   DataService.emitChange(`payments_${pvzId}`);
   DataService.emitChange(`payments_employee_${payment.employeeId}`);
   DataService.emitChange('employee_balance');
+
+  if (payment.type === 'salary') {
+    await reconcileShiftPaymentsForPvz(pvzId);
+  }
   
   return newPayment;
+}
+
+export async function getPaidShiftSlotKeysForPvz(pvzId: string): Promise<Set<string>> {
+  const { normalizeDateKey } = await import('../utils/dateHelpers');
+  const { readLocalShifts } = await import('./data/shiftDataService');
+
+  const equivalentPvzIds = await getPvzEquivalentIds(pvzId);
+  const belongsToPvz = (shiftPvzId?: string) =>
+    !shiftPvzId || equivalentPvzIds.has(shiftPvzId);
+
+  const allShifts = await readLocalShifts();
+  const payments = await getPayments(pvzId);
+  const employeeIds = new Set<string>();
+
+  for (const shift of allShifts) {
+    if (!belongsToPvz(shift.pvzId)) continue;
+    if (shift.employeeId) employeeIds.add(shift.employeeId);
+  }
+  for (const payment of payments) {
+    if (payment.employeeId) employeeIds.add(payment.employeeId);
+  }
+
+  const paidSlots = new Set<string>();
+  const processedAliasKeys = new Set<string>();
+
+  for (const employeeId of employeeIds) {
+    const aliases = await collectEmployeeIdAliases(employeeId);
+    const aliasKey = [...aliases].sort().join('|');
+    if (processedAliasKeys.has(aliasKey)) continue;
+    processedAliasKeys.add(aliasKey);
+
+    const empShifts: Shift[] = [];
+    for (const shift of allShifts) {
+      if (!aliases.has(shift.employeeId)) continue;
+      if (!belongsToPvz(shift.pvzId)) continue;
+      if (!isShiftCountableForAccruals(shift)) continue;
+      empShifts.push(shift);
+    }
+    empShifts.sort((a, b) =>
+      normalizeDateKey(a.date).localeCompare(normalizeDateKey(b.date))
+    );
+
+    const salaryPayments = payments
+      .filter((p) => aliases.has(p.employeeId) && p.type === 'salary')
+      .sort((a, b) => getPaymentPaidDate(a).localeCompare(getPaymentPaidDate(b)));
+
+    let pool = salaryPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    for (const shift of empShifts) {
+      const earnings = shift.earnings || 0;
+      if (earnings <= 0) continue;
+      if (pool >= earnings) {
+        pool -= earnings;
+        for (const id of aliases) {
+          paidSlots.add(`${id}|${normalizeDateKey(shift.date)}`);
+        }
+      }
+    }
+  }
+
+  return paidSlots;
+}
+
+export async function isAssignmentPaidByPayments(
+  pvzId: string,
+  employeeId: string,
+  date: string,
+  paidSlots?: Set<string>
+): Promise<boolean> {
+  const slots = paidSlots ?? (await getPaidShiftSlotKeysForPvz(pvzId));
+  const aliases = await collectEmployeeIdAliases(employeeId);
+  const { normalizeDateKey } = await import('../utils/dateHelpers');
+  const dateKey = normalizeDateKey(date);
+  for (const id of aliases) {
+    if (slots.has(`${id}|${dateKey}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Сопоставляет выплаты (FIFO) со сменами и обновляет paymentStatus в shifts + расписании.
+ */
+export async function reconcileShiftPaymentsForPvz(pvzId: string): Promise<void> {
+  if (!pvzId) return;
+
+  const { coalesceShiftsPreferPaid } = await import('../utils/scheduleHelpers');
+  const { normalizeDateKey } = await import('../utils/dateHelpers');
+  const { writeLocalShifts, readLocalShifts } = await import('./data/shiftDataService');
+  const { syncScheduleFromShifts } = await import('./data/scheduleDataService');
+
+  const equivalentPvzIds = await getPvzEquivalentIds(pvzId);
+  const belongsToPvz = (shiftPvzId?: string) =>
+    !shiftPvzId || equivalentPvzIds.has(shiftPvzId);
+
+  const allShifts = await readLocalShifts();
+  const payments = await getPayments(pvzId);
+  const employeeIds = new Set<string>();
+
+  for (const shift of allShifts) {
+    if (!belongsToPvz(shift.pvzId)) continue;
+    if (shift.employeeId) employeeIds.add(shift.employeeId);
+  }
+  for (const payment of payments) {
+    if (payment.employeeId) employeeIds.add(payment.employeeId);
+  }
+
+  const paidIds = new Set<string>();
+  const processedAliasKeys = new Set<string>();
+
+  for (const employeeId of employeeIds) {
+    const aliases = await collectEmployeeIdAliases(employeeId);
+    const aliasKey = [...aliases].sort().join('|');
+    if (processedAliasKeys.has(aliasKey)) continue;
+    processedAliasKeys.add(aliasKey);
+
+    const empShifts: Shift[] = [];
+    for (const shift of allShifts) {
+      if (!aliases.has(shift.employeeId)) continue;
+      if (!belongsToPvz(shift.pvzId)) continue;
+      if (!isShiftCountableForAccruals(shift)) continue;
+      empShifts.push(shift);
+    }
+    empShifts.sort((a, b) =>
+      normalizeDateKey(a.date).localeCompare(normalizeDateKey(b.date))
+    );
+
+    const salaryPayments = payments
+      .filter((p) => aliases.has(p.employeeId) && p.type === 'salary')
+      .sort((a, b) => getPaymentPaidDate(a).localeCompare(getPaymentPaidDate(b)));
+
+    let pool = salaryPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    for (const shift of empShifts) {
+      const earnings = shift.earnings || 0;
+      if (earnings <= 0) continue;
+      if (pool >= earnings) {
+        pool -= earnings;
+        paidIds.add(shift.id);
+      }
+    }
+  }
+
+  let changed = false;
+  const updated = allShifts.map((shift) => {
+    const shouldBePaid = paidIds.has(shift.id);
+    const isPaid = shift.paymentStatus === 'paid' || shift.status === 'paid';
+
+    if (shouldBePaid && !isPaid) {
+      changed = true;
+      return { ...shift, paymentStatus: 'paid' as const, status: 'paid' as const };
+    }
+
+    if (!shouldBePaid && isPaid) {
+      changed = true;
+      const { status, paymentStatus } = getShiftStatus({
+        ...shift,
+        paymentStatus: 'pending',
+        status: shift.status === 'paid' ? 'completed' : shift.status,
+      });
+      return { ...shift, paymentStatus, status };
+    }
+
+    return shift;
+  });
+
+  const coalesced = coalesceShiftsPreferPaid(changed ? updated : allShifts);
+  if (changed) {
+    await writeLocalShifts(coalesced);
+    DataService.emitChange('shifts');
+  }
+
+  await syncScheduleFromShifts(pvzId);
+  DataService.emitChange(`schedule_assignments_${pvzId}`);
+}
+
+/** @deprecated Используйте reconcileShiftPaymentsForPvz */
+export async function markShiftsAsPaidForPayment(
+  pvzId: string,
+  _employeeId: string,
+  _amount: number
+): Promise<void> {
+  await reconcileShiftPaymentsForPvz(pvzId);
 }
 
 export async function addPenalty(
@@ -570,7 +733,7 @@ export async function addPenalty(
   const existingRaw = await StorageService.getItem(`penalties_${employeeId}`);
   const existing = safeParseJson<SyncPenalty[]>(existingRaw ?? '[]', []);
 
-  const synced = await upsertPenaltyToSupabase({ ...penalty, employeeId, pvzId });
+  const synced = await upsertPenaltyToRemote({ ...penalty, employeeId, pvzId });
   const saved: SyncPenalty = synced ?? { ...penalty, employeeId, pvzId };
 
   const merged = mergePenalties(existing, [saved]);
@@ -592,7 +755,7 @@ export async function removePenalty(
   const filtered = existing.filter((p) => p.id !== penaltyId);
   await StorageService.setItem(`penalties_${employeeId}`, JSON.stringify(filtered));
 
-  await deletePenaltyFromSupabase(pvzId, penaltyId);
+  await deletePenaltyFromRemote(pvzId, penaltyId);
 
   DataService.emitChange(`penalties_${employeeId}`);
   DataService.emitChange(`penalties_${pvzId}`);
@@ -600,17 +763,13 @@ export async function removePenalty(
   DataService.emitChange('employee_balance');
 }
 
-/**
- * ╨Я╨╡╤А╨╡╤Б╤З╤С╤В ╨▒╨░╨╗╨░╨╜╤Б╨░ ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░ (╨▓╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨┐╤А╨╕ ╨║╨░╨╢╨┤╨╛╨╝ ╨╖╨░╨┐╤А╨╛╤Б╨╡ ╨╕╨╗╨╕ ╨┐╨╛╤Б╨╗╨╡ ╨╕╨╖╨╝╨╡╨╜╨╡╨╜╨╕╨╣)
- */
+/** Пересчёт баланса сотрудника (при каждом запросе или после изменений) */
 export async function updateEmployeeBalance(employeeId: string, pvzId: string): Promise<EmployeeBalance> {
-  console.log(`ЁЯФД ╨Я╨╡╤А╨╡╤Б╤З╤С╤В ╨▒╨░╨╗╨░╨╜╤Б╨░ ╨┤╨╗╤П ${employeeId}`);
-
   const accruals = await calculateEmployeeAccruals(employeeId, pvzId);
 
-  const usersRaw = await StorageService.getItem('pvz_users');
+  const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-  const employee = users.find((u: { id: string }) => u.id === employeeId);
+  const employee = await findEmployeeRecord(users, employeeId);
 
   const balanceData: EmployeeBalance = {
     employeeId,
@@ -623,33 +782,26 @@ export async function updateEmployeeBalance(employeeId: string, pvzId: string): 
 
   await StorageService.setItem(getBalanceKey(employeeId), JSON.stringify(balanceData));
 
-  console.log(
-    `ЁЯТ░ ╨С╨░╨╗╨░╨╜╤Б ╨┤╨╗╤П ${employeeId}: ╤Б╨╝╨╡╨╜╤Л=${accruals.shiftsEarned}, ╤И╤В╤А╨░╤Д╤Л=${accruals.totalFines}, ╨▒╨╛╨╜╤Г╤Б╤Л=${accruals.totalBonuses}, ╨╜╨░╤З╨╕╤Б╨╗╨╡╨╜╨╛=${accruals.netEarned}`
-  );
-
   return balanceData;
 }
 
-/**
- * ╨Я╨╛╨╗╤Г╤З╨╕╤В╤М ╨▒╨░╨╗╨░╨╜╤Б ╤Б╨╛╤В╤А╤Г╨┤╨╜╨╕╨║╨░ (╨▓╤Б╨╡╨│╨┤╨░ ╨░╨║╤В╤Г╨░╨╗╤М╨╜╤Л╨╣)
- */
+/** Получить баланс сотрудника (всегда актуальный) */
 export async function getEmployeeBalance(employeeId: string): Promise<EmployeeBalance | null> {
   try {
-    const usersRaw = await StorageService.getItem('pvz_users');
+    const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
     const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-    const employee = users.find((u: any) => u.id === employeeId);
+    const employee = await findEmployeeRecord(users, employeeId);
     
     if (!employee) return null;
     
-    // ╨Т╤Б╨╡╨│╨┤╨░ ╨┐╨╡╤А╨╡╤Б╤З╨╕╤В╤Л╨▓╨░╨╡╨╝ ╨▒╨░╨╗╨░╨╜╤Б ╨┐╤А╨╕ ╨╖╨░╨┐╤А╨╛╤Б╨╡ ╨┤╨╗╤П ╨░╨║╤В╤Г╨░╨╗╤М╨╜╨╛╤Б╤В╨╕
-    return await updateEmployeeBalance(employeeId, employee.pvzId || '');
+    return await updateEmployeeBalance(employee.id, employee.pvzId || '');
   } catch (error) {
-    console.error('╨Ю╤И╨╕╨▒╨║╨░ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╨▒╨░╨╗╨░╨╜╤Б╨░:', error);
+    if (__DEV__) console.error('Ошибка загрузки баланса:', error);
     return null;
   }
 }
 
-// ============ ╨Ч╨Р╨Я╨а╨Ю╨б╨л ╨Э╨Р ╨Р╨Т╨Р╨Э╨б ============
+// ============ ЗАПРОСЫ НА АВАНС ============
 
 export async function getAdvanceRequests(
   pvzId: string,
@@ -671,9 +823,10 @@ export async function getAdvanceRequests(
 
 export async function getEmployeeAdvanceRequests(employeeId: string): Promise<AdvanceRequest[]> {
   try {
-    const usersRaw = await StorageService.getItem('pvz_users');
+    const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
     const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
-    const employee = users.find((user) => user.id === employeeId);
+    const employee = await findEmployeeRecord(users, employeeId);
+    const aliases = await collectEmployeeIdAliases(employeeId);
 
     const pvzIds = new Set<string>();
     if (employee?.pvzId) pvzIds.add(employee.pvzId);
@@ -685,7 +838,7 @@ export async function getEmployeeAdvanceRequests(employeeId: string): Promise<Ad
       const all: AdvanceRequest[] = [];
       for (const id of pvzIds) {
         const pvzRequests = await getAdvanceRequests(id);
-        all.push(...pvzRequests.filter((request) => request.employeeId === employeeId));
+        all.push(...pvzRequests.filter((request) => aliases.has(request.employeeId)));
       }
       all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       await StorageService.setItem(
@@ -732,7 +885,7 @@ export async function createAdvanceRequest(
     pvzId,
   };
   
-  const synced = await upsertAdvanceRequestToSupabase(newRequest);
+  const synced = await upsertAdvanceRequestToRemote(newRequest);
   const saved: AdvanceRequest = synced ?? newRequest;
 
   const allRequests = mergeAdvanceRequests(await getAdvanceRequests(pvzId), [saved]);
@@ -773,7 +926,7 @@ export async function updateAdvanceRequestStatus(
   await StorageService.setItem(getAdvanceRequestsKey(pvzId), JSON.stringify(allRequests));
 
   const updated = allRequests[requestIndex];
-  await upsertAdvanceRequestToSupabase(updated);
+  await upsertAdvanceRequestToRemote(updated);
 
   const employeeRequests = mergeAdvanceRequests(
     await getEmployeeAdvanceRequests(updated.employeeId),
@@ -790,14 +943,14 @@ export async function updateAdvanceRequestStatus(
   return updated;
 }
 
-// ============ ╨б╨Т╨Ю╨Ф╨Ъ╨Ш ╨Ш ╨б╨в╨Р╨в╨Ш╨б╨в╨Ш╨Ъ╨Р ============
+// ============ СВОДКИ И СТАТИСТИКА ============
 
 export async function getPeriodFinanceSummary(
   pvzId: string,
   periodStart: string,
   periodEnd: string
 ): Promise<PeriodFinanceSummary> {
-  const usersRaw = await StorageService.getItem('pvz_users');
+  const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employees = users.filter((u: any) => 
     u.role !== 'owner' && u.status === 'active' && u.pvzId === pvzId
@@ -805,7 +958,7 @@ export async function getPeriodFinanceSummary(
   
   await syncShiftStatusesInStorage();
 
-  const shiftsRaw = await StorageService.getItem('shifts');
+  const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
 
   let totalEarned = 0;
@@ -834,7 +987,7 @@ export async function getEmployeePeriodDetail(
   periodStart: string,
   periodEnd: string
 ): Promise<EmployeePeriodDetail | null> {
-  const usersRaw = await StorageService.getItem('pvz_users');
+  const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employee = users.find((u: any) => u.id === employeeId);
   
@@ -842,7 +995,7 @@ export async function getEmployeePeriodDetail(
   
   const accruals = await calculateEmployeeAccruals(employeeId, pvzId, { periodStart, periodEnd });
 
-  const shiftsRaw = await StorageService.getItem('shifts');
+  const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   const periodShifts = filterCountableShifts(allShifts, employeeId, pvzId, periodStart, periodEnd);
 

@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getDateLocale } from '../../i18n';
+import { toDateKey } from '../../utils/dateHelpers';
 import {
   View,
   Text,
@@ -17,9 +18,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
+import { useModalStyles } from '../../hooks/useModalStyles';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { useErrorHandler } from '../../context/ErrorHandlerContext';
+import { useMountedRef } from '../../hooks/useMountedRef';
 import { useFocusEffect } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store';
+import StorageService from '../../services/StorageService';
+import { SecureStoreKeys } from '../../constants/secureStoreKeys';
 import { useAuth } from '../../context/AuthContext';
 import DataService from '../../services/DataService';
 import { safeParseJson } from '../../utils/safeJson';
@@ -29,6 +34,7 @@ import { Shift, User as PvzUser } from '../../types/user';
 import {
   addPayment,
   calculateEmployeeAccruals,
+  reconcileShiftPaymentsForPvz,
 } from '../../services/PaymentService';
 import { 
   ChevronLeft, 
@@ -43,7 +49,7 @@ import {
 } from 'lucide-react-native';
 import MoneyIcon from '../../components/icons/MoneyIcon';
 import { FLAT_LIST_PERF } from '../../constants/flatListPerf';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 interface ShiftData {
   id: string;
@@ -56,15 +62,22 @@ interface ShiftData {
   paymentStatus: string;
 }
 
-export default function EmployeePaymentDetailsScreen({ navigation, route }: any) {
+import type { RootStackScreenProps } from '../../navigation/types';
+
+type Props = RootStackScreenProps<'EmployeePaymentDetails'>;
+
+export default function EmployeePaymentDetailsScreen({ navigation, route }: Props) {
   const { t } = useTranslation();
   const { user, pvz } = useAuth();
   const { ui } = useThemedScreen();
+  const modal = useModalStyles();
   const { showError, showSuccess } = useScreenToast();
+  const { handleError } = useErrorHandler();
+  const mountedRef = useMountedRef();
   const { employeeId, employeeName: initialEmployeeName } = route.params;
   
   const [refreshing, setRefreshing] = useState(false);
-  const [employee, setEmployee] = useState<any>(null);
+  const [employee, setEmployee] = useState<PvzUser | null>(null);
   const [shifts, setShifts] = useState<ShiftData[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [totalEarned, setTotalEarned] = useState(0);
@@ -94,8 +107,8 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
+    const startStr = toDateKey(start);
+    const endStr = toDateKey(end);
     
     setFilterStartDate(startStr);
     setFilterEndDate(endStr);
@@ -104,29 +117,29 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
   }, []);
 
   // Загрузка данных ЗА ВЫБРАННЫЙ ПЕРИОД
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!pvz?.id || !employeeId) return;
-    
+
     try {
-      // Получаем информацию о сотруднике
-      const usersRaw = await SecureStore.getItemAsync('pvz_users');
+      await reconcileShiftPaymentsForPvz(pvz.id);
+
+      const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
       const users = safeParseJson<PvzUser[]>(usersRaw ?? '[]', []);
-      const emp = users.find((u: any) => u.id === employeeId);
-      setEmployee(emp);
-      
-      // Получаем все смены
-      const shiftsRaw = await SecureStore.getItemAsync('shifts');
-      const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-      
-      // Фильтруем смены по сотруднику и периоду (ВСЕ смены)
-      const periodShifts = allShifts.filter((s: any) => 
-        s.employeeId === employeeId && 
-        s.date >= filterStartDate && 
-        s.date <= filterEndDate
+      const emp = users.find((u) => u.id === employeeId);
+
+      const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
+      const allShiftsRaw = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
+      const { coalesceShiftsPreferPaid } = await import('../../utils/scheduleHelpers');
+      const allShifts = coalesceShiftsPreferPaid(allShiftsRaw);
+
+      const periodShifts = allShifts.filter(
+        (s) =>
+          s.employeeId === employeeId &&
+          s.date >= filterStartDate &&
+          s.date <= filterEndDate
       );
-      
-      // Форматируем смены
-      const formattedShifts: ShiftData[] = periodShifts.map((shift: any) => ({
+
+      const formattedShifts: ShiftData[] = periodShifts.map((shift) => ({
         id: shift.id,
         date: shift.date,
         shiftType: shift.shiftType || (shift.customStart ? 'hourly' : 'full'),
@@ -136,32 +149,33 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
         earnings: shift.earnings || 0,
         paymentStatus: shift.paymentStatus || 'pending',
       }));
-      
-      setShifts(formattedShifts);
-      
+
       const accruals = await calculateEmployeeAccruals(employeeId, pvz.id, {
         periodStart: filterStartDate,
         periodEnd: filterEndDate,
       });
 
+      const allPaymentsRaw = await StorageService.getItem(`payments_${pvz.id}`);
+      const allPayments = safeParseJson<Payment[]>(allPaymentsRaw ?? '[]', []);
+      const periodPayments = allPayments.filter(
+        (p) =>
+          p.employeeId === employeeId &&
+          p.paidAt >= filterStartDate &&
+          p.paidAt <= filterEndDate
+      );
+
+      if (!mountedRef.current) return;
+      setEmployee(emp ?? null);
+      setShifts(formattedShifts);
       setTotalEarned(accruals.netEarned);
       setTotalPaid(accruals.totalPaid);
       setBalance(accruals.balance);
-      
-      // Загружаем выплаты ЗА ПЕРИОД
-      const allPaymentsRaw = await SecureStore.getItemAsync(`payments_${pvz.id}`);
-      const allPayments = safeParseJson<Payment[]>(allPaymentsRaw ?? '[]', []);
-      const periodPayments = allPayments.filter((p: any) => 
-        p.employeeId === employeeId && 
-        p.paidAt >= filterStartDate && 
-        p.paidAt <= filterEndDate
-      );
       setPayments(periodPayments);
-      
     } catch (error) {
-      console.error('Ошибка загрузки данных:', error);
+      if (!mountedRef.current) return;
+      handleError(error, { fallbackKey: 'alerts.network.loadFailed' });
     }
-  };
+  }, [pvz?.id, employeeId, filterStartDate, filterEndDate, handleError, mountedRef]);
 
   // Выплата зарплаты
   const handleAddPayment = async () => {
@@ -247,46 +261,49 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
     loadData();
   };
 
-  const onFilterStartChange = (event: any, selectedDate?: Date) => {
+  const onFilterStartChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowStartPicker(false);
     if (selectedDate) {
-      setFilterStartDate(selectedDate.toISOString().split('T')[0]);
+      setFilterStartDate(toDateKey(selectedDate));
     }
   };
 
-  const onFilterEndChange = (event: any, selectedDate?: Date) => {
+  const onFilterEndChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowEndPicker(false);
     if (selectedDate) {
-      setFilterEndDate(selectedDate.toISOString().split('T')[0]);
+      setFilterEndDate(toDateKey(selectedDate));
     }
   };
 
-  const onPayStartChange = (event: any, selectedDate?: Date) => {
+  const onPayStartChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowPayStartPicker(false);
     if (selectedDate) {
-      setPaymentPeriodStart(selectedDate.toISOString().split('T')[0]);
+      setPaymentPeriodStart(toDateKey(selectedDate));
     }
   };
 
-  const onPayEndChange = (event: any, selectedDate?: Date) => {
+  const onPayEndChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     setShowPayEndPicker(false);
     if (selectedDate) {
-      setPaymentPeriodEnd(selectedDate.toISOString().split('T')[0]);
+      setPaymentPeriodEnd(toDateKey(selectedDate));
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
+    try {
+      await loadData();
+    } finally {
+      if (mountedRef.current) setRefreshing(false);
+    }
+  }, [loadData, mountedRef]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
       const unsubscribe = DataService.subscribe('employee_balance', loadData);
       return () => unsubscribe();
-    }, [employeeId, filterStartDate, filterEndDate])
+    }, [loadData])
   );
 
   const getShiftTypeName = (shiftType: string) => {
@@ -507,22 +524,22 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
 
       {/* Модальное окно выбора периода */}
       <Modal visible={showFilterModal} transparent animationType="slide" onRequestClose={() => setShowFilterModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('common.period.select')}</Text>
+        <View style={modal.overlay}>
+          <View style={modal.content}>
+            <View style={modal.header}>
+              <Text style={modal.title}>{t('common.period.select')}</Text>
               <TouchableOpacity onPress={() => setShowFilterModal(false)}>
                 <X size={24} color={colors.gray} />
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>{t('common.period.start')}</Text>
+            <Text style={modal.inputLabel}>{t('common.period.start')}</Text>
             <TouchableOpacity style={styles.dateButton} onPress={() => setShowStartPicker(true)}>
               <Calendar size={18} color={colors.primary} />
               <Text style={styles.dateButtonText}>{formatShortDate(filterStartDate)}</Text>
             </TouchableOpacity>
             
-            <Text style={styles.inputLabel}>{t('common.period.end')}</Text>
+            <Text style={modal.inputLabel}>{t('common.period.end')}</Text>
             <TouchableOpacity style={styles.dateButton} onPress={() => setShowEndPicker(true)}>
               <Calendar size={18} color={colors.primary} />
               <Text style={styles.dateButtonText}>{formatShortDate(filterEndDate)}</Text>
@@ -551,10 +568,10 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
 
       {/* Модальное окно выплаты */}
       <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('screens.paymentDetails.paymentModal')}</Text>
+        <View style={modal.overlay}>
+          <View style={modal.contentLarge}>
+            <View style={modal.header}>
+              <Text style={modal.title}>{t('screens.paymentDetails.paymentModal')}</Text>
               <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
                 <X size={24} color={colors.gray} />
               </TouchableOpacity>
@@ -579,9 +596,9 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>{t('screens.paymentDetails.amountLabel')}</Text>
+            <Text style={modal.inputLabel}>{t('screens.paymentDetails.amountLabel')}</Text>
             <TextInput
-              style={styles.amountInput}
+              style={[modal.input, styles.amountInput]}
               value={paymentAmount}
               onChangeText={setPaymentAmount}
               keyboardType="numeric"
@@ -589,7 +606,7 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
               placeholderTextColor={colors.grayLight}
             />
             
-            <Text style={styles.inputLabel}>{t('common.period.period')}</Text>
+            <Text style={modal.inputLabel}>{t('common.period.period')}</Text>
             <View style={styles.periodRow}>
               <TouchableOpacity style={styles.smallDateButton} onPress={() => setShowPayStartPicker(true)}>
                 <Calendar size={14} color={colors.primary} />
@@ -602,9 +619,9 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>{t('screens.paymentDetails.commentLabel')}</Text>
+            <Text style={modal.inputLabel}>{t('screens.paymentDetails.commentLabel')}</Text>
             <TextInput
-              style={styles.noteInput}
+              style={[modal.input, modal.textArea]}
               value={paymentNote}
               onChangeText={setPaymentNote}
               placeholder={t('screens.paymentDetails.commentPlaceholder')}
@@ -670,16 +687,6 @@ export default function EmployeePaymentDetailsScreen({ navigation, route }: any)
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-  },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', flex: 1, textAlign: 'center' },
   filterButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   
   content: { padding: 16, paddingBottom: 30 },
@@ -822,11 +829,6 @@ const styles = StyleSheet.create({
   payButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   payButtonText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, width: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1A1A1A' },
-  
   typeSelector: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   typeButton: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: '#F5F5F5' },
   salaryTypeActive: { backgroundColor: colors.success },
@@ -834,15 +836,9 @@ const styles = StyleSheet.create({
   typeText: { fontSize: 14, color: '#666666' },
   typeTextActive: { color: '#FFFFFF' },
   
-  inputLabel: { fontSize: 14, fontWeight: '500', color: '#1A1A1A', marginBottom: 8, marginTop: 16 },
   amountInput: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1A1A1A',
     textAlign: 'center',
   },
   
@@ -858,17 +854,6 @@ const styles = StyleSheet.create({
   },
   smallDateText: { fontSize: 13, color: '#1A1A1A' },
   periodDash: { fontSize: 16, color: colors.gray },
-  
-  noteInput: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: '#1A1A1A',
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
   
   submitButton: { marginTop: 24, borderRadius: 30, overflow: 'hidden' },
   submitGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },

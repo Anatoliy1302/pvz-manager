@@ -1,5 +1,6 @@
 // src/utils/advancedPayrollCalculator.ts
-import * as SecureStore from 'expo-secure-store';
+import StorageService from '../services/StorageService';
+import { SecureStoreKeys, dynamicSecureStoreKey } from '../constants/secureStoreKeys';
 import { Shift, User } from '../types/user';
 import DataService from '../services/DataService';
 import { SalaryFormula, ShiftCalculation, ShiftStats, EmployeeSalarySettings } from '../types/salary';
@@ -11,12 +12,14 @@ import {
 } from './salaryFormulaHelpers';
 import { generateSecureId } from './generateSecureId';
 import { safeParseJson } from './safeJson';
+import { isShiftPastScheduledEnd } from './shiftStatusHelper';
+import { calculateUnifiedShiftEarnings } from './shiftEarnings';
 
 export { calculateTotalHours };
 
 async function getShiftCalculationLocal(shiftId: string): Promise<ShiftCalculation | null> {
   try {
-    const stored = await SecureStore.getItemAsync(`shift_calculation_${shiftId}`);
+    const stored = await StorageService.getItem(dynamicSecureStoreKey.shiftCalculation(shiftId));
     return stored ? safeParseJson<ShiftCalculation | null>(stored, null) : null;
   } catch (error) {
     console.error('Ошибка загрузки расчёта смены:', error);
@@ -42,7 +45,7 @@ function calculateSeniorityYearsLocal(hireDate?: string): number {
 
 async function getEmployeePenaltiesForDate(employeeId: string, date: string): Promise<{ totalFines: number; totalBonuses: number }> {
   try {
-    const stored = await SecureStore.getItemAsync(`penalties_${employeeId}`);
+    const stored = await StorageService.getItem(dynamicSecureStoreKey.penalties(employeeId));
     if (!stored) return { totalFines: 0, totalBonuses: 0 };
     
     const penalties = safeParseJson<unknown[]>(stored, []);
@@ -293,37 +296,108 @@ export async function calculateAdvancedShiftEarnings(
   return calculation;
 }
 
+function isShiftOpenForRecalc(shift: Shift): boolean {
+  if (shift.paymentStatus === 'paid' || shift.status === 'paid') return false;
+  if ((shift.status as string) === 'cancelled') return false;
+  return (
+    shift.status === 'planned' ||
+    shift.status === 'completed' ||
+    (shift.status as string) === 'active'
+  );
+}
+
+/** Пересчёт earnings по формулам для всех неоплаченных смен ПВЗ. */
+export async function recalculatePvzOpenShifts(pvzId: string): Promise<number> {
+  const allShifts = await DataService.getShiftsLocal();
+  let updated = 0;
+
+  for (const shift of allShifts) {
+    if (shift.pvzId !== pvzId || !shift.employeeId) continue;
+    if (!isShiftOpenForRecalc(shift)) continue;
+
+    try {
+      const earnings = await calculateUnifiedShiftEarnings(shift.employeeId, pvzId, shift);
+      const totalHours =
+        shift.totalHours || calculateTotalHours(shift.startTime, shift.endTime);
+
+      if (shift.earnings !== earnings || shift.totalHours !== totalHours) {
+        await DataService.updateShift(shift.id, {
+          earnings,
+          totalHours,
+          status: shift.status,
+        });
+        updated++;
+      }
+    } catch (error) {
+      console.warn('recalculatePvzOpenShifts:', shift.id, error);
+    }
+  }
+
+  if (updated > 0) {
+    try {
+      const assignments = await DataService.getScheduleAssignments(pvzId);
+      const shiftsById = new Map(
+        (await DataService.getShiftsLocal())
+          .filter((s) => s.pvzId === pvzId)
+          .map((s) => [s.id, s])
+      );
+      const nextAssignments = assignments.map((a) => {
+        const linked = shiftsById.get(a.id);
+        return linked?.earnings != null ? { ...a, earnings: linked.earnings } : a;
+      });
+      const changed = nextAssignments.some(
+        (a, i) => a.earnings !== assignments[i]?.earnings
+      );
+      if (changed) {
+        await DataService.saveScheduleAssignments(pvzId, nextAssignments);
+      }
+    } catch (error) {
+      console.warn('recalculatePvzOpenShifts: schedule sync', error);
+    }
+
+    DataService.emitChange('shifts');
+  }
+
+  return updated;
+}
+
 export async function recalculateEmployeeShifts(
   employeeId: string,
   pvzId: string,
   startDate: string,
   endDate: string
 ): Promise<ShiftCalculation[]> {
-  const shiftsRaw = await SecureStore.getItemAsync('shifts');
-  const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
-  
-  const employeeShifts = allShifts.filter(s => 
-    s.employeeId === employeeId && 
-    s.date >= startDate && 
-    s.date <= endDate &&
-    s.status === 'completed'
+  const allShifts = await DataService.getShiftsLocal();
+
+  const employeeShifts = allShifts.filter(
+    (s) =>
+      s.employeeId === employeeId &&
+      s.pvzId === pvzId &&
+      s.date >= startDate &&
+      s.date <= endDate &&
+      isShiftOpenForRecalc(s)
   );
-  
+
+  const employee = await DataService.getUserById(employeeId);
   const calculations: ShiftCalculation[] = [];
-  
+
   for (const shift of employeeShifts) {
-    const employee = { id: employeeId } as User;
-    const calculation = await calculateAdvancedShiftEarnings(shift, employee, pvzId);
-    calculations.push(calculation);
-    
+    const earnings = await calculateUnifiedShiftEarnings(employeeId, pvzId, shift);
+    const totalHours =
+      shift.totalHours || calculateTotalHours(shift.startTime, shift.endTime);
+
     await DataService.updateShift(shift.id, {
-      earnings: calculation.totalEarnings,
-      totalHours: calculation.actualHours,
-      calculationFormula: calculation.calculationDetails,
+      earnings,
+      totalHours,
       status: shift.status,
     });
+
+    if (employee) {
+      const calculation = await calculateAdvancedShiftEarnings(shift, employee, pvzId);
+      calculations.push(calculation);
+    }
   }
-  
+
   return calculations;
 }
 
@@ -345,10 +419,10 @@ export async function getDetailedSalaryReport(
     totalEarnings: number;
   };
 }> {
-  const shiftsRaw = await SecureStore.getItemAsync('shifts');
+  const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
   const allShifts = safeParseJson<Shift[]>(shiftsRaw ?? '[]', []);
   
-  const usersRaw = await SecureStore.getItemAsync('pvz_users');
+  const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
   const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
   const employee = users.find((u) => u.id === employeeId);
   if (!employee) {
@@ -387,4 +461,90 @@ export async function getDetailedSalaryReport(
     shifts: calculations,
     summary,
   };
+}
+
+/**
+ * Автозавершение смен по расписанию: planned → completed после времени окончания,
+ * расчёт зарплаты и запись в историю.
+ */
+export async function autoCompleteScheduledShifts(): Promise<boolean> {
+  const shiftsRaw = await StorageService.getItem(SecureStoreKeys.shifts);
+  if (!shiftsRaw) return false;
+
+  const allShifts = safeParseJson<Shift[]>(shiftsRaw, []);
+  const now = new Date();
+  let updated = false;
+  const nextShifts: Shift[] = [];
+
+  for (const shift of allShifts) {
+    let current: Shift =
+      (shift.status as string) === 'active' ? { ...shift, status: 'planned' } : shift;
+
+    if (current.paymentStatus === 'paid' || current.status === 'paid') {
+      if (current.status !== 'paid' || current.paymentStatus !== 'paid') {
+        current = { ...current, status: 'paid', paymentStatus: 'paid' };
+        updated = true;
+      }
+      nextShifts.push(current);
+      continue;
+    }
+
+    if (current.status === 'completed') {
+      nextShifts.push(current);
+      continue;
+    }
+
+    const shouldComplete =
+      current.status === 'planned' && isShiftPastScheduledEnd(current, now);
+
+    if (!shouldComplete) {
+      nextShifts.push(current);
+      continue;
+    }
+
+    const pvzId = current.pvzId || '';
+    let earnings = current.earnings;
+    let totalHours = current.totalHours;
+
+    if (pvzId && current.employeeId) {
+      try {
+        earnings = await calculateUnifiedShiftEarnings(current.employeeId, pvzId, current);
+      } catch (error) {
+        console.warn('autoCompleteScheduledShifts: расчёт зарплаты', error);
+      }
+    }
+
+    if (!totalHours) {
+      totalHours = calculateTotalHours(current.startTime, current.endTime);
+    }
+
+    const completed: Shift = {
+      ...current,
+      status: 'completed',
+      earnings: earnings ?? 0,
+      totalHours,
+      autoEnded: true,
+      endedAt: now.toISOString(),
+    };
+
+    const history = await DataService.getShiftsHistory(current.employeeId);
+    const historyList = Array.isArray(history) ? history : [];
+    const alreadyInHistory = historyList.some((record) => record.id === completed.id);
+    if (!alreadyInHistory) {
+      await DataService.addShiftHistory({
+        ...completed,
+        closedAt: now.toISOString(),
+      });
+    }
+
+    updated = true;
+    nextShifts.push(completed);
+  }
+
+  if (updated) {
+    await StorageService.setItem(SecureStoreKeys.shifts, JSON.stringify(nextShifts));
+    DataService.emitChange('shifts');
+  }
+
+  return updated;
 }

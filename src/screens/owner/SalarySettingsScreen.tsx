@@ -16,8 +16,15 @@ import ThemedSafeAreaView from '../../components/common/ThemedSafeAreaView';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import { useThemedScreen } from '../../hooks/useThemedScreen';
 import { useScreenToast } from '../../hooks/useScreenToast';
+import { useErrorHandler } from '../../context/ErrorHandlerContext';
+import { useMountedRef } from '../../hooks/useMountedRef';
 import { useFocusEffect } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store';
+import StorageService from '../../services/StorageService';
+import { SecureStoreKeys } from '../../constants/secureStoreKeys';
+import {
+  globalSalarySettingsKey,
+  salarySettingsKey,
+} from '../../utils/salaryStorageKeys';
 import { useAuth } from '../../context/AuthContext';
 import { User } from '../../types/user';
 import { colors } from '../../constants/colors';
@@ -26,7 +33,7 @@ import {
   getGlobalFullShiftRate,
   buildRatesFromFullShift,
 } from '../../utils/salaryRateHelpers';
-import { pushPvzSalarySettings, pullPvzSalaryFromServer } from '../../services/SupabaseSalarySettingsService';
+import { pushPvzSalarySettings, pullPvzSalaryFromServer } from '../../services/SalarySettingsSyncService';
 import DataService from '../../services/DataService';
 import { safeParseJson } from '../../utils/safeJson';
 import { userBelongsToPvz } from '../../utils/chatHelpers';
@@ -60,11 +67,17 @@ interface EmployeeSalary {
   displayValue: string;
 }
 
-export default function SalarySettingsScreen({ navigation }: any) {
+import type { RootStackScreenProps } from '../../navigation/types';
+
+type Props = RootStackScreenProps<'SalarySettings'>;
+
+export default function SalarySettingsScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const { user, pvz, userPvzs } = useAuth();
   const { ui } = useThemedScreen();
   const { showError, showSuccess } = useScreenToast();
+  const { handleError } = useErrorHandler();
+  const mountedRef = useMountedRef();
   const [refreshing, setRefreshing] = useState(false);
   const [employees, setEmployees] = useState<EmployeeSalary[]>([]);
   const [globalFullShiftRate, setGlobalFullShiftRate] = useState('3000');
@@ -78,12 +91,18 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
   const saveTimeouts = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const pendingValues = useRef<{ [key: string]: number }>({});
-  const mountedRef = useRef(true);
+
+  const requireSelectedPvzId = useCallback((): string | null => {
+    const pvzId = selectedPvzId?.trim();
+    if (!pvzId) {
+      showError(t('alerts.validation.selectPvz'));
+      return null;
+    }
+    return pvzId;
+  }, [selectedPvzId, showError, t]);
 
   useEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
       Object.values(saveTimeouts.current).forEach(clearTimeout);
       saveTimeouts.current = {};
       pendingValues.current = {};
@@ -105,10 +124,12 @@ export default function SalarySettingsScreen({ navigation }: any) {
   const loadPvzWorkHours = async (pvzId: string) => {
     try {
       const hours = await getPvzWorkHours(pvzId);
+      if (!mountedRef.current) return hours;
       setPvzWorkHours(hours);
       return hours;
     } catch (error) {
-      console.error('Ошибка загрузки часов работы:', error);
+      if (!mountedRef.current) return pvzWorkHours;
+      handleError(error, { fallbackKey: 'alerts.network.loadFailed' });
       return pvzWorkHours;
     }
   };
@@ -121,7 +142,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
     try {
       await pullPvzSalaryFromServer(selectedPvzId);
 
-      const usersRaw = await SecureStore.getItemAsync('pvz_users');
+      const usersRaw = await StorageService.getItem(SecureStoreKeys.pvzUsers);
       const users = safeParseJson<User[]>(usersRaw ?? '[]', []);
       const selectedPvz =
         userPvzs?.find((p) => p.id === selectedPvzId) ??
@@ -134,11 +155,12 @@ export default function SalarySettingsScreen({ navigation }: any) {
           userBelongsToPvz(u, selectedPvz)
       );
 
-      const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
+      const salarySettingsRaw = await StorageService.getItem(salarySettingsKey(selectedPvzId));
       const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
 
       const globalFullShiftRateTemp = await getGlobalFullShiftRate(selectedPvzId);
 
+      if (!mountedRef.current) return;
       setGlobalFullShiftRate(globalFullShiftRateTemp.toString());
 
       const employeesWithSalary: EmployeeSalary[] = employeesList.map((emp: any) => {
@@ -160,7 +182,8 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
       setEmployees(employeesWithSalary);
     } catch (error) {
-      console.error('Ошибка загрузки настроек зарплаты:', error);
+      if (!mountedRef.current) return;
+      handleError(error, { fallbackKey: 'alerts.network.loadFailed' });
     }
   };
 
@@ -183,6 +206,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
   );
 
   const saveGlobalSettings = async () => {
+    const pvzId = requireSelectedPvzId();
+    if (!pvzId) return;
+
     setLoading(true);
     try {
       const fullRate = parseFloat(globalFullShiftRate);
@@ -202,8 +228,8 @@ export default function SalarySettingsScreen({ navigation }: any) {
         updatedAt: new Date().toISOString(),
       };
       
-      await SecureStore.setItemAsync(`global_salary_settings_${selectedPvzId}`, JSON.stringify(globalSettings));
-      await pushPvzSalarySettings(selectedPvzId);
+      await StorageService.setItem(globalSalarySettingsKey(pvzId), JSON.stringify(globalSettings));
+      await pushPvzSalarySettings(pvzId);
       
       setEmployees(prev => prev.map(emp => {
         if (!emp.isCustom) {
@@ -237,6 +263,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
           text: t('common.actions.apply'),
           style: 'destructive',
           onPress: async () => {
+            const pvzId = requireSelectedPvzId();
+            if (!pvzId) return;
+
             setLoading(true);
             try {
               const fullRate = parseFloat(globalFullShiftRate);
@@ -250,10 +279,10 @@ export default function SalarySettingsScreen({ navigation }: any) {
                 hourlyRate: hourlyRate,
                 updatedAt: new Date().toISOString(),
               };
-              await SecureStore.setItemAsync(`global_salary_settings_${selectedPvzId}`, JSON.stringify(globalSettings));
+              await StorageService.setItem(globalSalarySettingsKey(pvzId), JSON.stringify(globalSettings));
               
-              await SecureStore.deleteItemAsync(`salary_settings_${selectedPvzId}`);
-              await pushPvzSalarySettings(selectedPvzId);
+              await StorageService.deleteItem(salarySettingsKey(pvzId));
+              await pushPvzSalarySettings(pvzId);
               
               setEmployees(prev => prev.map(emp => ({
                 ...emp,
@@ -277,6 +306,9 @@ export default function SalarySettingsScreen({ navigation }: any) {
   };
 
   const performSave = async (employeeId: string, value: number) => {
+    const pvzId = requireSelectedPvzId();
+    if (!pvzId) return;
+
     if (!Number.isFinite(value) || value <= 0) {
       showError(t('alerts.validation.positiveRate'));
       return;
@@ -284,7 +316,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
     setSavingEmployeeId(employeeId);
     try {
-      const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
+      const salarySettingsRaw = await StorageService.getItem(salarySettingsKey(pvzId));
       const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
       
       const derived = buildRatesFromFullShift(value, pvzWorkHours.totalHours);
@@ -296,8 +328,8 @@ export default function SalarySettingsScreen({ navigation }: any) {
         updatedAt: new Date().toISOString(),
       };
       
-      await SecureStore.setItemAsync(`salary_settings_${selectedPvzId}`, JSON.stringify(salarySettings));
-      await pushPvzSalarySettings(selectedPvzId);
+      await StorageService.setItem(salarySettingsKey(pvzId), JSON.stringify(salarySettings));
+      await pushPvzSalarySettings(pvzId);
       
       setEmployees(prev => prev.map(emp => {
         if (emp.id === employeeId) {
@@ -398,16 +430,19 @@ export default function SalarySettingsScreen({ navigation }: any) {
         {
           text: t('common.actions.reset'),
           onPress: async () => {
+            const pvzId = requireSelectedPvzId();
+            if (!pvzId) return;
+
             try {
               const globalFullRate = parseFloat(globalFullShiftRate);
               const derived = buildRatesFromFullShift(globalFullRate, pvzWorkHours.totalHours);
-              const salarySettingsRaw = await SecureStore.getItemAsync(`salary_settings_${selectedPvzId}`);
+              const salarySettingsRaw = await StorageService.getItem(salarySettingsKey(pvzId));
               const salarySettings = safeParseJson<Record<string, EmployeeSalarySetting>>(salarySettingsRaw ?? '{}', {});
               
               delete salarySettings[employeeId];
               
-              await SecureStore.setItemAsync(`salary_settings_${selectedPvzId}`, JSON.stringify(salarySettings));
-              await pushPvzSalarySettings(selectedPvzId);
+              await StorageService.setItem(salarySettingsKey(pvzId), JSON.stringify(salarySettings));
+              await pushPvzSalarySettings(pvzId);
               
               setEmployees(prev => prev.map(emp => {
                 if (emp.id === employeeId) {
@@ -435,10 +470,13 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (selectedPvzId) {
-      await reloadAll(selectedPvzId);
+    try {
+      if (selectedPvzId) {
+        await reloadAll(selectedPvzId);
+      }
+    } finally {
+      if (mountedRef.current) setRefreshing(false);
     }
-    setRefreshing(false);
   };
 
   const formatCurrency = (value: number) => {
@@ -682,17 +720,7 @@ export default function SalarySettingsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 20,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-  },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   saveButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 
   pvzSelectorContainer: { marginHorizontal: 16, marginTop: 16, position: 'relative', zIndex: 10 },
   pvzSelectorButton: {
