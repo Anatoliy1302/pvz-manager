@@ -22,14 +22,11 @@ import { useOnboardingStyles } from './useOnboardingStyles';
 import OnboardingSlideContent from './components/OnboardingSlideContent';
 import OnboardingPagination from './components/OnboardingPagination';
 import GdprConsentBanner from '../../components/legal/GdprConsentBanner';
+import type { RootStackScreenProps } from '../../navigation/types';
 
 const { width } = Dimensions.get('window');
 
-interface OnboardingScreenProps {
-  navigation: {
-    replace: (screen: string) => void;
-  };
-}
+type OnboardingScreenProps = RootStackScreenProps<'Onboarding'>;
 
 export default function OnboardingScreen({ navigation }: OnboardingScreenProps) {
   const { t } = useTranslation();
