@@ -12,12 +12,14 @@ const {
 } = require('./smsService');
 const { normalizePhone, isValidRuPhone, staffPlaceholderEmail } = require('./phoneUtils');
 const { authMiddleware } = require('./middleware/auth');
+const { authRateLimiter } = require('./middleware/authRateLimit');
 const {
   initSubscriptionSchema,
   enrichSyncSnapshot,
   registerSubscriptionRoutes,
 } = require('./subscription');
 const { mergeSyncSnapshotPayload } = require('./snapshotMerge');
+const { canManageEmployeesOnPvz } = require('./pvzAccess');
 const {
   initChatSchema,
   registerChatRoutes,
@@ -25,6 +27,9 @@ const {
 } = require('./chat');
 const { registerScheduleRoutes } = require('./schedule');
 const { registerPvzFinanceRoutes } = require('./pvzFinance');
+const { registerPvzSwapRoutes } = require('./pvzSwaps');
+const { assertCanWriteShiftRequests } = require('./shiftRequestAccess');
+const { assertCanWriteAdvanceRequests } = require('./advanceRequestAccess');
 
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
@@ -188,6 +193,8 @@ async function findPendingInvitations(phone, role) {
 initDB().catch((err) => console.error('DB init failed:', err.message));
 
 // --- Auth ---
+
+app.use('/api/auth', authRateLimiter);
 
 function normalizeEmail(email) {
   return String(email || '')
@@ -582,12 +589,8 @@ app.post('/api/invitations', authMiddleware, async (req, res) => {
     }
 
     const normalized = normalizePhone(phone);
-    const pvz = await pool.query(
-      'SELECT id FROM pvz_points WHERE id = $1 AND owner_id = $2',
-      [pvzId, req.user.id]
-    );
-    if (!pvz.rows.length) {
-      return res.status(404).json({ error: 'PVZ not found' });
+    if (!(await canManageEmployeesOnPvz(pool, req.user.id, pvzId))) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     await pool.query(
@@ -621,8 +624,13 @@ app.patch('/api/invitations/:id', authMiddleware, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Invitation not found' });
 
     const invitation = rows[0];
-    if (status === 'expired' && invitation.invited_by !== req.user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
+    if (status === 'expired') {
+      const canExpire =
+        invitation.invited_by === req.user.id ||
+        (await canManageEmployeesOnPvz(pool, req.user.id, invitation.pvz_id));
+      if (!canExpire) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
     }
 
     await pool.query('UPDATE invitations SET status = $1 WHERE id = $2', [status, req.params.id]);
@@ -1071,6 +1079,51 @@ app.post('/api/sync', authMiddleware, async (req, res) => {
       [req.user.id]
     );
     const existingPayload = existingRows[0]?.payload ?? {};
+
+    if (Array.isArray(payload.shift_requests)) {
+      try {
+        const existingShiftRequests = Array.isArray(existingPayload.shift_requests)
+          ? existingPayload.shift_requests
+          : [];
+        await assertCanWriteShiftRequests(
+          pool,
+          req.user.id,
+          existingShiftRequests,
+          payload.shift_requests
+        );
+      } catch (e) {
+        if (e.status === 403) {
+          return res.status(403).json({ success: false, errors: ['Forbidden'] });
+        }
+        if (e.status === 400) {
+          return res.status(400).json({ success: false, errors: [e.message] });
+        }
+        throw e;
+      }
+    }
+
+    if (Array.isArray(payload.advance_requests)) {
+      try {
+        const existingAdvanceRequests = Array.isArray(existingPayload.advance_requests)
+          ? existingPayload.advance_requests
+          : [];
+        await assertCanWriteAdvanceRequests(
+          pool,
+          req.user.id,
+          existingAdvanceRequests,
+          payload.advance_requests
+        );
+      } catch (e) {
+        if (e.status === 403) {
+          return res.status(403).json({ success: false, errors: ['Forbidden'] });
+        }
+        if (e.status === 400) {
+          return res.status(400).json({ success: false, errors: [e.message] });
+        }
+        throw e;
+      }
+    }
+
     const mergedPayload = mergeSyncSnapshotPayload(existingPayload, payload);
 
     await pool.query(
@@ -1099,6 +1152,7 @@ registerScheduleRoutes(app, pool, authMiddleware);
 
 // --- PVZ salary & finance (shared via owner snapshot) ---
 registerPvzFinanceRoutes(app, pool, authMiddleware);
+registerPvzSwapRoutes(app, pool, authMiddleware);
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok' });

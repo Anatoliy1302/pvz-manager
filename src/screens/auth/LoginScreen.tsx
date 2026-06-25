@@ -36,6 +36,7 @@ import { useLoginStyles } from './useLoginStyles';
 
 import { useLoginFlow } from './useLoginFlow';
 import { isStaffRole } from '../../types/user';
+import type { RootStackScreenProps } from '../../navigation/types';
 
 import LoginLoadingView from './components/LoginLoadingView';
 
@@ -63,7 +64,7 @@ import { colors } from '../../constants/colors';
 
 
 
-export default function LoginScreen(_props: { navigation: unknown }) {
+export default function LoginScreen(_props: RootStackScreenProps<'Login'>) {
 
   const { t } = useTranslation();
 
